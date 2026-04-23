@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en" style="height: 100%;">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Fidra</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@500;600;700&family=IBM+Plex+Mono:wght@400&family=IBM+Plex+Sans:wght@400;500&display=swap" rel="stylesheet" />
+    <script>
+      // Apply dark class based on OS preference before first paint
+      if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        document.documentElement.classList.add('dark');
+      }
+      window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
+        document.documentElement.classList.toggle('dark', e.matches);
+      });
+    </script>
+  </head>
+  <body style="margin: 0; height: 100vh;">
+    <div id="root" style="height: 100%;"></div>
+    <script type="module" src="/src/renderer/main.tsx"></script>
+  </body>
+</html>

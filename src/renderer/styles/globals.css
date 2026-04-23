@@ -1,0 +1,293 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:is(.dark *));
+
+/* ============================================
+   Fidra Design System — Colour Tokens
+   ============================================ */
+
+@theme {
+  /* --- Brand Colours --- */
+  --color-fidra-navy: #313E50;
+  --color-fidra-slate: #455561;
+  --color-fidra-teal: #89B0AE;
+  --color-fidra-cream: #E3E4DB;
+  --color-fidra-blue-border: #156082;
+
+  /* --- Semantic Colours (light mode) --- */
+  --color-fidra-positive: #2D8A6E;
+  --color-fidra-negative: #C0392B;
+  --color-fidra-warning: #D4A03C;
+  --color-fidra-info: #156082;
+
+  /* --- Typography --- */
+  --font-display: 'DM Sans', system-ui, sans-serif;
+  --font-body: 'IBM Plex Sans', system-ui, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+
+  /* --- Light Mode Surfaces & Tokens --- */
+  --color-surface-base: #F2F2EC;
+  --color-surface-raised: #FFFFFF;
+  --color-surface-overlay: #FFFFFF;
+  --color-surface-inset: #E8E8E1;
+  --color-border-subtle: #D5D5CD;
+  --color-border-emphasis: #B0B0A6;
+
+  /* --- Tailwind/shadcn semantic mapping (light) --- */
+  --color-background: #F2F2EC;
+  --color-foreground: #313E50;
+
+  --color-card: #FFFFFF;
+  --color-card-foreground: #313E50;
+
+  --color-popover: #FFFFFF;
+  --color-popover-foreground: #313E50;
+
+  --color-primary: #89B0AE;
+  --color-primary-foreground: #313E50;
+
+  --color-secondary: #E8E8E1;
+  --color-secondary-foreground: #313E50;
+
+  --color-muted: #E8E8E1;
+  --color-muted-foreground: #455561;
+
+  --color-accent: #89B0AE;
+  --color-accent-foreground: #313E50;
+
+  --color-destructive: #C0392B;
+  --color-destructive-foreground: #FFFFFF;
+
+  --color-border: #D5D5CD;
+  --color-input: #D5D5CD;
+  --color-ring: #89B0AE;
+
+  --color-sidebar-background: #FFFFFF;
+  --color-sidebar-foreground: #455561;
+  --color-sidebar-primary: #89B0AE;
+  --color-sidebar-primary-foreground: #313E50;
+  --color-sidebar-accent: rgba(137, 176, 174, 0.12);
+  --color-sidebar-accent-foreground: #313E50;
+  --color-sidebar-border: #D5D5CD;
+  --color-sidebar-ring: #89B0AE;
+
+  --radius-lg: 12px;
+  --radius-md: 8px;
+  --radius-sm: 6px;
+}
+
+/* ============================================
+   Dark Mode Overrides
+   ============================================ */
+
+@layer base {
+  .dark {
+    /* Semantic (dark mode) */
+    --color-fidra-positive: #6EC9A8;
+    --color-fidra-negative: #E87C73;
+    --color-fidra-warning: #E8C468;
+    --color-fidra-info: #89B0AE;
+
+    /* Surfaces */
+    --color-surface-base: #1E2A36;
+    --color-surface-raised: #263240;
+    --color-surface-overlay: #2E3D4C;
+    --color-surface-inset: #182430;
+    --color-border-subtle: #344454;
+    --color-border-emphasis: #455561;
+
+    /* shadcn mapping */
+    --color-background: #1E2A36;
+    --color-foreground: #E3E4DB;
+
+    --color-card: #263240;
+    --color-card-foreground: #E3E4DB;
+
+    --color-popover: #2E3D4C;
+    --color-popover-foreground: #E3E4DB;
+
+    --color-primary: #89B0AE;
+    --color-primary-foreground: #1E2A36;
+
+    --color-secondary: #263240;
+    --color-secondary-foreground: #E3E4DB;
+
+    --color-muted: #263240;
+    --color-muted-foreground: #89B0AE;
+
+    --color-accent: rgba(137, 176, 174, 0.12);
+    --color-accent-foreground: #E3E4DB;
+
+    --color-destructive: #E87C73;
+    --color-destructive-foreground: #1E2A36;
+
+    --color-border: #344454;
+    --color-input: #344454;
+    --color-ring: rgba(137, 176, 174, 0.3);
+
+    --color-sidebar-background: #263240;
+    --color-sidebar-foreground: #89B0AE;
+    --color-sidebar-primary: #89B0AE;
+    --color-sidebar-primary-foreground: #1E2A36;
+    --color-sidebar-accent: rgba(137, 176, 174, 0.12);
+    --color-sidebar-accent-foreground: #E3E4DB;
+    --color-sidebar-border: #344454;
+    --color-sidebar-ring: #89B0AE;
+  }
+}
+
+/* ============================================
+   Base Layer
+   ============================================ */
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: var(--font-body);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-display);
+  }
+
+  /* Tabular numbers for amounts */
+  .font-mono, .tabular-nums {
+    font-feature-settings: 'tnum';
+  }
+
+  /* Focus ring override — teal, not browser blue */
+  :focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px var(--color-ring);
+  }
+}
+
+/* ============================================
+   Utility Classes
+   ============================================ */
+
+@layer utilities {
+  .font-display {
+    font-family: var(--font-display);
+  }
+  .font-body {
+    font-family: var(--font-body);
+  }
+
+  /* Transition helpers */
+  .transition-fidra {
+    transition-property: color, background-color, border-color, box-shadow, opacity, transform;
+    transition-duration: 150ms;
+    transition-timing-function: ease;
+  }
+
+  /* Focus ring for rows — applied via DOM to avoid React re-renders */
+  [data-row-focused] {
+    box-shadow: inset 0 0 0 2px color-mix(in oklch, var(--color-fidra-teal) 40%, transparent);
+  }
+  [data-row-focused-faded] {
+    box-shadow: inset 0 0 0 2px color-mix(in oklch, var(--color-gray-400) 40%, transparent);
+  }
+  .dark [data-row-focused-faded] {
+    box-shadow: inset 0 0 0 2px color-mix(in oklch, var(--color-gray-500) 30%, transparent);
+  }
+
+  /* Selected row highlight — applied via DOM to avoid React re-renders */
+  [data-row-selected] {
+    background-color: color-mix(in oklch, var(--color-fidra-teal) 12%, transparent) !important;
+    border-left: 2px solid var(--color-fidra-teal) !important;
+  }
+  .dark [data-row-selected] {
+    background-color: color-mix(in oklch, var(--color-fidra-teal) 20%, transparent) !important;
+  }
+
+  /* Approve stamp animation */
+  @keyframes checkStamp {
+    0%   { transform: scale(0) rotate(-20deg); opacity: 0; }
+    50%  { transform: scale(1.3) rotate(5deg); opacity: 1; }
+    70%  { transform: scale(0.9) rotate(-2deg); opacity: 1; }
+    100% { transform: scale(1) rotate(0deg); opacity: 0; }
+  }
+
+  @keyframes approveFlash {
+    0%   { background-color: inherit; }
+    30%  { background-color: color-mix(in oklch, var(--color-fidra-positive) 20%, transparent); }
+    100% { background-color: inherit; }
+  }
+
+  tr[data-row-just-approved] {
+    animation: approveFlash 800ms ease-out forwards;
+  }
+
+  /* Reject stamp animation */
+  @keyframes rejectStamp {
+    0%   { transform: scale(0) translateX(-10px); opacity: 0; }
+    15%  { transform: scale(1.3) translateX(10px); opacity: 1; }
+    30%  { transform: scale(0.9) translateX(-5px); opacity: 1; }
+    45%  { transform: scale(1.1) translateX(5px); opacity: 1; }
+    60%  { transform: scale(1) translateX(0); opacity: 1; }
+    100% { transform: scale(1) translateX(0); opacity: 0; }
+  }
+
+  @keyframes rejectFlash {
+    0%   { background-color: inherit; }
+    30%  { background-color: color-mix(in oklch, var(--color-fidra-negative) 20%, transparent); }
+    100% { background-color: inherit; }
+  }
+
+  tr[data-row-just-rejected] {
+    animation: rejectFlash 800ms ease-out forwards;
+  }
+
+  /* Delete sweep animation */
+  @keyframes deleteSlide {
+    0%   { transform: translateX(0); opacity: 1; max-height: 48px; }
+    70%  { transform: translateX(60%); opacity: 0; max-height: 48px; }
+    100% { transform: translateX(60%); opacity: 0; max-height: 0; padding-top: 0; padding-bottom: 0; }
+  }
+
+  [data-row-deleting] {
+    animation: deleteSlide 400ms ease-in forwards;
+    overflow: hidden;
+    pointer-events: none;
+  }
+
+  /* New row entrance animation */
+  @keyframes newRowEntrance {
+    0%   { transform: translateY(-10px); opacity: 0;
+           background-color: color-mix(in oklch, var(--color-fidra-teal) 30%, transparent); }
+    50%  { transform: translateY(0); opacity: 1;
+           background-color: color-mix(in oklch, var(--color-fidra-teal) 30%, transparent); }
+    100% { transform: translateY(0); opacity: 1; background-color: inherit; }
+  }
+
+  [data-row-new] {
+    animation: newRowEntrance 600ms ease-out forwards;
+  }
+
+  /* View transition — fade-in on route change */
+  @keyframes viewFadeIn {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
+  .view-enter {
+    animation: viewFadeIn 150ms ease-out;
+  }
+
+  /* Dim selected row highlight when table loses focus */
+  [data-table-unfocused] [data-row-selected] {
+    background-color: color-mix(in oklch, var(--color-gray-400) 12%, transparent) !important;
+    border-left-color: var(--color-gray-400) !important;
+  }
+  .dark [data-table-unfocused] [data-row-selected] {
+    background-color: color-mix(in oklch, var(--color-gray-500) 15%, transparent) !important;
+    border-left-color: var(--color-gray-500) !important;
+  }
+}
+
