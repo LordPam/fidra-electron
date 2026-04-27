@@ -11,21 +11,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # Create the GitHub Release first, then build both platforms in parallel
-  create-release:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - name: Create Release
-        uses: softprops/action-gh-release@v2
-        with:
-          draft: false
-          prerelease: false
-          generate_release_notes: true
-
   build:
-    needs: create-release
     strategy:
       fail-fast: false
       matrix:
@@ -38,7 +24,7 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     permissions:
-      contents: write # Required to upload to GitHub Releases
+      contents: write # Required to create/upload GitHub Releases
 
     steps:
       - name: Checkout
