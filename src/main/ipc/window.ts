@@ -73,7 +73,7 @@ export function registerWindowHandlers(): void {
     markFirstRunComplete();
   });
 
-  ipcMain.handle('window:create', async (_event, dbPath?: unknown) => {
+  ipcMain.handle('window:create', async (event, dbPath?: unknown) => {
     const validPath = dbPath != null ? z.string().parse(dbPath) : undefined;
     try {
       const wm = getWindowManager();
@@ -83,7 +83,31 @@ export function registerWindowHandlers(): void {
       }
       return { success: true };
     } catch (e) {
-      return { success: false, error: String(e) };
+      const errMsg = e instanceof Error ? e.message : String(e);
+      if (validPath && (errMsg.includes('unable to open database') || errMsg.includes('ENOENT') || errMsg.includes('EACCES'))) {
+        const win = BrowserWindow.fromWebContents(event.sender) ?? BrowserWindow.getFocusedWindow();
+        const result = await dialog.showOpenDialog(win ?? BrowserWindow.getAllWindows()[0], {
+          title: 'Re-open Database (macOS requires re-selection)',
+          defaultPath: path.dirname(validPath),
+          filters: [
+            { name: 'Fidra Database', extensions: ['fdra', 'db', 'sqlite'] },
+            { name: 'All Files', extensions: ['*'] },
+          ],
+          properties: ['openFile'],
+        });
+        if (!result.canceled && result.filePaths.length > 0) {
+          try {
+            const wm2 = getWindowManager();
+            const ctx2 = await wm2.createWindow(result.filePaths[0]);
+            wm2.markStartupComplete(ctx2.window.webContents.id);
+            return { success: true };
+          } catch (e2) {
+            return { success: false, error: String(e2) };
+          }
+        }
+        return { success: false, error: 'File selection canceled' };
+      }
+      return { success: false, error: errMsg };
     }
   });
 
@@ -145,7 +169,7 @@ export function registerWindowHandlers(): void {
     return loadGlobalSettings().recentFiles;
   });
 
-  ipcMain.handle('window:openRecent', async (_event, filePath: unknown) => {
+  ipcMain.handle('window:openRecent', async (event, filePath: unknown) => {
     const validPath = z.string().parse(filePath);
     try {
       const wm = getWindowManager();
@@ -153,7 +177,33 @@ export function registerWindowHandlers(): void {
       wm.markStartupComplete(ctx.window.webContents.id);
       return { success: true };
     } catch (e) {
-      return { success: false, error: String(e) };
+      const errMsg = e instanceof Error ? e.message : String(e);
+      // If the file can't be opened (macOS permission / iCloud not materialised),
+      // prompt the user to re-select via native dialog which grants OS-level access.
+      if (errMsg.includes('unable to open database') || errMsg.includes('ENOENT') || errMsg.includes('EACCES')) {
+        const win = BrowserWindow.fromWebContents(event.sender) ?? BrowserWindow.getFocusedWindow();
+        const result = await dialog.showOpenDialog(win ?? BrowserWindow.getAllWindows()[0], {
+          title: 'Re-open Database (macOS requires re-selection)',
+          defaultPath: path.dirname(validPath),
+          filters: [
+            { name: 'Fidra Database', extensions: ['fdra', 'db', 'sqlite'] },
+            { name: 'All Files', extensions: ['*'] },
+          ],
+          properties: ['openFile'],
+        });
+        if (!result.canceled && result.filePaths.length > 0) {
+          try {
+            const wm2 = getWindowManager();
+            const ctx2 = await wm2.createWindow(result.filePaths[0]);
+            wm2.markStartupComplete(ctx2.window.webContents.id);
+            return { success: true };
+          } catch (e2) {
+            return { success: false, error: String(e2) };
+          }
+        }
+        return { success: false, error: 'File selection canceled' };
+      }
+      return { success: false, error: errMsg };
     }
   });
 
@@ -206,7 +256,32 @@ export function registerWindowHandlers(): void {
       if (reloading) wm.markStartupComplete(wcId);
       return { success: true, reloading };
     } catch (e) {
-      return { success: false, reloading: false, error: String(e) };
+      const errMsg = e instanceof Error ? e.message : String(e);
+      if (errMsg.includes('unable to open database') || errMsg.includes('ENOENT') || errMsg.includes('EACCES')) {
+        const win = BrowserWindow.fromWebContents(event.sender) ?? BrowserWindow.getFocusedWindow();
+        const result = await dialog.showOpenDialog(win ?? BrowserWindow.getAllWindows()[0], {
+          title: 'Re-open Database (macOS requires re-selection)',
+          defaultPath: path.dirname(validPath),
+          filters: [
+            { name: 'Fidra Database', extensions: ['fdra', 'db', 'sqlite'] },
+            { name: 'All Files', extensions: ['*'] },
+          ],
+          properties: ['openFile'],
+        });
+        if (!result.canceled && result.filePaths.length > 0) {
+          try {
+            const wcId = event.sender.id;
+            const wm2 = getWindowManager();
+            const reloading = await wm2.switchWindowToFile(wcId, result.filePaths[0]);
+            if (reloading) wm2.markStartupComplete(wcId);
+            return { success: true, reloading };
+          } catch (e2) {
+            return { success: false, reloading: false, error: String(e2) };
+          }
+        }
+        return { success: false, reloading: false, error: 'File selection canceled' };
+      }
+      return { success: false, reloading: false, error: errMsg };
     }
   });
 

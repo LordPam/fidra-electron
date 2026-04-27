@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 import Database from 'better-sqlite3';
-import { extensionPath } from '@vlcn.io/crsqlite';
+import { crsqliteExtensionPath as extensionPath } from './native-paths';
 import { isCrrInitialized } from '../sync/crr-schema';
 
 const SCHEMA_DDL = `

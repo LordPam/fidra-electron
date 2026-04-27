@@ -1,5 +1,5 @@
 import type Database from 'better-sqlite3';
-import { extensionPath } from '@vlcn.io/crsqlite';
+import { crsqliteExtensionPath as extensionPath } from '../database/native-paths';
 
 /** All tables that participate in Local Sync (registered as CRRs). */
 export const SYNCED_TABLES = [

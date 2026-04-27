@@ -83,6 +83,7 @@ export class WindowManager {
       height: 800,
       minWidth: 900,
       minHeight: 600,
+      show: false,
       title: `Fidra — ${path.basename(normalized)}`,
       webPreferences: {
         preload: path.join(__dirname, 'preload.js'),
@@ -90,6 +91,18 @@ export class WindowManager {
         nodeIntegration: false,
       },
     });
+
+    // Show window once renderer has painted, with a fallback timeout
+    // in case ready-to-show never fires (e.g. loadFile fails silently).
+    let shown = false;
+    const showOnce = () => {
+      if (shown || win.isDestroyed()) return;
+      shown = true;
+      win.show();
+      win.focus();
+    };
+    win.once('ready-to-show', showOnce);
+    const showTimeout = setTimeout(showOnce, 5000);
 
     // Prevent Shift+Enter (or links) from opening blank windows
     win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
@@ -105,6 +118,7 @@ export class WindowManager {
 
     // Clean up on close
     win.on('closed', () => {
+      clearTimeout(showTimeout);
       ctx.close().catch((e) => console.error('[WINDOW] Close cleanup error:', e));
       this.contexts.delete(wcId);
       this.dbPathIndex.delete(normalized);
@@ -116,12 +130,17 @@ export class WindowManager {
     // calls localAuth:getAuthStatus via IPC.
     this.autoStartLocalSync(ctx);
 
-    if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
-      await win.loadURL(MAIN_WINDOW_VITE_DEV_SERVER_URL);
-    } else {
-      await win.loadFile(
-        path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`),
-      );
+    try {
+      if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
+        await win.loadURL(MAIN_WINDOW_VITE_DEV_SERVER_URL);
+      } else {
+        const indexPath = path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`);
+        console.log('[WINDOW] Loading renderer from:', indexPath);
+        await win.loadFile(indexPath);
+      }
+    } catch (e) {
+      console.error('[WINDOW] Failed to load renderer:', e);
+      showOnce(); // Show the window anyway so user sees something
     }
 
     return ctx;
@@ -148,6 +167,7 @@ export class WindowManager {
       height: 800,
       minWidth: 900,
       minHeight: 600,
+      show: false,
       title: `Fidra — ${config.name} (Cloud)`,
       webPreferences: {
         preload: path.join(__dirname, 'preload.js'),
@@ -155,6 +175,17 @@ export class WindowManager {
         nodeIntegration: false,
       },
     });
+
+    // Show window once renderer has painted, with a fallback timeout
+    let shown = false;
+    const showOnce = () => {
+      if (shown || win.isDestroyed()) return;
+      shown = true;
+      win.show();
+      win.focus();
+    };
+    win.once('ready-to-show', showOnce);
+    const showTimeout = setTimeout(showOnce, 5000);
 
     // Prevent Shift+Enter (or links) from opening blank windows
     win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
@@ -168,6 +199,7 @@ export class WindowManager {
 
     // Clean up on close
     win.on('closed', () => {
+      clearTimeout(showTimeout);
       ctx.close().catch((e) => console.error('[WINDOW] Close cleanup error:', e));
       this.contexts.delete(wcId);
       this.dbPathIndex.delete(cachePath);
@@ -178,12 +210,17 @@ export class WindowManager {
     // Auto-start Local Sync BEFORE loading the renderer (same reason as createWindow)
     this.autoStartLocalSync(ctx);
 
-    if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
-      await win.loadURL(MAIN_WINDOW_VITE_DEV_SERVER_URL);
-    } else {
-      await win.loadFile(
-        path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`),
-      );
+    try {
+      if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
+        await win.loadURL(MAIN_WINDOW_VITE_DEV_SERVER_URL);
+      } else {
+        const indexPath = path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`);
+        console.log('[WINDOW] Loading renderer from:', indexPath);
+        await win.loadFile(indexPath);
+      }
+    } catch (e) {
+      console.error('[WINDOW] Failed to load renderer:', e);
+      showOnce();
     }
 
     // Auto-connect to cloud after window loads

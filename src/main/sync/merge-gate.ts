@@ -70,28 +70,33 @@ function getLocalChange(
 }
 
 /**
- * Check if the local database has concurrent edits for an entity that conflict
- * with an incoming delete. "Concurrent" means the local edit's col_version is
- * >= the delete's col_version — the deleter couldn't have seen it.
+ * Check if this device has made edits to the entity that haven't been exported
+ * yet — meaning the deleting peer couldn't have seen them (truly concurrent).
  *
- * Local edits with lower col_version are sequential — the deleter saw them
- * and chose to delete anyway. Those are safe to auto-merge.
+ * Key fix: only considers changes from OUR site_id. Previously-imported changes
+ * from other peers are not concurrent — the deleter already saw them (they were
+ * synced before the delete). The old approach checked `site_id IS NOT [deleter]`
+ * which false-positived on creation/edit changes from other peers.
+ *
+ * Uses db_version > lastExportedVersion as the concurrency threshold: changes
+ * we haven't exported yet are invisible to all other peers.
  */
 function hasConcurrentLocalEdits(
   db: Database.Database,
   table: string,
   pk: string,
-  remoteSiteId: Buffer,
-  deleteColVersion: number,
+  localSiteId: Buffer | undefined,
+  lastExportedVersion: number,
 ): boolean {
+  if (!localSiteId) return false;
   const row = db
     .prepare(
       `SELECT COUNT(*) AS cnt
        FROM crsql_changes
-       WHERE "table" = ? AND "pk" = ? AND "site_id" IS NOT ?
-       AND "cid" != ? AND "col_version" >= ?`,
+       WHERE "table" = ? AND "pk" = ? AND "site_id" = ?
+       AND "cid" != ? AND "db_version" > ?`,
     )
-    .get(table, pk, remoteSiteId, CRSQL_DELETE_SENTINEL, deleteColVersion) as { cnt: number } | undefined;
+    .get(table, pk, localSiteId, CRSQL_DELETE_SENTINEL, lastExportedVersion) as { cnt: number } | undefined;
   return (row?.cnt ?? 0) > 0;
 }
 
@@ -168,6 +173,7 @@ export function classifyChangesets(
   db: Database.Database,
   incoming: CrChangesetRow[],
   localSiteId?: Buffer,
+  lastExportedVersion = 0,
 ): MergeGateResult {
   const autoMerge: CrChangesetRow[] = [];
   const conflicts: PendingConflict[] = [];
@@ -189,7 +195,7 @@ export function classifyChangesets(
         continue;
       }
 
-      if (hasConcurrentLocalEdits(db, row.table, row.pk, row.site_id, row.col_version)) {
+      if (hasConcurrentLocalEdits(db, row.table, row.pk, localSiteId, lastExportedVersion)) {
         // Delete-vs-edit conflict — only show on one peer (deterministic tiebreaker).
         // The peer with the lower site_id "owns" the conflict; the other auto-merges.
         if (localSiteId && Buffer.compare(localSiteId, row.site_id) >= 0) {

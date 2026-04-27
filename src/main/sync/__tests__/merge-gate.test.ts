@@ -406,11 +406,54 @@ describe('classifyChangesets — conflicts', () => {
     const delMarker = deleteChanges.filter((c) => c.cid === CRSQL_DELETE_SENTINEL);
     expect(delMarker.length).toBeGreaterThan(0);
 
-    const result = classifyChangesets(localDb, delMarker);
+    // lastExportedVersion = 0 means our local edit hasn't been exported yet,
+    // so the deleting peer couldn't have seen it → true concurrent conflict
+    const result = classifyChangesets(localDb, delMarker, localSiteId, 0);
     expect(result.conflicts).toHaveLength(1);
     expect(result.conflicts[0].fieldName).toBe(CRSQL_DELETE_SENTINEL);
     expect(result.conflicts[0].remoteValue).toBe('DELETE');
     expect(result.conflicts[0].remoteSiteId).toBe(remoteSiteId.toString('hex'));
+  });
+
+  test('delete auto-merges when local edits were already exported', () => {
+    // Create tx on REMOTE
+    remoteDb.prepare(
+      `INSERT INTO transactions (id, amount) VALUES ('tx-1', 100)`,
+    ).run();
+
+    // Sync creation to local
+    const creation = exportChanges(remoteDb, 0);
+    for (const c of creation) {
+      localDb.prepare(
+        `INSERT INTO crsql_changes ("table","pk","cid","val","col_version","db_version","site_id","cl","seq")
+         VALUES (?,?,?,?,?,?,?,?,?)`,
+      ).run(c.table, c.pk, c.cid, c.val, c.col_version, c.db_version, c.site_id, c.cl, c.seq);
+    }
+
+    // Local edits the tx
+    localDb.prepare(
+      `UPDATE transactions SET amount = 150 WHERE id = 'tx-1'`,
+    ).run();
+
+    // Capture the db_version AFTER the local edit — pretend we exported it
+    const localDbVersion = (
+      localDb.prepare('SELECT MAX(db_version) as v FROM crsql_changes').get() as { v: number }
+    ).v;
+
+    // Remote deletes the tx
+    const remoteVersionBeforeDelete = (
+      remoteDb.prepare('SELECT MAX(db_version) as v FROM crsql_changes').get() as { v: number }
+    ).v;
+    remoteDb.prepare(`DELETE FROM transactions WHERE id = 'tx-1'`).run();
+
+    const deleteChanges = exportChanges(remoteDb, remoteVersionBeforeDelete);
+    const delMarker = deleteChanges.filter((c) => c.cid === CRSQL_DELETE_SENTINEL);
+
+    // lastExportedVersion = localDbVersion means our edit WAS exported,
+    // so the deleting peer should have seen it → auto-merge (no conflict)
+    const result = classifyChangesets(localDb, delMarker, localSiteId, localDbVersion);
+    expect(result.conflicts).toHaveLength(0);
+    expect(result.autoMerge.length).toBeGreaterThan(0);
   });
 
   test('edit-vs-edit on status field', () => {

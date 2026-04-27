@@ -1,23 +1,47 @@
-import { app, BrowserWindow, session } from 'electron';
+import { app, BrowserWindow, session, dialog } from 'electron';
 import path from 'node:path';
+import fs from 'node:fs';
 import started from 'electron-squirrel-startup';
 import { updateElectronApp, UpdateSourceType } from 'update-electron-app';
+
+// ─── Startup diagnostic log (written to file since no terminal in Finder) ───
+const DIAG_LOG = path.join(
+  process.env.HOME ?? '/tmp',
+  '.fidra',
+  'startup-diag.log',
+);
+function diag(msg: string): void {
+  const line = `[${new Date().toISOString()}] ${msg}\n`;
+  try {
+    fs.appendFileSync(DIAG_LOG, line);
+  } catch { /* ignore */ }
+  console.log('[DIAG]', msg);
+}
+diag(`Process started — argv: ${process.argv.join(' ')}`);
 import { WindowManager, setWindowManager, getWindowManager } from './window/window-manager';
 import { loadGlobalSettings } from './window/global-settings';
 import { registerAllHandlers } from './ipc/register-all';
 import { buildMenu } from './menu/app-menu';
 
+diag(`electron-squirrel-startup = ${started}`);
 if (started) {
+  diag('Quitting due to squirrel startup');
   app.quit();
 }
 
 updateElectronApp({
   updateSource: {
     type: UpdateSourceType.ElectronPublicUpdateService,
-    repo: 'OWNER/fidra-web',
+    repo: 'LordPam/fidra-electron',
   },
   updateInterval: '1 hour',
   notifyUser: true,
+  logger: {
+    log: (...args: unknown[]) => console.log('[updater]', ...args),
+    info: (...args: unknown[]) => console.log('[updater]', ...args),
+    warn: (...args: unknown[]) => {},   // suppress "no releases" warnings
+    error: (...args: unknown[]) => {},  // suppress "invalid response" errors (no releases yet)
+  },
 });
 
 // Register fidra:// deep link protocol (for OAuth callbacks)
@@ -32,7 +56,9 @@ if (process.defaultApp) {
 
 // Single instance lock (Windows/Linux deep link handling)
 const gotTheLock = app.requestSingleInstanceLock();
+diag(`Single instance lock acquired: ${gotTheLock}`);
 if (!gotTheLock) {
+  diag('Quitting — another instance has the lock');
   app.quit();
 } else {
   app.on('second-instance', (_event, argv) => {
@@ -102,6 +128,7 @@ function getDefaultDbPath(): string {
 declare const MAIN_WINDOW_VITE_DEV_SERVER_URL: string | undefined;
 
 app.on('ready', async () => {
+  diag('app.ready fired');
   // ─── Content Security Policy ────────────────────────────────────
   const isDev = !!MAIN_WINDOW_VITE_DEV_SERVER_URL;
   const csp = [
@@ -135,9 +162,29 @@ app.on('ready', async () => {
   registerAllHandlers();
   buildMenu();
 
-  const settings = loadGlobalSettings();
-  const dbPath = settings.lastFile ?? getDefaultDbPath();
-  await getWindowManager().createWindow(dbPath);
+  try {
+    const settings = loadGlobalSettings();
+    const dbPath = settings.lastFile ?? getDefaultDbPath();
+    diag(`Creating window for: ${dbPath}`);
+    try {
+      await getWindowManager().createWindow(dbPath);
+    } catch (e) {
+      // If the saved lastFile can't be opened (e.g. iCloud not materialised,
+      // file moved/deleted), fall back to the default database path.
+      const fallback = getDefaultDbPath();
+      if (dbPath !== fallback) {
+        diag(`Failed to open ${dbPath}, falling back to ${fallback}: ${e instanceof Error ? e.message : String(e)}`);
+        await getWindowManager().createWindow(fallback);
+      } else {
+        throw e;
+      }
+    }
+    diag('Window created successfully');
+  } catch (e) {
+    const msg = e instanceof Error ? e.stack ?? e.message : String(e);
+    diag(`FAILED to create window: ${msg}`);
+    dialog.showErrorBox('Fidra Startup Error', msg);
+  }
 });
 
 app.on('window-all-closed', () => {
@@ -148,8 +195,24 @@ app.on('window-all-closed', () => {
 
 app.on('activate', async () => {
   if (BrowserWindow.getAllWindows().length === 0) {
-    const settings = loadGlobalSettings();
-    const dbPath = settings.lastFile ?? getDefaultDbPath();
-    await getWindowManager().createWindow(dbPath);
+    try {
+      const settings = loadGlobalSettings();
+      const dbPath = settings.lastFile ?? getDefaultDbPath();
+      try {
+        await getWindowManager().createWindow(dbPath);
+      } catch (e) {
+        const fallback = getDefaultDbPath();
+        if (dbPath !== fallback) {
+          diag(`activate: fallback to ${fallback}: ${e instanceof Error ? e.message : String(e)}`);
+          await getWindowManager().createWindow(fallback);
+        } else {
+          throw e;
+        }
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.stack ?? e.message : String(e);
+      diag(`activate: FAILED: ${msg}`);
+      dialog.showErrorBox('Fidra Startup Error', msg);
+    }
   }
 });

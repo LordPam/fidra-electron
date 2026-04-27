@@ -446,7 +446,7 @@ export class SyncOrchestrator {
 
           // Classify and apply (pass local siteId for deterministic tiebreaker —
           // ensures only ONE peer shows a conflict screen for any concurrent edit)
-          const mergeResult = classifyChangesets(this.db, filtered, this.siteId ?? undefined);
+          const mergeResult = classifyChangesets(this.db, filtered, this.siteId ?? undefined, this.lastExportedVersion);
           applyMergeResult(this.db, mergeResult, this.conflictQueue, unpacked.bundleId);
 
           // Record as applied
