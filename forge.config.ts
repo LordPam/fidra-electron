@@ -178,7 +178,7 @@ const config: ForgeConfig = {
         name: 'fidra-electron',
       },
       prerelease: false,
-      draft: false,
+      draft: true,
     }),
   ],
   plugins: [
