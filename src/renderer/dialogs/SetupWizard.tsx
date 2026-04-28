@@ -4,6 +4,8 @@ import { Button } from '@/components/ui/button';
 import { CloudServerDialog } from './CloudServerDialog';
 import { JoinLocalSyncDialog } from './JoinLocalSyncDialog';
 import type { CloudServerConfig } from '../../shared/ipc-types';
+import logoLight from '@/assets/logo-light.svg';
+import logoDark from '@/assets/logo-dark.svg';
 
 interface SetupWizardProps {
   onComplete: () => void;
@@ -84,8 +86,9 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
     return (
       <div className="flex h-screen w-full items-center justify-center bg-surface">
         <div className="flex flex-col items-center gap-6 px-8">
-          <div className="flex h-24 w-24 items-center justify-center rounded-2xl bg-fidra-navy text-4xl font-bold text-fidra-gold">
-            F
+          <div className="flex h-24 w-24 items-center justify-center">
+            <img src={logoLight} alt="Fidra" className="h-24 w-24 object-contain dark:hidden" />
+            <img src={logoDark} alt="Fidra" className="hidden h-24 w-24 object-contain dark:block" />
           </div>
           <div className="text-center">
             <h1 className="font-display text-3xl font-semibold text-foreground">

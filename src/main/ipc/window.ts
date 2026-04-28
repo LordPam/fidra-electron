@@ -129,8 +129,11 @@ export function registerWindowHandlers(): void {
     const filePath = result.filePaths[0];
     try {
       const wm = getWindowManager();
-      const ctx = await wm.createWindow(filePath);
-      wm.markStartupComplete(ctx.window.webContents.id);
+      // Switch the current window to the chosen file instead of creating a
+      // second window. This avoids the first-run bug where the default
+      // fidra.db is opened before the user picks their own file.
+      await wm.switchWindowToFile(event.sender.id, filePath);
+      wm.markStartupComplete(event.sender.id);
       return { filePath, canceled: false };
     } catch (e) {
       return { filePath: null, canceled: false };
@@ -157,8 +160,10 @@ export function registerWindowHandlers(): void {
 
     try {
       const wm = getWindowManager();
-      const ctx = await wm.createWindow(result.filePath);
-      wm.markStartupComplete(ctx.window.webContents.id);
+      // Switch the current window instead of creating a new one (avoids
+      // orphan default fidra.db on first run).
+      await wm.switchWindowToFile(event.sender.id, result.filePath);
+      wm.markStartupComplete(event.sender.id);
       return { filePath: result.filePath, canceled: false };
     } catch (e) {
       return { filePath: null, canceled: false };

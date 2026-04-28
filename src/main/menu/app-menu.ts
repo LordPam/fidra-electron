@@ -166,6 +166,12 @@ export function buildMenu(): void {
       { type: 'separator' },
       { role: 'resetZoom' },
       { role: 'zoomIn' },
+      {
+        label: 'Zoom In (Plus)',
+        accelerator: 'CommandOrControl+Shift+=',
+        visible: false,
+        click: (_mi, win) => { if (win) win.webContents.zoomLevel += 0.5; },
+      },
       { role: 'zoomOut' },
       { type: 'separator' },
       { role: 'togglefullscreen' },

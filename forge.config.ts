@@ -9,7 +9,6 @@ import { VitePlugin } from '@electron-forge/plugin-vite';
 import { FusesPlugin } from '@electron-forge/plugin-fuses';
 import { FuseV1Options, FuseVersion } from '@electron/fuses';
 import path from 'node:path';
-import { execSync } from 'node:child_process';
 import fs from 'fs-extra';
 
 // Native/external modules that Vite externalises and must be copied into the package
@@ -79,73 +78,11 @@ const config: ForgeConfig = {
       };
       fs.writeJsonSync(buildPkgPath, buildPkg, { spaces: 2 });
     },
-    postPackage: async (_forgeConfig, options) => {
-      if (process.platform !== 'darwin') return;
-
-      // Find the .app bundle in the output directory
-      const outDir = options.outputPaths[0];
-      const appEntry = fs.readdirSync(outDir).find((f: string) => f.endsWith('.app'));
-      if (!appEntry) { console.warn('[SIGN] No .app found in', outDir); return; }
-      const appPath = path.join(outDir, appEntry);
-      const projectDir = path.resolve(__dirname);
-      const entitlements = path.join(projectDir, 'entitlements.mac.plist');
-      const inheritEntitlements = path.join(projectDir, 'entitlements.mac.inherit.plist');
-
-      console.log('[SIGN] Ad-hoc signing', appPath);
-
-      // iCloud Drive continuously adds resource forks that codesign rejects.
-      // Copy to /tmp (outside iCloud), sign there, copy back.
-      const tmpApp = path.join('/tmp', `fidra-sign-${Date.now()}`, appEntry);
-      fs.mkdirSync(path.dirname(tmpApp), { recursive: true });
-      // Use ditto to copy without resource forks
-      execSync(`ditto "${appPath}" "${tmpApp}"`, { stdio: 'pipe' });
-      execSync(`xattr -cr "${tmpApp}"`, { stdio: 'pipe' });
-
-      // Sign all nested binaries first (inside-out signing is required)
-      const findBinaries = (dir: string): string[] => {
-        const results: string[] = [];
-        for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-          const full = path.join(dir, entry.name);
-          if (entry.isDirectory()) {
-            if (entry.name.endsWith('.framework') || entry.name.endsWith('.app')) {
-              results.push(full);
-            } else {
-              results.push(...findBinaries(full));
-            }
-          } else if (entry.isFile()) {
-            if (entry.name.endsWith('.dylib') || entry.name.endsWith('.node') || entry.name.endsWith('.so')) {
-              results.push(full);
-            }
-          }
-        }
-        return results;
-      };
-
-      const nestedBinaries = findBinaries(tmpApp);
-      for (const bin of nestedBinaries) {
-        const ent = bin.includes('Helper') ? inheritEntitlements : entitlements;
-        try {
-          execSync(`codesign --force --sign - --entitlements "${ent}" "${bin}"`, { stdio: 'pipe' });
-        } catch {
-          // Some files may not need signing
-        }
-      }
-
-      // Sign the main app bundle last
-      execSync(
-        `codesign --force --sign - --entitlements "${entitlements}" "${tmpApp}"`,
-        { stdio: 'inherit' },
-      );
-
-      // Verify
-      const result = execSync(`codesign -dv --entitlements - "${tmpApp}" 2>&1`, { encoding: 'utf-8' });
-      console.log('[SIGN] Verification:', result.substring(0, 300));
-
-      // Copy signed app back
-      fs.removeSync(appPath);
-      execSync(`ditto "${tmpApp}" "${appPath}"`, { stdio: 'pipe' });
-      fs.removeSync(path.dirname(tmpApp));
-    },
+    // Ad-hoc code signing removed: Squirrel.Mac rejects updates when ad-hoc
+    // signatures don't match between builds. Unsigned apps skip signature
+    // validation entirely, allowing auto-updates to work without an Apple
+    // Developer certificate. Entitlements (JIT, library validation) are only
+    // enforced under hardened runtime, which unsigned apps don't use.
     postMake: async (_forgeConfig, makeResults: ForgeMakeResult[]) => {
       // 1. Rename user-facing installer artifacts to stable names
       //    so GitHub "latest" URLs work: /releases/latest/download/Fidra-macOS.dmg
