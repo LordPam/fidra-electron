@@ -44,6 +44,7 @@ import { BundleIntegrityError, BundleCryptoError } from './bundle-crypto';
 import { BundleFormatError } from './bundle-format';
 import { syncLog, errorMessage } from './sync-log';
 import { findLatestSnapshot } from './bundle-io';
+import { getAttachmentStoragePath } from '../database/connection';
 import {
   compactBundles,
   shouldAutoSnapshot,
@@ -60,6 +61,8 @@ export interface SyncOrchestratorOptions {
   passphrase: string;
   deviceId: string;
   dbPath?: string;
+  /** Stable per-database UUID for attachment storage path resolution. */
+  databaseId?: string;
   /** Name of the person using this device (embedded in bundles for notifications). */
   personName?: string;
   onDataChanged?: (tables: string[]) => void;
@@ -108,6 +111,7 @@ export class SyncOrchestrator {
   private readonly passphrase: string;
   private readonly deviceId: string;
   private readonly dbPath: string | null;
+  private readonly databaseId: string | null;
   private readonly personName: string | null;
   private readonly exportDebounceMs: number;
   private readonly versionPollMs: number;
@@ -153,6 +157,7 @@ export class SyncOrchestrator {
     this.passphrase = options.passphrase;
     this.deviceId = options.deviceId;
     this.dbPath = options.dbPath ?? null;
+    this.databaseId = options.databaseId ?? null;
     this.personName = options.personName ?? null;
     this.exportDebounceMs = options.exportDebounceMs ?? 2000;
     this.versionPollMs = options.versionPollMs ?? 1000;
@@ -789,9 +794,9 @@ export class SyncOrchestrator {
    * Looks for attachment table changes with stored_name column.
    */
   private exportNewAttachments(changesets: CrChangesetRow[]): number {
-    if (!this.dbPath) return 0;
+    if (!this.databaseId) return 0;
 
-    const attachmentDir = path.join(path.dirname(this.dbPath), 'fidra_attachments');
+    const attachmentDir = getAttachmentStoragePath(this.databaseId);
     let count = 0;
 
     for (const row of changesets) {
@@ -819,9 +824,9 @@ export class SyncOrchestrator {
    * Only imports files where the metadata row exists in our attachments table.
    */
   private importNewAttachments(): number {
-    if (!this.dbPath) return 0;
+    if (!this.databaseId) return 0;
 
-    const attachmentDir = path.join(path.dirname(this.dbPath), 'fidra_attachments');
+    const attachmentDir = getAttachmentStoragePath(this.databaseId);
     let count = 0;
 
     const remoteNames = listRemoteAttachments(this.syncFolder);

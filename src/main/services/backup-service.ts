@@ -4,6 +4,7 @@ import crypto from 'node:crypto';
 import type Database from 'better-sqlite3';
 import type { SettingsRepo } from '../database/settings-repo';
 import type { BackupMetadata, BackupListItem, BackupSettings } from '../../shared/ipc-types';
+import { getAttachmentStoragePath } from '../database/connection';
 
 const DEFAULT_RETENTION = 10;
 const ATTACHMENTS_FOLDER = 'fidra_attachments';
@@ -74,6 +75,7 @@ export function saveBackupSettings(settingsRepo: SettingsRepo, settings: BackupS
 export async function createBackup(
   db: Database.Database,
   dbPath: string,
+  databaseId: string,
   trigger: BackupMetadata['trigger'],
   settings?: BackupSettings,
 ): Promise<BackupListItem> {
@@ -95,8 +97,8 @@ export async function createBackup(
 
   const dbSize = fs.statSync(destDb).size;
 
-  // Copy attachments folder if it exists
-  const attachmentsSrc = path.join(path.dirname(dbPath), ATTACHMENTS_FOLDER);
+  // Copy attachments folder if it exists (new location: ~/.fidra/attachments/<databaseId>/)
+  const attachmentsSrc = getAttachmentStoragePath(databaseId);
   let attachmentsCount = 0;
   let attachmentsSize = 0;
   if (fs.existsSync(attachmentsSrc)) {
@@ -160,6 +162,7 @@ export function listBackups(dbPath: string, settings?: BackupSettings): BackupLi
 export async function restoreBackup(
   db: Database.Database,
   dbPath: string,
+  databaseId: string,
   backupPath: string,
   settingsRepo: SettingsRepo,
 ): Promise<{ success: boolean; error?: string }> {
@@ -173,7 +176,7 @@ export async function restoreBackup(
   // Create pre-restore safety backup
   try {
     const settings = getBackupSettings(settingsRepo);
-    await createBackup(db, dbPath, 'pre-restore', settings);
+    await createBackup(db, dbPath, databaseId, 'pre-restore', settings);
   } catch (e) {
     return { success: false, error: `Failed to create safety backup: ${e instanceof Error ? e.message : String(e)}` };
   }
@@ -187,11 +190,12 @@ export async function restoreBackup(
 
     // Replace attachments if backup has them
     const backupAttachments = path.join(backupPath, ATTACHMENTS_FOLDER);
-    const localAttachments = path.join(path.dirname(dbPath), ATTACHMENTS_FOLDER);
+    const localAttachments = getAttachmentStoragePath(databaseId);
     if (fs.existsSync(backupAttachments)) {
       if (fs.existsSync(localAttachments)) {
         fs.rmSync(localAttachments, { recursive: true, force: true });
       }
+      fs.mkdirSync(path.dirname(localAttachments), { recursive: true });
       fs.cpSync(backupAttachments, localAttachments, { recursive: true });
     }
 

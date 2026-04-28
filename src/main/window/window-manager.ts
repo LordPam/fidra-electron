@@ -76,7 +76,7 @@ export class WindowManager {
       return this.contexts.get(wcId)!;
     }
 
-    const sqlite = openDatabase(normalized);
+    const { db: sqlite, databaseId } = openDatabase(normalized);
 
     const win = new BrowserWindow({
       width: 1280,
@@ -113,7 +113,7 @@ export class WindowManager {
     // Prevent Shift+Enter (or links) from opening blank windows
     win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
 
-    const ctx = new WindowContext(win, normalized, sqlite);
+    const ctx = new WindowContext(win, normalized, databaseId, sqlite);
     const wcId = win.webContents.id;
 
     this.contexts.set(wcId, ctx);
@@ -166,7 +166,7 @@ export class WindowManager {
 
     ensureCloudCacheDir();
     const cachePath = getCloudCachePath(serverId);
-    const sqlite = openDatabase(cachePath);
+    const { db: sqlite, databaseId } = openDatabase(cachePath);
 
     const win = new BrowserWindow({
       width: 1280,
@@ -200,7 +200,7 @@ export class WindowManager {
     // Prevent Shift+Enter (or links) from opening blank windows
     win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
 
-    const ctx = new WindowContext(win, cachePath, sqlite, serverId);
+    const ctx = new WindowContext(win, cachePath, databaseId, sqlite, serverId);
     const wcId = win.webContents.id;
 
     this.contexts.set(wcId, ctx);
@@ -505,6 +505,7 @@ export class WindowManager {
         passphrase,
         deviceId: identity.deviceId,
         dbPath: ctx.dbPath,
+        databaseId: ctx.databaseId,
         personName: ctx.localAuthPersonnel?.name ?? undefined,
         onDataChanged: (tables) => {
           ctx.sendToRenderer('localSync:dataChanged', { tables });
@@ -697,8 +698,8 @@ export class WindowManager {
     if (oldServerId) this.serverIdIndex.delete(oldServerId);
 
     // Create new context for the same window
-    const sqlite = openDatabase(normalized);
-    const newCtx = new WindowContext(win, normalized, sqlite);
+    const { db: sqlite, databaseId } = openDatabase(normalized);
+    const newCtx = new WindowContext(win, normalized, databaseId, sqlite);
 
     this.contexts.set(webContentsId, newCtx);
     this.dbPathIndex.set(normalized, webContentsId);
@@ -778,8 +779,8 @@ export class WindowManager {
     // Create new context for cloud
     ensureCloudCacheDir();
     const cachePath = getCloudCachePath(serverId);
-    const sqlite = openDatabase(cachePath);
-    const newCtx = new WindowContext(win, cachePath, sqlite, serverId);
+    const { db: sqlite, databaseId } = openDatabase(cachePath);
+    const newCtx = new WindowContext(win, cachePath, databaseId, sqlite, serverId);
 
     this.contexts.set(webContentsId, newCtx);
     this.dbPathIndex.set(cachePath, webContentsId);

@@ -58,6 +58,7 @@ import { createBackup, getBackupSettings } from '../services/backup-service';
 
 export class WindowContext {
   readonly dbPath: string;
+  readonly databaseId: string;
   readonly sqlite: Database.Database;
   readonly window: BrowserWindow;
   readonly serverId: string | null;
@@ -133,9 +134,10 @@ export class WindowContext {
   /** Retention purge timer handle — cleared on close. */
   private _retentionTimer: ReturnType<typeof setInterval> | null = null;
 
-  constructor(win: BrowserWindow, dbPath: string, sqlite: Database.Database, serverId?: string) {
+  constructor(win: BrowserWindow, dbPath: string, databaseId: string, sqlite: Database.Database, serverId?: string) {
     this.window = win;
     this.dbPath = dbPath;
+    this.databaseId = databaseId;
     this.sqlite = sqlite;
     this.serverId = serverId ?? null;
     this.isCloudWindow = !!serverId;
@@ -397,7 +399,7 @@ export class WindowContext {
     try {
       const backupSettings = getBackupSettings(this.settingsRepo);
       if (backupSettings.autoBackupOnClose) {
-        await createBackup(this.sqlite, this.dbPath, 'auto-close', backupSettings);
+        await createBackup(this.sqlite, this.dbPath, this.databaseId, 'auto-close', backupSettings);
       }
     } catch { /* never block shutdown */ }
     this.sqlite.close();

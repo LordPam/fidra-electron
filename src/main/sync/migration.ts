@@ -61,7 +61,7 @@ export function joinLocalSync(opts: JoinLocalSyncOpts): MigrationResult {
     }
 
     // Create fresh database (schema DDL + migrations run automatically)
-    const db = openDatabase(newDbPath);
+    const { db } = openDatabase(newDbPath);
 
     try {
       // Register CRR tables
@@ -157,7 +157,7 @@ export function migrateCloudToLocalSync(opts: MigrateCloudToLocalSyncOpts): Migr
     fs.copyFileSync(sourceDbPath, newDbPath);
 
     // Open copied database (migrations run, schema up to date)
-    const db = openDatabase(newDbPath);
+    const { db } = openDatabase(newDbPath);
 
     try {
       // Clean up cloud-specific settings

@@ -240,6 +240,7 @@ function startLocalSyncAfterAuth(ctx: import('../window/window-context').WindowC
       passphrase: ctx.localSyncPassphrase,
       deviceId: identity.deviceId,
       dbPath: ctx.dbPath,
+      databaseId: ctx.databaseId,
       personName: ctx.localAuthPersonnel?.name ?? undefined,
       onDataChanged: (tables) => {
         ctx.sendToRenderer('localSync:dataChanged', { tables });

@@ -83,6 +83,7 @@ export function registerLocalSyncHandlers(): void {
         passphrase: effectivePassphrase,
         deviceId: identity.deviceId,
         dbPath: ctx.dbPath,
+        databaseId: ctx.databaseId,
         personName: ctx.localAuthPersonnel?.name ?? undefined,
         onDataChanged: (tables) => {
           ctx.sendToRenderer('localSync:dataChanged', { tables });
@@ -402,7 +403,7 @@ export function registerLocalSyncHandlers(): void {
 
       if (result.success && result.newDbPath) {
         // Open the newly created DB to set the joiner's password
-        const db = openDatabase(result.newDbPath);
+        const { db } = openDatabase(result.newDbPath);
         try {
           const personnelRepo = new PersonnelRepo(db);
           const setResult = LocalAuthService.setPasswordForPersonnel(

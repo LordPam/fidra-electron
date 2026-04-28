@@ -1,4 +1,7 @@
 import crypto from 'node:crypto';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import Database from 'better-sqlite3';
 import { crsqliteExtensionPath as extensionPath } from './native-paths';
 import { isCrrInitialized } from '../sync/crr-schema';
@@ -642,7 +645,12 @@ function migrateCrrUniqueConstraints(sqlite: Database.Database): void {
   }
 }
 
-export function openDatabase(dbPath: string): Database.Database {
+export interface OpenDatabaseResult {
+  db: Database.Database;
+  databaseId: string;
+}
+
+export function openDatabase(dbPath: string): OpenDatabaseResult {
   const sqlite = new Database(dbPath);
   sqlite.pragma('journal_mode = WAL');
   sqlite.pragma('foreign_keys = ON');
@@ -653,5 +661,55 @@ export function openDatabase(dbPath: string): Database.Database {
   sqlite.loadExtension(extensionPath);
   sqlite.exec(SCHEMA_DDL);
   runMigrations(sqlite);
-  return sqlite;
+
+  const databaseId = getOrCreateDatabaseId(sqlite);
+  migrateAttachmentsIfNeeded(dbPath, databaseId);
+
+  return { db: sqlite, databaseId };
+}
+
+/**
+ * Read or create a stable per-database UUID stored in sync_meta.
+ * Every database (standalone, Cloud Connect, Local Sync) gets one on first open.
+ */
+function getOrCreateDatabaseId(sqlite: Database.Database): string {
+  const row = sqlite.prepare("SELECT value FROM sync_meta WHERE key = 'database.id'").get() as
+    | { value: string }
+    | undefined;
+  if (row?.value) return row.value;
+
+  const id = crypto.randomUUID();
+  sqlite
+    .prepare(
+      "INSERT INTO sync_meta (key, value) VALUES ('database.id', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+    )
+    .run(id);
+  return id;
+}
+
+/**
+ * One-time migration: move legacy sibling `fidra_attachments/` folder
+ * to the stable `~/.fidra/attachments/<databaseId>/` location.
+ */
+function migrateAttachmentsIfNeeded(dbPath: string, databaseId: string): void {
+  const legacyDir = path.join(path.dirname(dbPath), 'fidra_attachments');
+  if (!fs.existsSync(legacyDir)) return;
+
+  const newDir = path.join(os.homedir(), '.fidra', 'attachments', databaseId);
+  fs.mkdirSync(newDir, { recursive: true });
+  // Copy legacy contents into new location (cpSync merges into existing dir)
+  fs.cpSync(legacyDir, newDir, { recursive: true, force: false });
+
+  // Remove legacy folder after successful copy
+  try {
+    fs.rmSync(legacyDir, { recursive: true, force: true });
+    console.log(`[DB] Migrated attachments from ${legacyDir} to ${newDir}`);
+  } catch (e) {
+    console.warn('[DB] Failed to remove legacy attachment folder:', e);
+  }
+}
+
+/** Resolve the attachment storage directory for a given database ID. */
+export function getAttachmentStoragePath(databaseId: string): string {
+  return path.join(os.homedir(), '.fidra', 'attachments', databaseId);
 }

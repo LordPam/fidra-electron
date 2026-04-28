@@ -15,7 +15,7 @@ export function registerBackupHandlers(): void {
   ipcMain.handle('backup:create', async (event) => {
     const ctx = resolveContext(event);
     const settings = getBackupSettings(ctx.settingsRepo);
-    return await createBackup(ctx.sqlite, ctx.dbPath, 'manual', settings);
+    return await createBackup(ctx.sqlite, ctx.dbPath, ctx.databaseId, 'manual', settings);
   });
 
   ipcMain.handle('backup:list', (event) => {
@@ -27,7 +27,7 @@ export function registerBackupHandlers(): void {
   ipcMain.handle('backup:restore', async (event, backupPath: unknown) => {
     const validPath = backupPathSchema.parse(backupPath);
     const ctx = resolveContext(event);
-    const result = await restoreBackup(ctx.sqlite, ctx.dbPath, validPath, ctx.settingsRepo);
+    const result = await restoreBackup(ctx.sqlite, ctx.dbPath, ctx.databaseId, validPath, ctx.settingsRepo);
     if (result.success) {
       // Reload the window with the restored database
       const wm = getWindowManager();

@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import { shell } from 'electron';
 import type { AttachmentRow } from '../../shared/ipc-types';
 import type { WindowContext } from '../window/window-context';
+import { getAttachmentStoragePath } from '../database/connection';
 
 const MIME_MAP: Record<string, string> = {
   '.pdf': 'application/pdf',
@@ -42,7 +43,7 @@ function sanitizeStoredName(storedName: string): string {
 }
 
 function getStorageDir(ctx: WindowContext): string {
-  const dir = path.join(path.dirname(ctx.dbPath), 'fidra_attachments');
+  const dir = getAttachmentStoragePath(ctx.databaseId);
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
   }
