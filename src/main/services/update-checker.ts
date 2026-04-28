@@ -1,5 +1,17 @@
-import { app, BrowserWindow, dialog, shell } from 'electron';
+import { app, BrowserWindow, ipcMain, shell } from 'electron';
 import https from 'node:https';
+import type { UpdateInfo } from '../../shared/ipc-types';
+
+const RELEASES_URL = 'https://github.com/LordPam/fidra-electron/releases/latest';
+
+/** Cached release info so the install handler knows what to download. */
+let pendingUpdate: UpdateInfo | null = null;
+
+function sendToAllWindows(channel: string, data?: unknown): void {
+  for (const win of BrowserWindow.getAllWindows()) {
+    win.webContents.send(channel, data);
+  }
+}
 
 export function checkForUpdates(silent = true): void {
   if (process.defaultApp) {
@@ -24,8 +36,7 @@ export function checkForUpdates(silent = true): void {
         const latest = (release.tag_name as string).replace(/^v/, '');
         if (latest === currentVersion) {
           if (!silent) {
-            const win = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0];
-            if (win) dialog.showMessageBox(win, { type: 'info', title: 'No Updates', message: `You're on the latest version (v${currentVersion}).` });
+            sendToAllWindows('update:upToDate', currentVersion);
           }
           return;
         }
@@ -47,23 +58,48 @@ export function checkForUpdates(silent = true): void {
           downloadUrl = assets.find((a) => a.name.endsWith('Setup.exe'))?.browser_download_url;
         }
 
-        const win = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0];
-        if (!win) return;
-
-        dialog.showMessageBox(win, {
-          type: 'info',
-          title: 'Update Available',
-          message: `Fidra v${latest} is available (you have v${currentVersion}).`,
-          detail: release.body ? String(release.body).slice(0, 300) : undefined,
-          buttons: ['Download', 'Later'],
-          defaultId: 0,
-        }).then(({ response }) => {
-          if (response === 0) {
-            const url = downloadUrl ?? `https://github.com/LordPam/fidra-electron/releases/latest`;
-            shell.openExternal(url);
-          }
-        });
+        const info: UpdateInfo = {
+          version: latest,
+          currentVersion,
+          releaseNotes: release.body ? String(release.body).slice(0, 500) : null,
+          downloadUrl: downloadUrl ?? null,
+        };
+        pendingUpdate = info;
+        sendToAllWindows('update:available', info);
       } catch { /* ignore parse errors */ }
     });
   }).on('error', () => { /* ignore network errors */ });
+}
+
+// ─── Install ────────────────────────────────────────────────────────
+//
+// Current strategy: open the platform-specific download URL in the
+// default browser. The user downloads and installs manually (drag .app
+// to /Applications on macOS, run Setup.exe on Windows).
+//
+// TODO: Once packaging is set up (code signing, notarization), switch
+// to Electron's built-in autoUpdater (Squirrel.Mac / Squirrel.Windows)
+// which handles download, signature verification, privilege escalation,
+// and atomic app replacement automatically. That requires:
+//   1. Code-signed + notarized builds
+//   2. .zip assets published alongside .dmg (Squirrel.Mac needs zips)
+//   3. A Squirrel-compatible feed URL (update.electronjs.org for public
+//      GitHub repos, or a custom endpoint)
+//
+// At that point this entire function is replaced by:
+//   autoUpdater.setFeedURL({ url: feedUrl });
+//   autoUpdater.checkForUpdates();
+//   autoUpdater.on('update-downloaded', () => autoUpdater.quitAndInstall());
+
+async function openDownloadPage(): Promise<void> {
+  const url = pendingUpdate?.downloadUrl ?? RELEASES_URL;
+  await shell.openExternal(url);
+}
+
+// ─── IPC handler registration ───────────────────────────────────────
+
+export function registerUpdateHandlers(): void {
+  ipcMain.handle('app:installUpdate', async () => {
+    await openDownloadPage();
+  });
 }

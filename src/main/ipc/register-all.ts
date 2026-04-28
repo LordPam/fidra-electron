@@ -12,6 +12,7 @@ import { registerAuditHandlers } from './audit';
 import { registerLocalSyncHandlers } from './local-sync';
 import { registerLocalAuthHandlers } from './local-auth';
 import { registerBackupHandlers } from './backup';
+import { registerUpdateHandlers } from '../services/update-checker';
 
 export function registerAllHandlers(): void {
   registerAppHandlers();
@@ -28,4 +29,5 @@ export function registerAllHandlers(): void {
   registerLocalSyncHandlers();
   registerLocalAuthHandlers();
   registerBackupHandlers();
+  registerUpdateHandlers();
 }

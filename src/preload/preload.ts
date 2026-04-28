@@ -21,6 +21,7 @@ import type {
   SyncFolderValidation,
   BackupListItem,
   BackupSettings,
+  UpdateInfo,
 } from '../shared/ipc-types';
 import type { AuthSession, PersonnelRecord, PersonnelRole, LocalAuthStatus } from '../shared/auth-types';
 
@@ -412,6 +413,20 @@ const api = {
     const handler = (_event: unknown, notification: ImportNotification) => callback(notification);
     ipcRenderer.on('localSync:importSummary', handler);
     return () => ipcRenderer.removeListener('localSync:importSummary', handler);
+  },
+
+  // Update
+  installUpdate: (): Promise<void> =>
+    ipcRenderer.invoke('app:installUpdate'),
+  onUpdateAvailable: (callback: (info: UpdateInfo) => void): (() => void) => {
+    const handler = (_event: unknown, info: UpdateInfo) => callback(info);
+    ipcRenderer.on('update:available', handler);
+    return () => ipcRenderer.removeListener('update:available', handler);
+  },
+  onUpdateUpToDate: (callback: (version: string) => void): (() => void) => {
+    const handler = (_event: unknown, version: string) => callback(version);
+    ipcRenderer.on('update:upToDate', handler);
+    return () => ipcRenderer.removeListener('update:upToDate', handler);
   },
 };
 

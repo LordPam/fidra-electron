@@ -26,6 +26,7 @@ import { useInvoiceStore } from '@/stores/invoice-store';
 import { LocalSyncConflictDialog } from '@/dialogs/LocalSyncConflictDialog';
 import { WhileAwayDialog } from '@/dialogs/WhileAwayDialog';
 import { SyncToast } from '@/components/SyncToast';
+import { UpdateToast } from '@/components/UpdateToast';
 import { useAttachmentSignal } from '@/stores/attachment-signal';
 import type { ImportPersonSummary } from '../shared/ipc-types';
 
@@ -427,6 +428,7 @@ export function App() {
       <ConflictOverlay />
       <LocalSyncConflictOverlay />
       <SyncToast />
+      <UpdateToast />
       <WhileAwayWiring />
       <MenuCloudServerDialog />
       <div className="flex h-screen overflow-hidden">

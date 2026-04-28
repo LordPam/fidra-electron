@@ -210,6 +210,15 @@ export interface ImportNotification {
   isStartupCatchup: boolean;
 }
 
+// ─── Update types ───────────────────────────────────────────────────
+
+export interface UpdateInfo {
+  version: string;
+  currentVersion: string;
+  releaseNotes: string | null;
+  downloadUrl: string | null;
+}
+
 // ─── Backup types ───────────────────────────────────────────────────
 
 export interface BackupMetadata {
@@ -788,6 +797,12 @@ export interface IpcChannels {
   'localSync:migrateFromCloud': {
     args: [opts: { syncFolder: string; passphrase: string; newDbPath: string }];
     result: MigrationResult;
+  };
+
+  // Update
+  'app:installUpdate': {
+    args: [];
+    result: void;
   };
 }
 
