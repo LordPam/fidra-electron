@@ -4,6 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { getWindowManager } from '../window/window-manager';
 import { loadGlobalSettings, removeRecentFile } from '../window/global-settings';
+import { checkForUpdates } from '../services/update-checker';
 
 function buildCloudServersSubmenu(): MenuItemConstructorOptions[] {
   const settings = loadGlobalSettings();
@@ -190,6 +191,17 @@ export function buildMenu(): void {
             { role: 'front' } as MenuItemConstructorOptions,
           ]
         : []),
+    ],
+  });
+
+  // Help menu
+  template.push({
+    role: 'help',
+    submenu: [
+      {
+        label: 'Check for Updates…',
+        click: () => checkForUpdates(false),
+      },
     ],
   });
 

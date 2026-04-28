@@ -2,7 +2,6 @@ import { app, BrowserWindow, session, dialog } from 'electron';
 import path from 'node:path';
 import fs from 'node:fs';
 import started from 'electron-squirrel-startup';
-import { updateElectronApp, UpdateSourceType } from 'update-electron-app';
 
 // ─── Startup diagnostic log (written to file since no terminal in Finder) ───
 const DIAG_LOG = path.join(
@@ -29,20 +28,7 @@ if (started) {
   app.quit();
 }
 
-updateElectronApp({
-  updateSource: {
-    type: UpdateSourceType.ElectronPublicUpdateService,
-    repo: 'LordPam/fidra-electron',
-  },
-  updateInterval: '1 hour',
-  notifyUser: true,
-  logger: {
-    log: (...args: unknown[]) => console.log('[updater]', ...args),
-    info: (...args: unknown[]) => console.log('[updater]', ...args),
-    warn: (...args: unknown[]) => {},   // suppress "no releases" warnings
-    error: (...args: unknown[]) => {},  // suppress "invalid response" errors (no releases yet)
-  },
-});
+import { checkForUpdates } from './services/update-checker';
 
 // Register fidra:// deep link protocol (for OAuth callbacks)
 if (process.defaultApp) {
@@ -180,6 +166,9 @@ app.on('ready', async () => {
       }
     }
     diag('Window created successfully');
+
+    // Check for updates after a short delay so the window is fully loaded
+    setTimeout(checkForUpdates, 5000);
   } catch (e) {
     const msg = e instanceof Error ? e.stack ?? e.message : String(e);
     diag(`FAILED to create window: ${msg}`);
