@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { NavLink } from 'react-router-dom';
+import { NavLink, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard,
   ArrowLeftRight,
@@ -53,6 +53,7 @@ export function Sidebar() {
   const authMode = useAuthStore((s) => s.authMode);
   const signOut = useAuthStore((s) => s.signOut);
   const localSignOut = useAuthStore((s) => s.localSignOut);
+  const location = useLocation();
 
   useEffect(() => {
     loadDbInfo();
@@ -98,26 +99,27 @@ export function Sidebar() {
         </Select>
 
         <nav className="flex flex-1 flex-col items-center gap-1">
-          {navItems.map(({ to, icon: Icon, label }) => (
-            <Tooltip key={to}>
-              <TooltipTrigger asChild>
-                <NavLink
-                  to={to}
-                  className={({ isActive }) =>
-                    cn(
-                      'relative flex h-10 w-10 items-center justify-center rounded-md text-fidra-slate transition-fidra hover:bg-fidra-teal/10 hover:text-foreground',
-                      isActive && 'bg-fidra-teal/12 text-fidra-teal before:absolute before:left-0 before:top-1.5 before:bottom-1.5 before:w-[3px] before:rounded-r before:bg-fidra-teal'
-                    )
-                  }
-                >
-                  <Icon className="h-5 w-5" />
-                </NavLink>
-              </TooltipTrigger>
-              <TooltipContent side="right" className="font-display text-xs">
-                {label}
-              </TooltipContent>
-            </Tooltip>
-          ))}
+          {navItems.map(({ to, icon: Icon, label }) => {
+            const active = to === '/' ? location.pathname === '/' : location.pathname.startsWith(to);
+            return (
+              <Tooltip key={to}>
+                <TooltipTrigger asChild>
+                  <NavLink
+                    to={to}
+                    className={cn(
+                      'relative flex h-10 w-10 items-center justify-center rounded-md text-fidra-teal transition-fidra hover:bg-fidra-teal/10 hover:text-foreground',
+                      active && 'sidebar-nav-active'
+                    )}
+                  >
+                    <Icon className="h-5 w-5" />
+                  </NavLink>
+                </TooltipTrigger>
+                <TooltipContent side="right" className="font-display text-xs">
+                  {label}
+                </TooltipContent>
+              </Tooltip>
+            );
+          })}
         </nav>
 
         {/* Switch File */}
@@ -159,12 +161,10 @@ export function Sidebar() {
           <TooltipTrigger asChild>
             <NavLink
               to="/settings"
-              className={({ isActive }) =>
-                cn(
-                  'relative flex h-10 w-10 items-center justify-center rounded-md text-fidra-slate transition-fidra hover:bg-fidra-teal/10 hover:text-foreground',
-                  isActive && 'bg-fidra-teal/12 text-fidra-teal'
-                )
-              }
+              className={cn(
+                'relative flex h-10 w-10 items-center justify-center rounded-md text-fidra-slate transition-fidra hover:bg-fidra-teal/10 hover:text-foreground',
+                location.pathname === '/settings' && 'sidebar-nav-active'
+              )}
             >
               <Settings className="h-5 w-5" />
             </NavLink>

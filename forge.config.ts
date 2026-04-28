@@ -1,4 +1,4 @@
-import type { ForgeConfig } from '@electron-forge/shared-types';
+import type { ForgeConfig, ForgeMakeResult } from '@electron-forge/shared-types';
 import { MakerSquirrel } from '@electron-forge/maker-squirrel';
 import { MakerZIP } from '@electron-forge/maker-zip';
 import { MakerDMG } from '@electron-forge/maker-dmg';
@@ -146,9 +146,35 @@ const config: ForgeConfig = {
       execSync(`ditto "${tmpApp}" "${appPath}"`, { stdio: 'pipe' });
       fs.removeSync(path.dirname(tmpApp));
     },
-    postMake: async () => {
-      // Remove intermediate packaged app directories so Spotlight
-      // doesn't index them (the DMG/ZIP in out/make/ is the real output)
+    postMake: async (_forgeConfig, makeResults: ForgeMakeResult[]) => {
+      // 1. Rename user-facing installer artifacts to stable names
+      //    so GitHub "latest" URLs work: /releases/latest/download/Fidra-macOS.dmg
+      //    Auto-update files (ZIP, nupkg, RELEASES) keep original names.
+      const renameMap: Record<string, (original: string, arch: string) => string | null> = {
+        '.dmg': (_o, arch) => `Fidra-macOS${arch !== 'x64' ? `-${arch}` : ''}.dmg`,
+        'Setup.exe': () => 'Fidra-Windows-Setup.exe',
+      };
+
+      for (const result of makeResults) {
+        result.artifacts = result.artifacts.map((artifactPath) => {
+          const basename = path.basename(artifactPath);
+          for (const [suffix, nameFn] of Object.entries(renameMap)) {
+            if (basename.endsWith(suffix)) {
+              const newName = nameFn(basename, result.arch);
+              if (newName && newName !== basename) {
+                const newPath = path.join(path.dirname(artifactPath), newName);
+                fs.renameSync(artifactPath, newPath);
+                console.log(`[RENAME] ${basename} → ${newName}`);
+                return newPath;
+              }
+            }
+          }
+          return artifactPath;
+        });
+      }
+
+      // 2. Remove intermediate packaged app directories so Spotlight
+      //    doesn't index them (the DMG/ZIP in out/make/ is the real output)
       const outBase = path.resolve(__dirname, 'out');
       if (fs.existsSync(outBase)) {
         for (const entry of fs.readdirSync(outBase)) {
@@ -159,6 +185,8 @@ const config: ForgeConfig = {
           }
         }
       }
+
+      return makeResults;
     },
   },
   rebuildConfig: {

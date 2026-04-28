@@ -180,6 +180,24 @@
     font-family: var(--font-body);
   }
 
+  /* Active sidebar nav link */
+  .sidebar-nav-active {
+    background-color: color-mix(in oklch, var(--color-fidra-teal) 18%, transparent);
+  }
+  .sidebar-nav-active::before {
+    content: '';
+    position: absolute;
+    left: -8px;
+    top: 8px;
+    bottom: 8px;
+    width: 3px;
+    border-radius: 0 4px 4px 0;
+    background-color: var(--color-fidra-teal);
+  }
+  .dark .sidebar-nav-active {
+    background-color: color-mix(in oklch, var(--color-fidra-teal) 22%, transparent);
+  }
+
   /* Transition helpers */
   .transition-fidra {
     transition-property: color, background-color, border-color, box-shadow, opacity, transform;
