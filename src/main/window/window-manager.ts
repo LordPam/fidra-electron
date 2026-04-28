@@ -89,8 +89,14 @@ export class WindowManager {
         preload: path.join(__dirname, 'preload.js'),
         contextIsolation: true,
         nodeIntegration: false,
+        zoomFactor: 1.0,
       },
     });
+
+    // Reset zoom and disable pinch-to-zoom (prevents unintentional zoom
+    // changes from trackpad gestures while the app is in the background)
+    win.webContents.setZoomLevel(0);
+    win.webContents.setVisualZoomLevelLimits(1, 1);
 
     // Show window once renderer has painted, with a fallback timeout
     // in case ready-to-show never fires (e.g. loadFile fails silently).
@@ -173,8 +179,12 @@ export class WindowManager {
         preload: path.join(__dirname, 'preload.js'),
         contextIsolation: true,
         nodeIntegration: false,
+        zoomFactor: 1.0,
       },
     });
+
+    win.webContents.setZoomLevel(0);
+    win.webContents.setVisualZoomLevelLimits(1, 1);
 
     // Show window once renderer has painted, with a fallback timeout
     let shown = false;
