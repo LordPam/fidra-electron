@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Fidra - Cloud Connect guide</title>
+  <meta
+    name="description"
+    content="How to set up Fidra Cloud Connect with Postgres or Supabase, direct admin access, and member sign-in."
+  >
+  <meta name="theme-color" content="#313E50">
+  <link rel="icon" type="image/png" href="favicon.png">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@500;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap"
+    rel="stylesheet"
+  >
+  <link rel="stylesheet" href="guides.css">
+</head>
+<body>
+  <nav>
+    <div class="container nav-inner">
+      <a class="nav-logo" href="index.html">
+        <img src="logo-header.svg" alt="Fidra">
+        <span class="nav-wordmark">Fidra</span>
+      </a>
+      <div class="nav-links">
+        <a href="index.html">Home</a>
+        <a href="local-sync.html">Local Sync</a>
+        <a class="active" href="cloud-connect.html">Cloud Connect</a>
+      </div>
+      <a class="btn-primary" href="index.html#download">Download</a>
+    </div>
+  </nav>
+
+  <main>
+    <section class="page-hero">
+      <div class="container hero-grid">
+        <div>
+          <p class="hero-crumb"><a href="index.html">Fidra</a> / Cloud Connect guide</p>
+          <div class="hero-eyebrow">Sync guide</div>
+          <h1 class="hero-title">Set up Cloud Connect on infrastructure you control</h1>
+          <p class="hero-lead">
+            Cloud Connect is for teams that want a central Postgres-backed sync layer. Each device
+            still keeps a local working copy for day-to-day use, but updates move through your own
+            database rather than through a shared folder.
+          </p>
+          <div class="hero-actions">
+            <a class="btn-primary" href="index.html#download">Download Fidra</a>
+            <a class="btn-secondary" href="local-sync.html">See the Local Sync option</a>
+          </div>
+          <div class="fact-grid">
+            <div class="fact-card">
+              <p class="fact-label">Needs</p>
+              <p class="fact-value">A Postgres database you control, or a Supabase project built on Postgres.</p>
+            </div>
+            <div class="fact-card">
+              <p class="fact-label">Best fit</p>
+              <p class="fact-value">Clubs with technical members or existing hosted database infrastructure.</p>
+            </div>
+            <div class="fact-card">
+              <p class="fact-label">Update style</p>
+              <p class="fact-value">Live notifications when available, with reconnect and polling fallbacks if not.</p>
+            </div>
+            <div class="fact-card">
+              <p class="fact-label">Access model</p>
+              <p class="fact-value">Direct admin access for setup, with member sign-in available through Supabase auth.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="hero-visual">
+          <div class="visual-shell">
+            <div class="visual-chrome">
+              <div class="traffic-lights" aria-hidden="true">
+                <span class="traffic-red"></span>
+                <span class="traffic-yellow"></span>
+                <span class="traffic-green"></span>
+              </div>
+              <div class="visual-title">Fidra - Dashboard</div>
+            </div>
+            <img src="screenshots/dashboard.png" alt="Fidra dashboard view">
+          </div>
+          <p class="visual-caption">
+            Cloud Connect is still the same desktop app. The difference is the shared sync backend
+            rather than a different product tier.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <section class="content-section">
+      <div class="container">
+        <div class="section-head">
+          <div class="section-eyebrow">Before you start</div>
+          <h2 class="section-title">What to have ready</h2>
+          <p class="section-sub">
+            Cloud Connect asks more of the organisation up front, but it gives you a more central
+            live-sync shape in return.
+          </p>
+        </div>
+
+        <div class="requirements-grid">
+          <article class="requirement-card">
+            <p class="card-kicker">Database</p>
+            <h3 class="card-title">A Postgres-backed home</h3>
+            <p class="card-copy">
+              The core requirement is a Postgres database you control. Supabase works because it
+              provides Postgres underneath as well as optional auth and storage services.
+            </p>
+          </article>
+
+          <article class="requirement-card">
+            <p class="card-kicker">Admin connection</p>
+            <h3 class="card-title">A working connection string</h3>
+            <p class="card-copy">
+              The first admin device connects directly with a database connection string. That is
+              the cleanest route for setup, testing, and administrative control.
+            </p>
+          </article>
+
+          <article class="requirement-card">
+            <p class="card-kicker">Member sign-in</p>
+            <h3 class="card-title">Optional Supabase auth details</h3>
+            <p class="card-copy">
+              If you want ordinary members to sign in without direct database credentials, keep the
+              project URL and anon key for the Supabase-backed member path.
+            </p>
+          </article>
+
+          <article class="requirement-card">
+            <p class="card-kicker">Ownership</p>
+            <h3 class="card-title">One first admin and internet access</h3>
+            <p class="card-copy">
+              One person should own the initial connection and first admin account. Devices then
+              need normal network access to talk to the server.
+            </p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="content-section alt">
+      <div class="container">
+        <div class="section-head">
+          <div class="section-eyebrow">Setup</div>
+          <h2 class="section-title">Prepare, connect, then invite</h2>
+          <p class="section-sub">
+            Cloud Connect is easiest to understand as three jobs: prepare the infrastructure,
+            connect the first admin device, and then add people.
+          </p>
+        </div>
+
+        <div class="setup-grid">
+          <article class="panel">
+            <h3 class="panel-title">Prepare the server</h3>
+            <p class="panel-sub">
+              This is the part that sits outside Fidra itself and defines what the app will connect to.
+            </p>
+            <ol class="step-list">
+              <li class="step-item">
+                <div class="step-number">1</div>
+                <div>
+                  <h3>Create the Postgres database or Supabase project</h3>
+                  <p>Use infrastructure your organisation already owns or is comfortable maintaining.</p>
+                </div>
+              </li>
+              <li class="step-item">
+                <div class="step-number">2</div>
+                <div>
+                  <h3>Keep the connection details handy</h3>
+                  <p>You will normally want the database connection string, and optionally the Supabase project URL and anon key.</p>
+                </div>
+              </li>
+              <li class="step-item">
+                <div class="step-number">3</div>
+                <div>
+                  <h3>Decide how members should connect</h3>
+                  <p>Admins can connect directly to the database; regular members can use authenticated member access if you enable it.</p>
+                </div>
+              </li>
+            </ol>
+          </article>
+
+          <article class="panel">
+            <h3 class="panel-title">Connect the first admin device</h3>
+            <p class="panel-sub">
+              This is where the organisation's Fidra setup becomes a live Cloud Connect workspace.
+            </p>
+            <ol class="step-list">
+              <li class="step-item">
+                <div class="step-number">1</div>
+                <div>
+                  <h3>Add a Cloud Server in Fidra</h3>
+                  <p>Give the connection a name so people can recognise the organisation or server it belongs to.</p>
+                </div>
+              </li>
+              <li class="step-item">
+                <div class="step-number">2</div>
+                <div>
+                  <h3>Choose Admin mode and enter the connection string</h3>
+                  <p>Admin mode is the direct-database path and is the right choice for the first device.</p>
+                </div>
+              </li>
+              <li class="step-item">
+                <div class="step-number">3</div>
+                <div>
+                  <h3>Test the connection and connect</h3>
+                  <p>Fidra checks the connection details before using them for the full sync layer.</p>
+                </div>
+              </li>
+              <li class="step-item">
+                <div class="step-number">4</div>
+                <div>
+                  <h3>Create the first admin account if prompted</h3>
+                  <p>That account becomes the initial authenticated owner inside the shared workspace.</p>
+                </div>
+              </li>
+            </ol>
+          </article>
+        </div>
+
+        <div class="note-grid">
+          <article class="note-card">
+            <h3>Add members</h3>
+            <p>
+              Once the first admin is in place, invite members by email from inside Fidra. That
+              keeps day-to-day access separate from raw infrastructure credentials.
+            </p>
+            <ul>
+              <li>Regular users can sign in with their own account.</li>
+              <li>Member mode avoids handing out a database connection string to everyone.</li>
+            </ul>
+          </article>
+
+          <article class="note-card">
+            <h3>Where Supabase fits</h3>
+            <p>
+              Supabase is useful when you want managed Postgres plus built-in auth and storage.
+              Fidra can use it as the organisation's Cloud Connect stack rather than requiring a
+              completely custom backend.
+            </p>
+            <ul>
+              <li>Project URL and anon key support the member sign-in path.</li>
+              <li>The underlying shared ledger still lives in Postgres tables.</li>
+            </ul>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="content-section">
+      <div class="container">
+        <div class="section-head">
+          <div class="section-eyebrow">Connection modes</div>
+          <h2 class="section-title">Two ways to access the same shared backend</h2>
+          <p class="section-sub">
+            The organisation usually needs both: direct admin access for setup and controlled
+            member access for everyday use.
+          </p>
+        </div>
+
+        <div class="mode-grid">
+          <article class="mode-card">
+            <p class="card-kicker">Admin mode</p>
+            <h3>Direct database access</h3>
+            <p>
+              This is the path for server owners, initial setup, and administrative maintenance.
+              It uses the database connection string directly.
+            </p>
+            <ul>
+              <li>Best for the first device and technical maintainers.</li>
+              <li>Supports direct connection testing and full server administration.</li>
+            </ul>
+          </article>
+
+          <article class="mode-card">
+            <p class="card-kicker">Member mode</p>
+            <h3>Authenticated user access</h3>
+            <p>
+              This is the path for ordinary committee members when you want per-user sign-in
+              without giving everyone database-level secrets.
+            </p>
+            <ul>
+              <li>Best for regular day-to-day use.</li>
+              <li>Works well with Supabase-backed email authentication.</li>
+            </ul>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="content-section alt">
+      <div class="container">
+        <div class="section-head">
+          <div class="section-eyebrow">How it works</div>
+          <h2 class="section-title">What Cloud Connect is doing underneath</h2>
+          <p class="section-sub">
+            In plain terms, each device keeps a local working copy while a central Postgres
+            database becomes the shared source of updates.
+          </p>
+        </div>
+
+        <div class="mech-grid">
+          <article class="mech-card">
+            <div class="mech-index">1</div>
+            <h3>You still work locally</h3>
+            <p>Fidra keeps a local cache on the device so the desktop app remains fast and usable even when the network is not perfect.</p>
+          </article>
+
+          <article class="mech-card">
+            <div class="mech-index">2</div>
+            <h3>Changes go to Postgres</h3>
+            <p>Approved local edits are synchronised into the shared database, which becomes the common coordination layer for the team.</p>
+          </article>
+
+          <article class="mech-card">
+            <div class="mech-index">3</div>
+            <h3>Other devices are notified</h3>
+            <p>When the hosting setup allows it, Fidra uses Postgres notifications to tell other devices that something changed right away.</p>
+          </article>
+
+          <article class="mech-card">
+            <div class="mech-index">4</div>
+            <h3>Reconnects are handled for you</h3>
+            <p>If the network or notification path drops out, Fidra reconnects and falls back to periodic refresh checks until live status is restored.</p>
+          </article>
+        </div>
+
+        <div class="note-grid">
+          <article class="note-card">
+            <h3>Real-time when possible, polling when necessary</h3>
+            <p>
+              The intended fast path is live database notification. If the environment does not
+              support that cleanly, the app falls back to checking for changes so the team still
+              converges.
+            </p>
+            <ul>
+              <li>Live notifications keep other devices fresh quickly.</li>
+              <li>Fallback polling keeps the system dependable across more hosting setups.</li>
+            </ul>
+          </article>
+
+          <article class="note-card">
+            <h3>What syncs</h3>
+            <p>
+              Cloud Connect is not limited to the transaction table. It covers the operational data
+              that makes the app useful as a shared ledger.
+            </p>
+            <ul>
+              <li>Transactions, planned templates, sheets, activities, attachments, invoices, settings, and audit data.</li>
+              <li>Conflicting critical edits are still surfaced for review rather than silently hidden.</li>
+            </ul>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="cta-band">
+      <div class="container cta-inner">
+        <div class="cta-copy">
+          <h2 class="cta-title">Prefer the no-server route?</h2>
+          <p class="cta-text">
+            If your club would rather avoid managing Postgres at all, the Local Sync guide is the
+            cleaner fit and usually the simpler starting point.
+          </p>
+        </div>
+        <div class="cta-actions">
+          <a class="btn-primary" href="local-sync.html">Read the Local Sync guide</a>
+          <a class="btn-secondary" href="index.html">Back to the main site</a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="container footer-inner">
+      <div class="footer-brand">
+        <img src="logo-footer.svg" alt="Fidra">
+        <span>Fidra</span>
+      </div>
+      <div class="footer-copy">Local-first finance tracking for clubs, societies, and small organisations.</div>
+      <div class="footer-links">
+        <a href="index.html">Home</a>
+        <a href="local-sync.html">Local Sync</a>
+        <a href="https://github.com/LordPam/fidra-electron/releases">Releases</a>
+      </div>
+    </div>
+  </footer>
+</body>
+</html>

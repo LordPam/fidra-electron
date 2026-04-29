@@ -707,6 +707,32 @@
       color: var(--navy);
     }
 
+    .sync-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 18px;
+      color: var(--navy);
+      font-family: var(--font-display);
+      font-size: 14px;
+      font-weight: 600;
+      text-decoration: none;
+    }
+
+    .sync-link:hover {
+      color: var(--teal-dark);
+    }
+
+    .sync-link svg {
+      width: 16px;
+      height: 16px;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 1.8;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
     .faq {
       background: var(--off-white);
     }
@@ -1469,6 +1495,10 @@
               <li><span class="check-icon teal" aria-hidden="true"><svg viewBox="0 0 10 10"><polyline points="2,5 4,7 8,3"></polyline></svg></span>Conflicting edits are surfaced for review</li>
             </ul>
             <div class="sync-ideal"><strong>Best for:</strong> societies that need shared editing without relying on outside infrastructure.</div>
+            <a class="sync-link" href="local-sync.html">
+              <span>See how Local Sync is set up</span>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"></path><path d="M13 6l6 6-6 6"></path></svg>
+            </a>
           </article>
 
           <article class="sync-card featured">
@@ -1485,6 +1515,10 @@
               <li><span class="check-icon slate" aria-hidden="true"><svg viewBox="0 0 10 10"><polyline points="2,5 4,7 8,3"></polyline></svg></span>Conflicting edits are surfaced for review</li>
             </ul>
             <div class="sync-ideal"><strong>Best for:</strong> clubs with technical members or access to a managed Postgres service.</div>
+            <a class="sync-link" href="cloud-connect.html">
+              <span>See how Cloud Connect is set up</span>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"></path><path d="M13 6l6 6-6 6"></path></svg>
+            </a>
           </article>
         </div>
       </div>
