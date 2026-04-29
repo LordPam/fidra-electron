@@ -470,6 +470,14 @@
       background: var(--white);
       padding: 28px 24px;
       box-shadow: var(--shadow-sm);
+      transition: transform 220ms ease, box-shadow 220ms ease, border-color 220ms ease;
+    }
+
+    .feature-card:hover,
+    .feature-card:focus-within {
+      transform: translateY(-7px);
+      border-color: rgba(137, 176, 174, 0.52);
+      box-shadow: 0 20px 38px rgba(30, 42, 54, 0.1);
     }
 
     .feature-icon-box {
@@ -526,39 +534,35 @@
       padding: 32px;
       border: 1px solid var(--border);
       min-height: 100%;
-      background: linear-gradient(180deg, #ffffff 0%, #fafbf9 100%);
+      background: #f4f6f1;
       border-color: rgba(49, 62, 80, 0.12);
       color: var(--slate);
-      box-shadow: 0 10px 24px rgba(30, 42, 54, 0.04);
+      box-shadow: 0 10px 24px rgba(30, 42, 54, 0.05);
       transition: transform 220ms ease, box-shadow 220ms ease, border-color 220ms ease;
     }
 
     .sync-card::before {
-      content: "";
-      position: absolute;
-      inset: 0 0 auto 0;
-      height: 3px;
-      background: linear-gradient(90deg, rgba(137, 176, 174, 0.92), rgba(49, 62, 80, 0.16));
+      content: none;
     }
 
     .sync-card:hover,
     .sync-card:focus-within {
       transform: translateY(-7px);
       border-color: rgba(137, 176, 174, 0.52);
-      box-shadow: 0 24px 44px rgba(30, 42, 54, 0.12);
+      box-shadow: 0 20px 38px rgba(30, 42, 54, 0.1);
     }
 
     .sync-card.featured {
-      background: linear-gradient(180deg, #ffffff 0%, #fafbf9 100%);
+      background: #f4f6f1;
       border-color: rgba(49, 62, 80, 0.12);
       color: var(--slate);
     }
 
     .sync-card.standard {
-      background: linear-gradient(180deg, #ffffff 0%, #fafbf9 100%);
+      background: #f4f6f1;
       border-color: rgba(49, 62, 80, 0.12);
       color: var(--slate);
-      box-shadow: 0 10px 24px rgba(30, 42, 54, 0.04);
+      box-shadow: 0 10px 24px rgba(30, 42, 54, 0.05);
     }
 
     .sync-badge {
