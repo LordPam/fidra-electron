@@ -1726,12 +1726,15 @@
     );
 
     const galleryTitle = document.getElementById("gallery-title");
+    const galleryWrap = document.querySelector(".gallery-wrap");
     const galleryFrame = document.getElementById("gallery-demo-frame");
     const galleryFallbackImage = document.getElementById("gallery-fallback-image");
     const galleryMobileWidthQuery = window.matchMedia("(max-width: 1024px)");
+    const galleryPhoneWidthQuery = window.matchMedia("(max-width: 760px)");
     const galleryTouchQuery = window.matchMedia("(hover: none), (pointer: coarse)");
     const galleryTouchCapable = navigator.maxTouchPoints > 0 || "ontouchstart" in window;
     const galleryMobileUserAgent = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    const galleryPhoneUserAgent = /iPhone|iPod|Android.+Mobile|webOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
     let galleryCurrentView = "dashboard";
 
     const appleIcon = '<svg class="platform-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"></path></svg>';
@@ -1803,6 +1806,20 @@
       );
     }
 
+    function galleryShouldHidePreview() {
+      return galleryPhoneWidthQuery.matches || galleryPhoneUserAgent;
+    }
+
+    function downloadIsPhoneContext() {
+      return galleryPhoneWidthQuery.matches || galleryPhoneUserAgent;
+    }
+
+    function galleryUpdateVisibility() {
+      const hidesPreview = galleryShouldHidePreview();
+      if (galleryWrap) galleryWrap.hidden = hidesPreview;
+      return hidesPreview;
+    }
+
     function gallerySyncMode() {
       const usesFallback = galleryShouldUseFallback();
       if (galleryFrame) galleryFrame.hidden = usesFallback;
@@ -1813,6 +1830,11 @@
     function gallerySet(view) {
       const config = galleryViews[view];
       if (!config) return;
+
+      if (galleryUpdateVisibility()) {
+        galleryCurrentView = view;
+        return;
+      }
 
       if (gallerySyncMode()) {
         if (galleryFallbackImage) {
@@ -1850,9 +1872,11 @@
 
     if (
       typeof galleryMobileWidthQuery.addEventListener === "function" &&
+      typeof galleryPhoneWidthQuery.addEventListener === "function" &&
       typeof galleryTouchQuery.addEventListener === "function"
     ) {
       galleryMobileWidthQuery.addEventListener("change", () => gallerySet(galleryCurrentView));
+      galleryPhoneWidthQuery.addEventListener("change", () => gallerySet(galleryCurrentView));
       galleryTouchQuery.addEventListener("change", () => gallerySet(galleryCurrentView));
     } else {
       window.addEventListener("resize", () => gallerySet(galleryCurrentView));
@@ -1892,6 +1916,7 @@
     function openDownloadModal(platform, href, trigger) {
       const config = downloadModalConfig[platform];
       if (!config) return;
+      const isPhoneContext = downloadIsPhoneContext();
 
       if (downloadModalCloseTimer) {
         window.clearTimeout(downloadModalCloseTimer);
@@ -1899,16 +1924,27 @@
       }
 
       lastDownloadTrigger = trigger;
-      downloadModalTitle.textContent = config.title;
-      downloadModalSub.textContent = config.subtitle;
-      downloadStepsLabel.textContent = config.stepsLabel;
-      downloadSideNote.textContent = config.sideNote;
+      downloadModalTitle.textContent = isPhoneContext ? "Desktop app download" : config.title;
+      downloadModalSub.textContent = isPhoneContext
+        ? "Fidra is a desktop app for macOS and Windows. Downloading is best on a computer, even though you can still continue from here."
+        : config.subtitle;
+      downloadStepsLabel.textContent = isPhoneContext ? "If you continue on a phone" : config.stepsLabel;
+      downloadSideNote.textContent = isPhoneContext
+        ? "For most people, the simplest route is to open this page on the computer where Fidra will be installed."
+        : config.sideNote;
       downloadContinue.innerHTML = config.icon + "<span>" + config.continueLabel + "</span>";
       downloadContinue.setAttribute("aria-label", config.continueLabel);
       downloadContinue.href = href;
 
       downloadSteps.replaceChildren();
-      config.steps.forEach((step, index) => {
+      const steps = isPhoneContext
+        ? [
+            "The download is for a desktop computer, not for installation on this phone.",
+            "If you want the easiest setup, open www.fidra.site on your Mac or Windows PC and download it there.",
+            "If you continue now, you can still save or share the installer for use on a computer later."
+          ]
+        : config.steps;
+      steps.forEach((step, index) => {
         const item = document.createElement("li");
         const mark = document.createElement("span");
         const text = document.createElement("span");
