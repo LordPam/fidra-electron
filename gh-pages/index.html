@@ -937,6 +937,9 @@
 
     .download-modal {
       width: min(760px, 100%);
+      max-height: min(900px, calc(100dvh - 48px));
+      display: flex;
+      flex-direction: column;
       border-radius: 20px;
       overflow: hidden;
       background: #fafaf7;
@@ -1039,6 +1042,8 @@
       grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
       gap: 28px;
       padding: 28px;
+      overflow: auto;
+      overscroll-behavior: contain;
     }
 
     .download-section + .download-section {
@@ -1267,11 +1272,49 @@
         padding: 12px;
       }
 
+      .download-modal {
+        max-height: calc(100dvh - 24px);
+        border-radius: 16px;
+      }
+
       .download-modal-header,
       .download-modal-body,
       .download-modal-footer {
         padding-left: 18px;
         padding-right: 18px;
+      }
+
+      .download-modal-header {
+        gap: 14px;
+        padding-top: 18px;
+        padding-bottom: 16px;
+      }
+
+      .download-modal-body {
+        gap: 18px;
+        padding-top: 18px;
+        padding-bottom: 18px;
+      }
+
+      .download-modal-footer {
+        padding-top: 16px;
+        padding-bottom: 18px;
+      }
+
+      .download-modal-title {
+        font-size: 1.42rem;
+        line-height: 1.08;
+      }
+
+      .download-modal-sub,
+      .download-copy,
+      .download-steps li {
+        font-size: 13px;
+        line-height: 1.56;
+      }
+
+      .download-side-note {
+        font-size: 12px;
       }
 
       .download-modal-actions {
@@ -1657,7 +1700,7 @@
       </div>
 
       <div class="download-modal-body">
-        <div>
+        <div id="download-overview">
           <div class="download-section">
             <p class="download-label">Distribution</p>
             <p class="download-copy">
@@ -1774,6 +1817,8 @@
     };
 
     const downloadModalBackdrop = document.getElementById("download-modal-backdrop");
+    const downloadModalBody = document.querySelector(".download-modal-body");
+    const downloadOverview = document.getElementById("download-overview");
     const downloadModalTitle = document.getElementById("download-modal-title");
     const downloadModalSub = document.getElementById("download-modal-sub");
     const downloadStepsLabel = document.getElementById("download-steps-label");
@@ -1924,6 +1969,8 @@
       }
 
       lastDownloadTrigger = trigger;
+      if (downloadOverview) downloadOverview.hidden = isPhoneContext;
+      if (downloadModalBody) downloadModalBody.scrollTop = 0;
       downloadModalTitle.textContent = isPhoneContext ? "Desktop app download" : config.title;
       downloadModalSub.textContent = isPhoneContext
         ? "Fidra is a desktop app for macOS and Windows. Downloading is best on a computer, even though you can still continue from here."
