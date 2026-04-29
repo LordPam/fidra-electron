@@ -9,7 +9,13 @@ export const ORG_KEYS: ReadonlySet<string> = new Set([
   'fy_start_month',
   'tx.dateOnApprove',
   'tx.dateOnPlannedConversion',
-  'invoice.defaults',
+  'invoice.fromName',
+  'invoice.fromAddress',
+  'invoice.bankDetails',
+  'invoice.notes',
+  'invoice.counter',
+  'invoice.accentMode',
+  'invoice.logoData',        // base64 data URI — syncs the actual image, not a local path
 ]);
 
 export function isOrgKey(key: string): boolean {

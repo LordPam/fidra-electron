@@ -37,6 +37,7 @@ export interface PlannedTemplateRow {
   category: string | null;
   party: string | null;
   activity: string | null;
+  notes: string | null;
   end_date: string | null;
   occurrence_count: number | null;
   skipped_dates: string;
@@ -69,7 +70,7 @@ export interface InvoiceRow {
   notes: string | null;
   bank_details: string | null;
   planned_template_id: string | null;
-  status: 'draft' | 'paid';
+  status: 'draft' | 'sent' | 'paid';
   transaction_id: string | null;
   paid_at: string | null;
   planned_template_snapshot: string | null;
@@ -84,8 +85,10 @@ export interface InvoiceDefaults {
   fromAddress: string;
   bankDetails: string;
   notes: string;
-  logoPath: string;
-  counter: string;           // JSON: { date: "YYYYMMDD", count: number }
+  logoPath: string;            // device-local file path (not synced)
+  logoData: string;            // base64 data URI (synced via Local Sync)
+  counter: string;             // JSON: { date: "YYYYMMDD", count: number }
+  accentMode: 'fidra' | 'black' | 'logo';
 }
 
 export interface InvoicePrefill {

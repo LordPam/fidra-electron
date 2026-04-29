@@ -44,6 +44,7 @@ interface TransactionTableProps {
   onFocusedRowChange?: (id: string) => void;
   /** Called whenever the displayed row order changes (after sort + planned pinning) */
   onDisplayedRowIdsChange?: (ids: string[]) => void;
+  onViewActivity?: (activity: string) => void;
   zoom?: number;
 }
 
@@ -90,6 +91,7 @@ export const TransactionTable = forwardRef<TransactionTableHandle, TransactionTa
       onAttachmentClick,
       onFocusedRowChange,
       onDisplayedRowIdsChange,
+      onViewActivity,
       zoom = 1,
     },
     ref,
@@ -737,6 +739,11 @@ export const TransactionTable = forwardRef<TransactionTableHandle, TransactionTa
                       <>
                         <ContextMenuItem onClick={() => onEdit(row.original)}>Edit</ContextMenuItem>
                         <ContextMenuItem onClick={() => onDuplicate(row.original)}>Duplicate</ContextMenuItem>
+                        {row.original.activity && onViewActivity && (
+                          <ContextMenuItem onClick={() => onViewActivity(row.original.activity!)}>
+                            View Activity
+                          </ContextMenuItem>
+                        )}
                         {selectedRows.length > 1 && onBulkEdit && (
                           <>
                             <ContextMenuSeparator />

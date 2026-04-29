@@ -187,8 +187,8 @@ export function MonthTracker({
 
   return (
     <TooltipProvider delayDuration={200}>
-      <div className="rounded-lg bg-card border border-border-subtle p-4 flex flex-col">
-        <h3 className="text-sm font-display font-medium text-muted-foreground mb-3 shrink-0">
+      <div className="rounded-lg bg-card border border-border-subtle p-3 flex flex-col min-h-0">
+        <h3 className="text-sm font-display font-medium text-muted-foreground mb-2 shrink-0">
           Month Tracker
         </h3>
 
@@ -201,8 +201,8 @@ export function MonthTracker({
           ))}
         </div>
 
-        {/* Calendar grid — week rows */}
-        <div className="bg-border-subtle/40 rounded overflow-hidden flex-1" style={{ display: 'grid', gap: '1px', gridAutoRows: '1fr' }}>
+        {/* Calendar grid — week rows (scrollable when constrained) */}
+        <div className="bg-border-subtle/40 rounded overflow-auto flex-1 min-h-0" style={{ display: 'grid', gap: '1px', gridAutoRows: '1fr' }}>
           {weeks.map(({ weekStartDay, segments }, rowIdx) => {
             const maxLane = segments.length > 0
               ? Math.max(...segments.map((s) => s.lane)) + 1
@@ -367,11 +367,11 @@ export function MonthTracker({
 
         {/* Undated lane */}
         {undated.length > 0 && (
-          <div className="mt-3 pt-3 border-t border-border-subtle">
+          <div className="mt-2.5 pt-2.5 border-t border-border-subtle">
             <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
               Activities
             </span>
-            <div className="flex flex-wrap gap-1.5 mt-1.5">
+            <div className="flex flex-wrap gap-1 mt-1">
               {undated.map((a) => (
                 <UndatedChip
                   key={a.rawActivity}

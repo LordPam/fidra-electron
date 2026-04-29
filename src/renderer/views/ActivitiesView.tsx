@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, useCallback, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useTransactionStore } from '@/stores/transaction-store';
 import { useSheetStore } from '@/stores/sheet-store';
 import { usePlannedStore } from '@/stores/planned-store';
@@ -46,6 +46,7 @@ type SortBy = 'name' | 'date' | 'expense' | 'net' | 'count' | 'status';
 const STATUS_ORDER: Record<string, number> = { Planned: 0, Active: 1, Complete: 2 };
 
 export default function ActivitiesView() {
+  const location = useLocation();
   const navigate = useNavigate();
   const { transactions, loadAll, bulkUpdate } = useTransactionStore();
   const { currentSheet, loadAll: loadSheets } = useSheetStore();
@@ -361,6 +362,15 @@ export default function ActivitiesView() {
   }, [transactions, templates, activityNotes, selectedActivity, refreshNotes]);
 
 
+  // Handle incoming selectActivity navigation state
+  useEffect(() => {
+    const state = location.state as { selectActivity?: string } | null;
+    if (!state?.selectActivity) return;
+    setSelectedActivity(state.selectActivity);
+    setNotesText(activityNotes[state.selectActivity] || '');
+    window.history.replaceState({}, '');
+  }, [location.state]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Keyboard navigation
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -532,9 +542,9 @@ export default function ActivitiesView() {
               </div>
             </div>
 
-            {/* Month Tracker + Charts — 3:1 column split */}
-            <div className="grid grid-cols-4 gap-4 items-stretch shrink-0">
-              <div className="col-span-3 [&>div]:h-full">
+            {/* Month Tracker + Charts — 3:1 column split, capped so the table keeps its space */}
+            <div className="grid grid-cols-4 gap-4 items-stretch shrink-0 h-[40vh] overflow-hidden">
+              <div className="col-span-3 [&>div]:h-full overflow-hidden">
                 <MonthTracker
                   year={selectedMonth.year}
                   month={selectedMonth.month}
@@ -545,21 +555,21 @@ export default function ActivitiesView() {
                 />
               </div>
 
-              <div className="col-span-1 flex flex-col gap-4">
-                <div className="flex-1 rounded-lg bg-card border border-border-subtle p-4 flex flex-col">
+              <div className="col-span-1 flex flex-col gap-4 min-h-0 overflow-hidden">
+                <div className="flex-1 min-h-0 rounded-lg bg-card border border-border-subtle p-4 flex flex-col overflow-hidden">
                   <h3 className="text-sm font-display font-medium text-muted-foreground mb-2 shrink-0">
                     Spending by Activity
                   </h3>
-                  <div className="flex-1 min-h-[140px]">
+                  <div className="flex-1 min-h-0">
                     <ExpensesByCategoryChart data={spendingByActivity} title="Expenses" colors={ACTIVITY_CHART_COLORS} />
                   </div>
                 </div>
 
-                <div className="flex-1 rounded-lg bg-card border border-border-subtle p-4 flex flex-col">
+                <div className="flex-1 min-h-0 rounded-lg bg-card border border-border-subtle p-4 flex flex-col overflow-hidden">
                   <h3 className="text-sm font-display font-medium text-muted-foreground mb-2 shrink-0">
                     Net Position
                   </h3>
-                  <div className="flex-1 min-h-[140px]">
+                  <div className="flex-1 min-h-0">
                     <NetPositionChart data={netPositionData} />
                   </div>
                 </div>
@@ -567,7 +577,7 @@ export default function ActivitiesView() {
             </div>
 
             {/* Activity table + notes — 3:1 column split */}
-            <div className="grid grid-cols-4 gap-4 flex-1 min-h-0 overflow-hidden">
+            <div className="grid grid-cols-4 gap-4 flex-1 max-h-[40vh] overflow-hidden">
               <div className={cn('min-w-0 flex flex-col rounded-xl border border-border-subtle bg-[#EEEEE9] dark:bg-[#2A2D32] overflow-hidden min-h-0', selectedActivity ? 'col-span-3' : 'col-span-4')}>
                 <div className="flex flex-col min-h-0 h-full" style={activitiesTableZoom !== 1 ? { zoom: activitiesTableZoom } : undefined}>
                 {/* Table header */}

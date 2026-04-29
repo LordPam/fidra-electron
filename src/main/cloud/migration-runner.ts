@@ -1,6 +1,6 @@
 import type pg from 'pg';
 
-const CURRENT_SCHEMA_VERSION = 13;
+const CURRENT_SCHEMA_VERSION = 14;
 
 const TABLES_SQL = `
 -- Metadata table for schema versioning
@@ -47,6 +47,7 @@ CREATE TABLE IF NOT EXISTS planned_templates (
   category TEXT,
   party TEXT,
   activity TEXT,
+  notes TEXT,
   end_date DATE,
   occurrence_count INTEGER,
   skipped_dates JSONB DEFAULT '[]',
@@ -525,6 +526,16 @@ export async function runMigrations(pool: pg.Pool): Promise<void> {
       // audit_log table already exists (created in TABLES_SQL).
       // Create NOTIFY trigger for audit_log so remote audit entries propagate.
       await client.query(createTriggerSql('audit_log'));
+    }
+
+    if (currentVersion < 14) {
+      // Add notes column to planned_templates
+      const colCheck = await client.query(
+        `SELECT 1 FROM information_schema.columns WHERE table_name = 'planned_templates' AND column_name = 'notes'`,
+      );
+      if (colCheck.rows.length === 0) {
+        await client.query('ALTER TABLE planned_templates ADD COLUMN notes TEXT');
+      }
     }
 
     // Update schema version

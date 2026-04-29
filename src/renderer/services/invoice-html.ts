@@ -17,6 +17,8 @@ export interface InvoiceData {
   bankDetails?: string;
   isOverdue?: boolean;
   logoDataUri?: string;
+  taxRate?: number;
+  accentColor?: string;
 }
 
 function esc(s: string): string {
@@ -55,9 +57,15 @@ export function renderInvoiceHTML(data: InvoiceData): string {
     bankDetails,
     isOverdue,
     logoDataUri,
+    taxRate = 0,
+    accentColor,
   } = data;
 
+  const accent = accentColor || '#89b0ae';
+
   const subtotal = lineItems.reduce((s, item) => s + item.quantity * item.unitPrice, 0);
+  const taxAmount = subtotal * (taxRate / 100);
+  const grandTotal = subtotal + taxAmount;
 
   const itemRows = lineItems
     .map(
@@ -83,7 +91,7 @@ export function renderInvoiceHTML(data: InvoiceData): string {
   --invoice-bg: #ffffff;
   --text-primary: #313e50;
   --text-secondary: #455561;
-  --accent: #89b0ae;
+  --accent: ${accent};
   --border-muted: #e5e5de;
   --border-light: #eef0eb;
   --row-alt: rgba(242, 242, 236, 0.5);
@@ -104,6 +112,7 @@ body {
 .invoice-document {
   width: 680px;
   min-height: 960px;
+  margin: 0 auto;
   border-top: 4px solid var(--accent);
   padding: 52px 60px;
 }
@@ -370,16 +379,14 @@ body {
           <span class="invoice-total-row-label">Subtotal</span>
           <span class="invoice-total-row-value">\u00a3${fmtNum(subtotal)}</span>
         </div>
-        <!-- VAT placeholder: uncomment when InvoiceData gains a tax field
-        <div class="invoice-total-row">
-          <span class="invoice-total-row-label">Tax</span>
-          <span class="invoice-total-row-value">\u00a30.00</span>
-        </div>
-        -->
+        ${taxRate > 0 ? `<div class="invoice-total-row" style="margin-top:6px">
+          <span class="invoice-total-row-label">Tax (${taxRate}%)</span>
+          <span class="invoice-total-row-value">\u00a3${fmtNum(taxAmount)}</span>
+        </div>` : ''}
         <div class="invoice-total-divider"></div>
         <div class="invoice-grand-total">
           <span class="invoice-grand-total-label">Total</span>
-          <span class="invoice-grand-total-value">\u00a3${fmtNum(subtotal)}</span>
+          <span class="invoice-grand-total-value">\u00a3${fmtNum(grandTotal)}</span>
         </div>
       </div>
     </div>

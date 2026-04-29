@@ -8,7 +8,7 @@ const authModeSchema = z.enum(['admin', 'member', 'localSync']);
 const personnelRoleSchema = z.enum(['admin', 'member']);
 const oauthProviderSchema = z.enum(['google', 'azure']);
 const themeModeSchema = z.enum(['system', 'light', 'dark']);
-const invoiceStatusSchema = z.enum(['draft', 'paid']);
+const invoiceStatusSchema = z.enum(['draft', 'sent', 'paid']);
 
 // ─── Row schemas (wire format from SQLite / IPC) ────────────────────
 
@@ -42,6 +42,7 @@ export const plannedTemplateRowSchema = z.object({
   category: z.string().nullable(),
   party: z.string().nullable(),
   activity: z.string().nullable(),
+  notes: z.string().nullable(),
   end_date: z.string().nullable(),
   occurrence_count: z.number().int().nullable(),
   skipped_dates: z.string(),
@@ -126,7 +127,9 @@ export const invoiceDefaultsSchema = z.object({
   bankDetails: z.string(),
   notes: z.string(),
   logoPath: z.string(),
+  logoData: z.string(),
   counter: z.string(),
+  accentMode: z.enum(['fidra', 'black', 'logo']),
 });
 
 export const uiPreferencesSchema = z.object({

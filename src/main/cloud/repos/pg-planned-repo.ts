@@ -51,13 +51,13 @@ export class PgPlannedRepo implements CloudPlannedRepo {
           `UPDATE planned_templates SET
             start_date = $2, description = $3, amount = $4, type = $5,
             frequency = $6, target_sheet = $7, category = $8, party = $9,
-            activity = $10, end_date = $11, occurrence_count = $12,
-            skipped_dates = $13, fulfilled_dates = $14, version = $15
-          WHERE id = $1 AND version = $16`,
+            activity = $10, notes = $11, end_date = $12, occurrence_count = $13,
+            skipped_dates = $14, fulfilled_dates = $15, version = $16
+          WHERE id = $1 AND version = $17`,
           [
             data.id, data.start_date, data.description, data.amount,
             data.type, data.frequency, data.target_sheet, data.category,
-            data.party, data.activity, data.end_date, data.occurrence_count,
+            data.party, data.activity, data.notes, data.end_date, data.occurrence_count,
             skippedJson, fulfilledJson, data.version,
             dbVersion,
           ],
@@ -74,22 +74,23 @@ export class PgPlannedRepo implements CloudPlannedRepo {
         await client.query(
           `INSERT INTO planned_templates
           (id, start_date, description, amount, type, frequency, target_sheet,
-           category, party, activity, end_date, occurrence_count,
+           category, party, activity, notes, end_date, occurrence_count,
            skipped_dates, fulfilled_dates, version, created_at)
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
           ON CONFLICT (id) DO UPDATE SET
             start_date = EXCLUDED.start_date, description = EXCLUDED.description,
             amount = EXCLUDED.amount, type = EXCLUDED.type,
             frequency = EXCLUDED.frequency, target_sheet = EXCLUDED.target_sheet,
             category = EXCLUDED.category, party = EXCLUDED.party,
-            activity = EXCLUDED.activity, end_date = EXCLUDED.end_date,
+            activity = EXCLUDED.activity, notes = EXCLUDED.notes,
+            end_date = EXCLUDED.end_date,
             occurrence_count = EXCLUDED.occurrence_count,
             skipped_dates = EXCLUDED.skipped_dates, fulfilled_dates = EXCLUDED.fulfilled_dates,
             version = EXCLUDED.version`,
           [
             data.id, data.start_date, data.description, data.amount,
             data.type, data.frequency, data.target_sheet, data.category,
-            data.party, data.activity, data.end_date, data.occurrence_count,
+            data.party, data.activity, data.notes, data.end_date, data.occurrence_count,
             skippedJson, fulfilledJson, data.version, data.created_at,
           ],
         );
@@ -149,6 +150,7 @@ function rowToPlanned(row: Record<string, unknown>): PlannedTemplateRow {
     category: row.category != null ? String(row.category) : null,
     party: row.party != null ? String(row.party) : null,
     activity: row.activity != null ? String(row.activity) : null,
+    notes: row.notes != null ? String(row.notes) : null,
     end_date: row.end_date != null ? toDateString(row.end_date) : null,
     occurrence_count: row.occurrence_count != null ? Number(row.occurrence_count) : null,
     skipped_dates: toJsonString(skipped ?? []),

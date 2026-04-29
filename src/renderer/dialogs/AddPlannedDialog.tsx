@@ -66,6 +66,7 @@ export function AddPlannedDialog({
   const [category, setCategory] = useState('');
   const [party, setParty] = useState('');
   const [activity, setActivity] = useState('');
+  const [notes, setNotes] = useState('');
   const [sheet, setSheet] = useState(currentSheet !== 'All Sheets' ? currentSheet : (sheets[0] ?? ''));
   const [frequency, setFrequency] = useState<PlannedTemplateRow['frequency']>('once');
   const [hasEndDate, setHasEndDate] = useState(false);
@@ -85,6 +86,7 @@ export function AddPlannedDialog({
     setCategory('');
     setParty('');
     setActivity('');
+    setNotes('');
     setSheet(currentSheet !== 'All Sheets' ? currentSheet : (sheets[0] ?? ''));
     setFrequency('once');
     setHasEndDate(false);
@@ -114,6 +116,7 @@ export function AddPlannedDialog({
       category: category || null,
       party: party || null,
       activity: activity || null,
+      notes: notes.trim() || null,
       end_date: isRecurring && hasEndDate && endDate ? endDate : null,
       occurrence_count: isRecurring && hasOccurrenceCount && occurrenceCount ? parseInt(occurrenceCount) : null,
       skipped_dates: '[]',
@@ -124,7 +127,7 @@ export function AddPlannedDialog({
 
     onSave(template);
     onOpenChange(false);
-  }, [description, amount, startDate, sheet, sheets, type, frequency, category, party, activity, hasEndDate, endDate, hasOccurrenceCount, occurrenceCount, isRecurring, onSave, onOpenChange]);
+  }, [description, amount, startDate, sheet, sheets, type, frequency, category, party, activity, notes, hasEndDate, endDate, hasOccurrenceCount, occurrenceCount, isRecurring, onSave, onOpenChange]);
 
   useEffect(() => {
     if (!open) return;
@@ -225,6 +228,17 @@ export function AddPlannedDialog({
               onChange={setActivity}
               suggestions={activitySuggestions}
               placeholder="Activity"
+            />
+          </div>
+
+          <div>
+            <Label className="text-xs">Notes</Label>
+            <textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="Optional notes"
+              rows={2}
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-fidra-teal/40 focus:border-fidra-teal transition-fidra resize-none"
             />
           </div>
 

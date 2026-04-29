@@ -61,6 +61,7 @@ export function EditPlannedDialog({
   const [category, setCategory] = useState('');
   const [party, setParty] = useState('');
   const [activity, setActivity] = useState('');
+  const [notes, setNotes] = useState('');
   const [sheet, setSheet] = useState('');
   const [frequency, setFrequency] = useState<PlannedTemplateRow['frequency']>('once');
   const [hasEndDate, setHasEndDate] = useState(false);
@@ -83,6 +84,7 @@ export function EditPlannedDialog({
     setCategory(template.category ?? '');
     setParty(template.party ?? '');
     setActivity(template.activity ?? '');
+    setNotes(template.notes ?? '');
     setSheet(template.target_sheet);
     setFrequency(template.frequency);
     setHasEndDate(!!template.end_date);
@@ -132,6 +134,7 @@ export function EditPlannedDialog({
       category: category || null,
       party: party || null,
       activity: activity || null,
+      notes: notes.trim() || null,
       end_date: isRecurring && hasEndDate && endDate ? endDate : null,
       occurrence_count: isRecurring && hasOccurrenceCount && occurrenceCount ? parseInt(occurrenceCount) : null,
       version: template.version + 1,
@@ -139,7 +142,7 @@ export function EditPlannedDialog({
 
     onSave(template, updated);
     onOpenChange(false);
-  }, [template, type, amount, startDate, description, frequency, sheet, category, party, activity, hasEndDate, endDate, hasOccurrenceCount, occurrenceCount, isRecurring, onSave, onOpenChange]);
+  }, [template, type, amount, startDate, description, frequency, sheet, category, party, activity, notes, hasEndDate, endDate, hasOccurrenceCount, occurrenceCount, isRecurring, onSave, onOpenChange]);
 
   useEffect(() => {
     if (!open) return;
@@ -283,6 +286,18 @@ export function EditPlannedDialog({
                 </Select>
               </div>
             )}
+          </div>
+
+          {/* Notes */}
+          <div>
+            <Label className="text-xs">Notes</Label>
+            <textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="Optional notes"
+              rows={2}
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-fidra-teal/40 focus:border-fidra-teal transition-fidra resize-none"
+            />
           </div>
 
           {/* Frequency — full width */}

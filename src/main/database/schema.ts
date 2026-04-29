@@ -35,6 +35,7 @@ export const plannedTemplates = sqliteTable('planned_templates', {
   category: text('category'),
   party: text('party'),
   activity: text('activity'),
+  notes: text('notes'),
   end_date: text('end_date'),
   occurrence_count: integer('occurrence_count'),
   skipped_dates: text('skipped_dates').default('[]'),

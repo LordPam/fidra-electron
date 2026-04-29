@@ -380,7 +380,7 @@ export function registerWindowHandlers(): void {
   });
 
   // Invoice defaults (per-database, with cloud sync)
-  const INVOICE_KEYS = ['fromName', 'fromAddress', 'bankDetails', 'notes', 'logoPath', 'counter'] as const;
+  const INVOICE_KEYS = ['fromName', 'fromAddress', 'bankDetails', 'notes', 'logoPath', 'logoData', 'counter', 'accentMode'] as const;
 
   ipcMain.handle('settings:getInvoiceDefaults', (event) => {
     const ctx = resolveContext(event);
@@ -390,7 +390,9 @@ export function registerWindowHandlers(): void {
       bankDetails: ctx.settingsRepo.getSetting('invoice.bankDetails') ?? '',
       notes: ctx.settingsRepo.getSetting('invoice.notes') ?? '',
       logoPath: ctx.settingsRepo.getSetting('invoice.logoPath') ?? '',
+      logoData: ctx.settingsRepo.getSetting('invoice.logoData') ?? '',
       counter: ctx.settingsRepo.getSetting('invoice.counter') ?? '',
+      accentMode: (ctx.settingsRepo.getSetting('invoice.accentMode') as 'fidra' | 'black' | 'logo') ?? 'fidra',
     };
   });
 

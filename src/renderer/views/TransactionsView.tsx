@@ -34,6 +34,7 @@ import type { PlannedTemplateRow } from '../../shared/ipc-types';
 import { getUniqueValues } from '@/lib/autocomplete';
 import { cn } from '@/lib/utils';
 
+import { useNavigate } from 'react-router-dom';
 import { TransactionTable, type TransactionTableHandle } from '@/components/TransactionTable';
 import { AddTransactionForm } from '@/components/AddTransactionForm';
 import { SearchBar } from '@/components/SearchBar';
@@ -53,6 +54,7 @@ import { useUndoRedoShortcuts } from '@/hooks/useUndoRedoShortcuts';
 
 
 export default function TransactionsView() {
+  const navigate = useNavigate();
   // Stores
   const { transactions, loading, loadAll } = useTransactionStore();
   const { sheets, currentSheet, loadAll: loadSheets } = useSheetStore();
@@ -825,6 +827,7 @@ export default function TransactionsView() {
               }}
               onFocusedRowChange={(id) => { focusedRowIdRef.current = id; selectionAnchorRef.current = null; }}
               onDisplayedRowIdsChange={(ids) => { displayedRowIdsRef.current = ids; }}
+              onViewActivity={(activity) => navigate('/activities', { state: { selectActivity: activity } })}
               zoom={tableZoom}
             />
           )}

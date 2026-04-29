@@ -13,6 +13,8 @@ export interface InvoicePDFParams {
   bankDetails: string;
   isOverdue: boolean;
   logoPath: string;
+  taxRate: number;
+  accentColor?: string;
 }
 
 /**
@@ -42,6 +44,8 @@ export async function generateInvoicePDF(params: InvoicePDFParams): Promise<numb
     bankDetails: params.bankDetails,
     isOverdue: params.isOverdue,
     logoDataUri,
+    taxRate: params.taxRate,
+    accentColor: params.accentColor,
   });
 
   return window.api.printToPDF(html);

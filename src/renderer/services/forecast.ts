@@ -99,7 +99,7 @@ export function expandTemplate(
   return instances;
 }
 
-function createInstance(template: PlannedTemplateRow, occurrenceDate: string): TransactionRow {
+export function createInstance(template: PlannedTemplateRow, occurrenceDate: string): TransactionRow {
   return {
     id: deterministicId(template.id, occurrenceDate),
     date: occurrenceDate,
@@ -112,7 +112,7 @@ function createInstance(template: PlannedTemplateRow, occurrenceDate: string): T
     party: template.party,
     reference: null,
     activity: template.activity,
-    notes: null,
+    notes: template.notes,
     version: 1,
     created_at: template.created_at,
     modified_at: null,

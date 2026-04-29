@@ -10,7 +10,7 @@ import { useUndoStore } from '@/stores/undo-store';
 import { useViewZoom } from '@/hooks/useViewZoom';
 import { useSheetFiltered } from '@/hooks/useSheetFiltered';
 
-import { expandTemplate, getNextDueDate, getOverdueDate, type PlannedInstance } from '@/services/forecast';
+import { expandTemplate, createInstance, getNextDueDate, getOverdueDate, type PlannedInstance } from '@/services/forecast';
 import type { ExpandedTemplate } from '@/domain/models';
 import { getUniqueValues } from '@/lib/autocomplete';
 import { formatCurrency, formatDate } from '@/lib/format';
@@ -129,12 +129,26 @@ export default function PlannedView() {
   // Expand each template into its instances, filter out completed ones with no future instances
   const expanded: ExpandedTemplate[] = useMemo(() => {
     return sheetFiltered
-      .map((template) => ({
-        template,
-        instances: expandTemplate(template, horizon),
-        nextDue: getNextDueDate(template),
-        overdueDate: getOverdueDate(template),
-      }))
+      .map((template) => {
+        const futureInstances = expandTemplate(template, horizon);
+        const overdueDate = getOverdueDate(template);
+        // Prepend a synthetic instance for the overdue date if it's not already covered
+        let instances = futureInstances;
+        if (overdueDate && !futureInstances.some((i) => i.instanceDate === overdueDate)) {
+          const overdueInstance: PlannedInstance = {
+            transaction: createInstance(template, overdueDate),
+            templateId: template.id,
+            instanceDate: overdueDate,
+          };
+          instances = [overdueInstance, ...futureInstances];
+        }
+        return {
+          template,
+          instances,
+          nextDue: getNextDueDate(template),
+          overdueDate,
+        };
+      })
       .filter(({ instances, nextDue, overdueDate }) =>
         instances.length > 0 || nextDue !== null || overdueDate !== null
       );
@@ -516,6 +530,7 @@ export default function PlannedView() {
                               'px-4 py-3 text-right tabular-nums font-mono',
                               isOverdue ? 'text-fidra-warning' : template.type === 'income' ? 'text-fidra-positive' : 'text-fidra-negative',
                             )}>
+                              {isOverdue && (template.type === 'income' ? '+' : '\u2212')}
                               {formatCurrency(template.amount)}
                             </td>
                             {showSheetColumn && (
@@ -547,6 +562,11 @@ export default function PlannedView() {
                           {template.type === 'income' && (
                             <ContextMenuItem onClick={() => handleCreateInvoice(template)}>
                               <FileText className="h-3.5 w-3.5 mr-2" /> {linkedInvoiceTemplateIds.has(template.id) ? 'View Invoice' : 'Create Invoice'}
+                            </ContextMenuItem>
+                          )}
+                          {template.activity && (
+                            <ContextMenuItem onClick={() => navigate('/activities', { state: { selectActivity: template.activity } })}>
+                              View Activity
                             </ContextMenuItem>
                           )}
                           <ContextMenuSeparator />
@@ -581,6 +601,11 @@ export default function PlannedView() {
                               <span className="inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium bg-fidra-teal/15 text-fidra-teal">
                                 Planned
                               </span>
+                              {inst.instanceDate < today && (
+                                <span className="inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium bg-fidra-warning/15 text-fidra-warning">
+                                  Overdue
+                                </span>
+                              )}
                               <Button
                                 variant="ghost"
                                 size="sm"

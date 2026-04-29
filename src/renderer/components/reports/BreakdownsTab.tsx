@@ -71,7 +71,7 @@ function buildActivityBreakdown(txns: TransactionRow[]): ActivityRow[] {
       net: v.income - v.expense,
       count: v.count,
     }))
-    .sort((a, b) => b.net - a.net);
+    .sort((a, b) => a.activity.localeCompare(b.activity));
 }
 
 function CategoryTable({

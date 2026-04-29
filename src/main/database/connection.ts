@@ -42,6 +42,7 @@ const SCHEMA_DDL = `
     category TEXT,
     party TEXT,
     activity TEXT,
+    notes TEXT,
     end_date TEXT,
     occurrence_count INTEGER,
     skipped_dates TEXT DEFAULT '[]',
@@ -275,6 +276,12 @@ function runMigrations(sqlite: Database.Database): void {
     sqlite.exec("ALTER TABLE personnel ADD COLUMN device_id TEXT DEFAULT ''");
   }
 
+  // Add notes column to planned_templates if missing
+  const ptCols = sqlite.pragma('table_info(planned_templates)') as { name: string }[];
+  if (ptCols.length > 0 && !ptCols.some((c) => c.name === 'notes')) {
+    sqlite.exec('ALTER TABLE planned_templates ADD COLUMN notes TEXT');
+  }
+
   // Migrate sync watermarks from CRR settings table to non-CRR sync_meta table.
   // Writing watermarks to a CRR table bumps db_version, causing an infinite export loop.
   migrateSyncWatermarks(sqlite);
@@ -363,13 +370,13 @@ function migrateCrrDefaults(sqlite: Database.Database): void {
         type TEXT NOT NULL DEFAULT 'expense' CHECK (type IN ('income', 'expense')),
         frequency TEXT NOT NULL DEFAULT 'once' CHECK (frequency IN ('once', 'weekly', 'biweekly', 'monthly', 'quarterly', 'yearly')),
         target_sheet TEXT NOT NULL DEFAULT '',
-        category TEXT, party TEXT, activity TEXT, end_date TEXT, occurrence_count INTEGER,
+        category TEXT, party TEXT, activity TEXT, notes TEXT, end_date TEXT, occurrence_count INTEGER,
         skipped_dates TEXT DEFAULT '[]', fulfilled_dates TEXT DEFAULT '[]',
         version INTEGER DEFAULT 1,
         created_at TEXT NOT NULL DEFAULT ''
       )`,
       columns:
-        'id, start_date, description, amount, type, frequency, target_sheet, category, party, activity, end_date, occurrence_count, skipped_dates, fulfilled_dates, version, created_at',
+        'id, start_date, description, amount, type, frequency, target_sheet, category, party, activity, notes, end_date, occurrence_count, skipped_dates, fulfilled_dates, version, created_at',
       indexes: [
         'CREATE INDEX IF NOT EXISTS idx_planned_start ON planned_templates(start_date)',
         'CREATE INDEX IF NOT EXISTS idx_planned_target ON planned_templates(target_sheet)',
