@@ -1,10 +1,11 @@
 import { useEffect, useState, useCallback } from 'react';
-import { Download, X, Check } from 'lucide-react';
+import { Download, X, Check, AlertTriangle } from 'lucide-react';
 import type { UpdateInfo } from '../../shared/ipc-types';
 
 type ToastState =
   | { kind: 'available'; info: UpdateInfo }
-  | { kind: 'upToDate'; version: string };
+  | { kind: 'upToDate'; version: string }
+  | { kind: 'error'; message: string };
 
 export function UpdateToast() {
   const [state, setState] = useState<ToastState | null>(null);
@@ -18,13 +19,17 @@ export function UpdateToast() {
     const unsub2 = window.api.onUpdateUpToDate((version) => {
       setState({ kind: 'upToDate', version });
     });
-    return () => { unsub1(); unsub2(); };
+    const unsub3 = window.api.onUpdateError((message) => {
+      setState({ kind: 'error', message });
+    });
+    return () => { unsub1(); unsub2(); unsub3(); };
   }, []);
 
-  // Auto-dismiss "up to date" after 3s
+  // Auto-dismiss "up to date" and "error" after a few seconds
   useEffect(() => {
-    if (state?.kind !== 'upToDate') return;
-    const timer = setTimeout(dismiss, 3000);
+    if (state?.kind !== 'upToDate' && state?.kind !== 'error') return;
+    const delay = state.kind === 'error' ? 5000 : 3000;
+    const timer = setTimeout(dismiss, delay);
     return () => clearTimeout(timer);
   }, [state, dismiss]);
 
@@ -81,6 +86,22 @@ export function UpdateToast() {
           <div className="flex items-center gap-3">
             <Check className="h-5 w-5 text-green-500 shrink-0" />
             <p className="text-sm font-medium">You're on the latest version (v{state.version})</p>
+          </div>
+        )}
+
+        {state.kind === 'error' && (
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="h-5 w-5 text-fidra-warning mt-0.5 shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium">Update check failed</p>
+              <p className="text-xs text-muted-foreground mt-0.5">{state.message}</p>
+            </div>
+            <button
+              onClick={dismiss}
+              className="shrink-0 rounded-sm opacity-70 hover:opacity-100 transition-opacity"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
           </div>
         )}
       </div>

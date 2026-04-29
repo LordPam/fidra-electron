@@ -430,6 +430,11 @@ const api = {
     ipcRenderer.on('update:upToDate', handler);
     return () => ipcRenderer.removeListener('update:upToDate', handler);
   },
+  onUpdateError: (callback: (message: string) => void): (() => void) => {
+    const handler = (_event: unknown, message: string) => callback(message);
+    ipcRenderer.on('update:error', handler);
+    return () => ipcRenderer.removeListener('update:error', handler);
+  },
 };
 
 contextBridge.exposeInMainWorld('api', api);
