@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import os from 'node:os';
+import path from 'node:path';
 import { ipcMain } from 'electron';
 import { z } from 'zod';
 import { resolveContext } from './context-resolver';
@@ -11,7 +12,7 @@ import { deserializeChangesetRow } from '../sync/bundle-format';
 import type { SerializedChangesetRow } from '../sync/bundle-format';
 import { syncFolderHasExistingPeers, validateSyncFolder } from '../sync/bundle-io';
 import { readInviteToken, deleteInviteToken } from '../sync/invite-token';
-import { openDatabase } from '../database/connection';
+import { openDatabase, getAttachmentStoragePath } from '../database/connection';
 import { PersonnelRepo } from '../repositories/personnel-repo';
 import { LocalAuthService } from '../services/local-auth-service';
 import { localSyncConfigSchema, localSyncResolutionSchema, localSyncMigrationOptsSchema, localSyncJoinViaInviteSchema } from '../../shared/ipc-schemas';
@@ -463,6 +464,70 @@ export function registerLocalSyncHandlers(): void {
     const summary = ctx.pendingStartupSummary;
     ctx.pendingStartupSummary = null;
     return summary;
+  });
+
+  // ─── localSync:recoverAttachments ──────────────────────────────────
+  // One-time recovery: copy attachment files from all known source locations
+  // and export them to the sync shared folder so peers get them.
+  // Searches: (1) migration breadcrumb folder, (2) legacy cloud-cache/fidra_attachments/.
+  ipcMain.handle('localSync:recoverAttachments', (event) => {
+    try {
+      const ctx = resolveContext(event);
+      const currentDir = getAttachmentStoragePath(ctx.databaseId);
+      fs.mkdirSync(currentDir, { recursive: true });
+
+      // Collect all candidate source directories
+      const sourceDirs: string[] = [];
+
+      // Source 1: migration breadcrumb (set by new migrateCloudToLocalSync)
+      const breadcrumb = ctx.sqlite
+        .prepare("SELECT value FROM sync_meta WHERE key = '_migration.sourceDatabaseId'")
+        .get() as { value: string } | undefined;
+      if (breadcrumb?.value) {
+        sourceDirs.push(getAttachmentStoragePath(breadcrumb.value));
+      }
+
+      // Source 2: legacy cloud-cache/fidra_attachments/ (pre-migration location)
+      const legacyDir = path.join(os.homedir(), '.fidra', 'cloud-cache', 'fidra_attachments');
+      sourceDirs.push(legacyDir);
+
+      // Build a set of stored_names we actually need (from DB metadata)
+      const neededNames = new Set(
+        (ctx.sqlite.prepare('SELECT stored_name FROM attachments').all() as { stored_name: string }[])
+          .map((r) => r.stored_name)
+          .filter(Boolean),
+      );
+
+      // Copy files from source directories that don't already exist locally
+      let copiedCount = 0;
+      for (const sourceDir of sourceDirs) {
+        if (!fs.existsSync(sourceDir)) continue;
+        for (const file of fs.readdirSync(sourceDir)) {
+          const srcFile = path.join(sourceDir, file);
+          const destFile = path.join(currentDir, file);
+          if (!fs.statSync(srcFile).isFile()) continue;
+          if (fs.existsSync(destFile)) continue;
+          // Only copy files that match attachment metadata in the DB
+          if (!neededNames.has(file)) continue;
+          fs.copyFileSync(srcFile, destFile);
+          copiedCount++;
+        }
+      }
+
+      // Export all attachment files to the sync shared folder
+      let exportedCount = 0;
+      const orchestrator = ctx.localSyncOrchestrator;
+      if (orchestrator) {
+        exportedCount = orchestrator.exportAllAttachmentFiles();
+      }
+
+      syncLog('info', 'recoverAttachments completed', { copiedCount, exportedCount, sourceDirs });
+      return { success: true, copiedCount, exportedCount };
+    } catch (e) {
+      const error = e instanceof Error ? e.message : String(e);
+      syncLog('error', 'recoverAttachments failed', { error });
+      return { success: false, error };
+    }
   });
 }
 

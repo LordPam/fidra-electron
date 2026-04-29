@@ -299,6 +299,8 @@ const api = {
     ipcRenderer.invoke('localSync:compact'),
   localSyncJoinGroup: (opts: { syncFolder: string; passphrase: string; newDbPath: string }): Promise<MigrationResult> =>
     ipcRenderer.invoke('localSync:joinGroup', opts),
+  localSyncRecoverAttachments: (): Promise<{ success: boolean; copiedCount?: number; exportedCount?: number; error?: string }> =>
+    ipcRenderer.invoke('localSync:recoverAttachments'),
   localSyncMigrateFromCloud: (opts: { syncFolder: string; passphrase: string; newDbPath: string }): Promise<MigrationResult> =>
     ipcRenderer.invoke('localSync:migrateFromCloud', opts),
   localSyncJoinViaInvite: (opts: { syncFolder: string; email: string; inviteCode: string; password: string; newDbPath: string }): Promise<MigrationResult> =>

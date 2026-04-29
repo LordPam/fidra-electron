@@ -1,9 +1,11 @@
 import path from 'node:path';
 import fs from 'node:fs';
+import os from 'node:os';
 import { shell } from 'electron';
 import type { AttachmentRow } from '../../shared/ipc-types';
 import type { WindowContext } from '../window/window-context';
 import { getAttachmentStoragePath } from '../database/connection';
+import { writeAttachmentFile } from '../sync/attachment-transport';
 
 const MIME_MAP: Record<string, string> = {
   '.pdf': 'application/pdf',
@@ -59,7 +61,12 @@ function toCamelCase(text: string | null): string {
     .join('');
 }
 
-function buildDescriptiveName(transactionId: string, originalFilename: string, ctx: WindowContext): string {
+function buildDescriptiveName(
+  transactionId: string,
+  originalFilename: string,
+  ctx: WindowContext,
+  excludeStoredName?: string,
+): string {
   const ext = path.extname(originalFilename).toLowerCase();
   const tx = ctx.repos.transactions.getById(transactionId);
 
@@ -76,7 +83,7 @@ function buildDescriptiveName(transactionId: string, originalFilename: string, c
   const storageDir = getStorageDir(ctx);
   let candidate = `${baseName}${ext}`;
   let counter = 0;
-  while (fs.existsSync(safePath(storageDir, candidate))) {
+  while (fs.existsSync(safePath(storageDir, candidate)) && candidate !== excludeStoredName) {
     counter++;
     candidate = `${baseName}_${counter}${ext}`;
   }
@@ -216,7 +223,14 @@ export async function openAttachment(id: string, ctx: WindowContext): Promise<bo
   const localPath = safePath(storageDir, attachment.stored_name);
 
   if (!fs.existsSync(localPath)) {
-    if (ctx.supabaseStorage) {
+    // Try legacy cloud-cache location (pre-migration files)
+    const legacyPath = path.join(
+      os.homedir(), '.fidra', 'cloud-cache', 'fidra_attachments', attachment.stored_name,
+    );
+    if (fs.existsSync(legacyPath)) {
+      fs.mkdirSync(storageDir, { recursive: true });
+      fs.copyFileSync(legacyPath, localPath);
+    } else if (ctx.supabaseStorage) {
       try {
         await ctx.supabaseStorage.download(sanitizeStoredName(attachment.stored_name), localPath);
       } catch (e) {
@@ -238,4 +252,51 @@ export function getForTransaction(transactionId: string, ctx: WindowContext): At
 
 export function getCounts(transactionIds: string[], ctx: WindowContext): Record<string, number> {
   return ctx.repos.attachments.getCounts(transactionIds);
+}
+
+/**
+ * Rename attachment files when transaction fields (date, type, amount, party) change.
+ * Updates stored_name in the DB and renames the physical file on disk.
+ * If Local Sync is active, exports the renamed file to the sync shared folder.
+ */
+export function renameAttachmentsForTransaction(transactionId: string, ctx: WindowContext): void {
+  const attachments = ctx.repos.attachments.getForTransaction(transactionId);
+  if (attachments.length === 0) return;
+
+  const storageDir = getStorageDir(ctx);
+
+  for (const attachment of attachments) {
+    const newStoredName = buildDescriptiveName(
+      transactionId,
+      attachment.filename,
+      ctx,
+      attachment.stored_name,
+    );
+
+    if (newStoredName === attachment.stored_name) continue;
+
+    const oldPath = safePath(storageDir, attachment.stored_name);
+    const newPath = safePath(storageDir, newStoredName);
+
+    // Rename physical file
+    if (fs.existsSync(oldPath)) {
+      fs.renameSync(oldPath, newPath);
+    }
+
+    // Update DB row
+    ctx.repos.attachments.save({ ...attachment, stored_name: newStoredName });
+
+    // Export renamed file to sync shared folder if Local Sync is active
+    if (ctx.localSyncOrchestrator && fs.existsSync(newPath)) {
+      const syncFolder = ctx.settingsRepo.getSetting('localSync.syncFolder');
+      const passphrase = ctx.localSyncPassphrase ?? ctx.settingsRepo.getSetting('localSync.passphrase');
+      if (syncFolder && passphrase) {
+        try {
+          writeAttachmentFile(syncFolder, newStoredName, newPath, passphrase);
+        } catch {
+          // Best-effort — the orchestrator's normal export cycle will also pick this up
+        }
+      }
+    }
+  }
 }

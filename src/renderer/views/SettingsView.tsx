@@ -107,6 +107,8 @@ export default function SettingsView() {
   }, [lsLoadStatus, lsLoadConfig]);
   const [lsDialogOpen, setLsDialogOpen] = useState(false);
   const [lsSyncing, setLsSyncing] = useState(false);
+  const [lsRecovering, setLsRecovering] = useState(false);
+  const [lsRecoverMessage, setLsRecoverMessage] = useState<string | null>(null);
   const [migrateDialogOpen, setMigrateDialogOpen] = useState(false);
   const [backupDialogOpen, setBackupDialogOpen] = useState(false);
 
@@ -535,7 +537,7 @@ export default function SettingsView() {
                   </div>
                 )}
 
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
                   <Button variant="outline" size="sm" onClick={() => setLsDialogOpen(true)}>
                     Configure
                   </Button>
@@ -556,7 +558,35 @@ export default function SettingsView() {
                     {lsSyncing && <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />}
                     Sync Now
                   </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={lsRecovering}
+                    onClick={async () => {
+                      setLsRecovering(true);
+                      setLsRecoverMessage(null);
+                      try {
+                        const result = await window.api.localSyncRecoverAttachments();
+                        if (result.success) {
+                          setLsRecoverMessage(`Recovered ${result.copiedCount} file${result.copiedCount !== 1 ? 's' : ''}, exported ${result.exportedCount} to sync folder`);
+                        } else {
+                          setLsRecoverMessage(result.error ?? 'Recovery failed.');
+                        }
+                      } catch {
+                        setLsRecoverMessage('Recovery failed.');
+                      } finally {
+                        setLsRecovering(false);
+                      }
+                    }}
+                  >
+                    {lsRecovering && <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />}
+                    Recover Files
+                  </Button>
                 </div>
+
+                {lsRecoverMessage && (
+                  <p className="text-xs text-muted-foreground">{lsRecoverMessage}</p>
+                )}
               </div>
             )}
           </CardContent>

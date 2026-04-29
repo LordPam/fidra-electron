@@ -794,6 +794,10 @@ export interface IpcChannels {
     args: [folderPath: string];
     result: SyncFolderValidation;
   };
+  'localSync:recoverAttachments': {
+    args: [];
+    result: { success: boolean; copiedCount?: number; exportedCount?: number; error?: string };
+  };
   'localSync:migrateFromCloud': {
     args: [opts: { syncFolder: string; passphrase: string; newDbPath: string }];
     result: MigrationResult;

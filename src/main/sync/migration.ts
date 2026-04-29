@@ -7,11 +7,12 @@
  *
  * Both create a NEW database file (sync mode is immutable per file).
  */
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import type Database from 'better-sqlite3';
-import { openDatabase } from '../database/connection';
+import { openDatabase, getAttachmentStoragePath } from '../database/connection';
 import { initializeCrr } from './crr-schema';
 import { applySnapshot } from './compaction';
 import { findLatestSnapshot, isBundleFile, parseBundleFilename, readBundleFile } from './bundle-io';
@@ -156,8 +157,9 @@ export function migrateCloudToLocalSync(opts: MigrateCloudToLocalSyncOpts): Migr
     // Copy source database to new location
     fs.copyFileSync(sourceDbPath, newDbPath);
 
-    // Open copied database (migrations run, schema up to date)
-    const { db } = openDatabase(newDbPath);
+    // Open copied database (migrations run, schema up to date).
+    // The databaseId is INHERITED from the source DB (byte-copy preserves sync_meta).
+    const { db, databaseId: sourceDatabaseId } = openDatabase(newDbPath);
 
     try {
       // Clean up cloud-specific settings
@@ -167,6 +169,33 @@ export function migrateCloudToLocalSync(opts: MigrateCloudToLocalSyncOpts): Migr
       const deleteStmt = db.prepare('DELETE FROM settings WHERE key = ?');
       for (const row of cloudKeys) {
         deleteStmt.run(row.key);
+      }
+
+      // Generate a FRESH database.id so the migrated DB has its own attachment
+      // folder. Store the source ID as a breadcrumb for recovery.
+      const newDatabaseId = crypto.randomUUID();
+      db.prepare(
+        "INSERT INTO sync_meta (key, value) VALUES ('_migration.sourceDatabaseId', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+      ).run(sourceDatabaseId);
+      db.prepare(
+        "INSERT INTO sync_meta (key, value) VALUES ('database.id', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+      ).run(newDatabaseId);
+
+      // Copy attachment files from source folder to new folder
+      const sourceAttachDir = getAttachmentStoragePath(sourceDatabaseId);
+      const newAttachDir = getAttachmentStoragePath(newDatabaseId);
+      if (fs.existsSync(sourceAttachDir)) {
+        fs.mkdirSync(newAttachDir, { recursive: true });
+        for (const file of fs.readdirSync(sourceAttachDir)) {
+          const srcFile = path.join(sourceAttachDir, file);
+          const destFile = path.join(newAttachDir, file);
+          if (fs.statSync(srcFile).isFile()) {
+            fs.copyFileSync(srcFile, destFile);
+          }
+        }
+        syncLog('info', 'Copied attachment files for migration', {
+          from: sourceAttachDir, to: newAttachDir,
+        });
       }
 
       // Initialize CRR tables (idempotent — cloud cache won't have them)

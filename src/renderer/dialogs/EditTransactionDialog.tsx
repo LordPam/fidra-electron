@@ -203,7 +203,7 @@ export function EditTransactionDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto overflow-x-hidden">
         <DialogHeader>
           <DialogTitle>{isConversion ? 'Convert Planned to Transaction' : 'Edit Transaction'}</DialogTitle>
           {!isConversion && transaction && (
@@ -211,7 +211,7 @@ export function EditTransactionDialog({
           )}
         </DialogHeader>
 
-        <div className="flex flex-col gap-3 py-2">
+        <div className="flex flex-col gap-3 py-2 min-w-0">
           {/* Type toggle — branded teal */}
           <div className="flex gap-1 rounded-md bg-surface-inset p-1">
             <button
@@ -364,11 +364,11 @@ export function EditTransactionDialog({
 
             <div className="border-t border-border-subtle px-3 py-2 flex flex-col gap-2">
               {attachments.length > 0 && (
-                <div className="flex flex-col gap-1">
+                <div className="flex flex-col gap-1 min-w-0">
                   {attachments.map((a) => (
                     <div
                       key={a.id}
-                      className="flex items-center gap-2 rounded-md px-2 py-1 hover:bg-muted/50 group cursor-pointer"
+                      className="flex items-center gap-2 rounded-md px-2 py-1 hover:bg-muted/50 group cursor-pointer min-w-0"
                       onClick={() => handleOpenAttachment(a.id)}
                     >
                       {a.mime_type?.startsWith('image/') ? (

@@ -23,6 +23,15 @@ export function registerTransactionHandlers(): void {
     const result = ctx.repos.transactions.save(validated);
     if (existing) {
       logTransactionUpdated(ctx, existing, result);
+      // Rename attachment files if name-relevant fields changed
+      if (
+        existing.date !== result.date ||
+        existing.type !== result.type ||
+        existing.amount !== result.amount ||
+        existing.party !== result.party
+      ) {
+        attachmentService.renameAttachmentsForTransaction(result.id, ctx);
+      }
     } else {
       logTransactionCreated(ctx, result);
     }

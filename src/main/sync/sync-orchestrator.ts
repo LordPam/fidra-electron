@@ -855,6 +855,39 @@ export class SyncOrchestrator {
     return count;
   }
 
+  // ─── Bulk attachment export ──────────────────────────────────
+
+  /**
+   * Export ALL local attachment files to the sync shared folder.
+   * Used by the recovery handler and optionally after migration.
+   * Returns the number of files exported.
+   */
+  exportAllAttachmentFiles(): number {
+    if (!this.databaseId) return 0;
+
+    const attachmentDir = getAttachmentStoragePath(this.databaseId);
+    let count = 0;
+
+    const rows = this.db
+      .prepare('SELECT stored_name FROM attachments')
+      .all() as { stored_name: string }[];
+
+    for (const row of rows) {
+      if (!row.stored_name) continue;
+      const localPath = path.join(attachmentDir, row.stored_name);
+      if (!fs.existsSync(localPath)) continue;
+
+      try {
+        writeAttachmentFile(this.syncFolder, row.stored_name, localPath, this.passphrase);
+        count++;
+      } catch (e) {
+        syncLog('warn', 'Failed to export attachment (bulk)', { storedName: row.stored_name, error: errorMessage(e) });
+      }
+    }
+
+    return count;
+  }
+
   // ─── Helpers ───────────────────────────────────────────────────
 
   private getSiteId(): Buffer {

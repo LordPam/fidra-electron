@@ -304,7 +304,7 @@ export function LocalSyncSetupDialog({ open, onOpenChange }: LocalSyncSetupDialo
   if (enabled && setupStep !== 'admin') {
     return (
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto overflow-x-hidden">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <FolderSync className="h-5 w-5" />
@@ -375,6 +375,7 @@ export function LocalSyncSetupDialog({ open, onOpenChange }: LocalSyncSetupDialo
                 {snapshotMessage}
               </div>
             )}
+
 
             {/* Personnel section — visible to all authenticated Local Sync users */}
             {isLocalSyncAuth && personnel.length > 0 && (
@@ -616,7 +617,7 @@ export function LocalSyncSetupDialog({ open, onOpenChange }: LocalSyncSetupDialo
           </div>
 
           <DialogFooter className="flex w-full items-center justify-between sm:justify-between">
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               {(!isLocalSyncAuth || isAdmin) && (
                 <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={handleCreateSnapshot} disabled={snapshotting}>
                   {snapshotting ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <Camera className="h-4 w-4 mr-1.5" />}
