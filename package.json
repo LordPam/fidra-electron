@@ -1,7 +1,7 @@
 {
   "name": "fidra-web",
   "productName": "Fidra",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "description": "Financial ledger application",
   "main": ".vite/build/index.js",
   "private": true,
