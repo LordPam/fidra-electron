@@ -136,7 +136,9 @@ export function registerWindowHandlers(): void {
       wm.markStartupComplete(event.sender.id);
       return { filePath, canceled: false };
     } catch (e) {
-      return { filePath: null, canceled: false };
+      const msg = e instanceof Error ? e.message : String(e);
+      console.error('[WINDOW] openFileDialog failed to open database:', msg);
+      return { filePath: null, canceled: false, error: msg };
     }
   });
 
@@ -166,7 +168,9 @@ export function registerWindowHandlers(): void {
       wm.markStartupComplete(event.sender.id);
       return { filePath: result.filePath, canceled: false };
     } catch (e) {
-      return { filePath: null, canceled: false };
+      const msg = e instanceof Error ? e.message : String(e);
+      console.error('[WINDOW] createNewDb failed to open database:', msg);
+      return { filePath: null, canceled: false, error: msg };
     }
   });
 

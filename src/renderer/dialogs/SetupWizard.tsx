@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { FilePlus, FolderOpen, Cloud, ArrowLeft, Plus, Settings, FolderSync } from 'lucide-react';
+import { FilePlus, FolderOpen, Cloud, ArrowLeft, Plus, Settings, FolderSync, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { CloudServerDialog } from './CloudServerDialog';
 import { JoinLocalSyncDialog } from './JoinLocalSyncDialog';
@@ -17,6 +17,7 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
   const [cloudDialogOpen, setCloudDialogOpen] = useState(false);
   const [editingServer, setEditingServer] = useState<CloudServerConfig | null>(null);
   const [joinSyncOpen, setJoinSyncOpen] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const serverCountBeforeDialog = useRef(0);
 
   useEffect(() => {
@@ -31,14 +32,24 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
   };
 
   const handleCreateNew = async () => {
+    setErrorMessage(null);
     const result = await window.api.createNewDb();
+    if (result.error) {
+      setErrorMessage(`Failed to create database: ${result.error}`);
+      return;
+    }
     if (!result.canceled && result.filePath) {
       await handleComplete();
     }
   };
 
   const handleOpenExisting = async () => {
+    setErrorMessage(null);
     const result = await window.api.openFileDialog();
+    if (result.error) {
+      setErrorMessage(`Failed to open database: ${result.error}`);
+      return;
+    }
     if (!result.canceled && result.filePath) {
       await handleComplete();
     }
@@ -217,6 +228,13 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
             </div>
           </div>
         </button>
+
+        {errorMessage && (
+          <div className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm">
+            <AlertTriangle className="h-4 w-4 text-destructive shrink-0 mt-0.5" />
+            <p className="text-destructive">{errorMessage}</p>
+          </div>
+        )}
 
         <div className="pt-2">
           <Button

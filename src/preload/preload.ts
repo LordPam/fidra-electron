@@ -167,9 +167,9 @@ const api = {
   // Window management
   createWindow: (dbPath?: string): Promise<{ success: boolean; error?: string }> =>
     ipcRenderer.invoke('window:create', dbPath),
-  openFileDialog: (): Promise<{ filePath: string | null; canceled: boolean }> =>
+  openFileDialog: (): Promise<{ filePath: string | null; canceled: boolean; error?: string }> =>
     ipcRenderer.invoke('window:openFileDialog'),
-  createNewDb: (): Promise<{ filePath: string | null; canceled: boolean }> =>
+  createNewDb: (): Promise<{ filePath: string | null; canceled: boolean; error?: string }> =>
     ipcRenderer.invoke('window:createNewDb'),
   getRecentFiles: (): Promise<{ path: string; name: string; lastOpenedAt: string }[]> =>
     ipcRenderer.invoke('window:getRecentFiles'),

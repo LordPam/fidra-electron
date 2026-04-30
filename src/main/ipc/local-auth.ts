@@ -212,7 +212,7 @@ function writeDeviceIdForPerson(ctx: import('../window/window-context').WindowCo
   }
 }
 
-function startLocalSyncAfterAuth(ctx: import('../window/window-context').WindowContext): void {
+function startLocalSyncAfterAuth(ctx: import('../window/window-context').WindowContext, retry = false): void {
   const syncFolder = ctx.settingsRepo.getSetting('localSync.syncFolder');
   if (!syncFolder || !ctx.localSyncPassphrase) return;
 
@@ -292,5 +292,15 @@ function startLocalSyncAfterAuth(ctx: import('../window/window-context').WindowC
     const msg = e instanceof Error ? e.message : String(e);
     console.error(`[WINDOW ${ctx.dbName}] Local Sync start after auth failed:`, msg);
     ctx.sendToRenderer('localSync:error', { message: `Start failed: ${msg}` });
+
+    // Retry once after a delay — covers transient issues like OneDrive folder
+    // not yet available. The user is authenticated so we have the passphrase.
+    if (!retry) {
+      setTimeout(() => {
+        if (ctx.isClosed || ctx.localSyncOrchestrator) return;
+        syncLog('info', 'Retrying Local Sync start after transient failure');
+        startLocalSyncAfterAuth(ctx, true);
+      }, 5000);
+    }
   }
 }

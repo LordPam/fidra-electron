@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { FilePlus, FolderOpen, Cloud, Trash2, Settings, Plus, FileSpreadsheet, FolderSync } from 'lucide-react';
+import { FilePlus, FolderOpen, Cloud, Trash2, Settings, Plus, FileSpreadsheet, FolderSync, AlertTriangle } from 'lucide-react';
 import logoLight from '@/assets/logo-light.svg';
 import logoDark from '@/assets/logo-dark.svg';
 import { Button } from '@/components/ui/button';
@@ -47,6 +47,7 @@ export function FileChooserDialog({ onDismiss }: FileChooserDialogProps) {
   const [cloudDialogOpen, setCloudDialogOpen] = useState(false);
   const [editingServer, setEditingServer] = useState<CloudServerConfig | null>(null);
   const [joinSyncOpen, setJoinSyncOpen] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
     window.api.getRecentFiles().then(setRecentFiles);
@@ -54,6 +55,7 @@ export function FileChooserDialog({ onDismiss }: FileChooserDialogProps) {
   }, []);
 
   const handleOpenFile = async () => {
+    setErrorMessage(null);
     const dialogResult = await window.api.showOpenDialog({
       title: 'Open Fidra Database',
       filters: [
@@ -64,11 +66,13 @@ export function FileChooserDialog({ onDismiss }: FileChooserDialogProps) {
     });
     if (!dialogResult.canceled && dialogResult.filePaths.length > 0) {
       const result = await window.api.switchToFile(dialogResult.filePaths[0]);
+      if (result.error) { setErrorMessage(`Failed to open database: ${result.error}`); return; }
       if (result.success && !result.reloading) onDismiss?.();
     }
   };
 
   const handleNewDb = async () => {
+    setErrorMessage(null);
     const dialogResult = await window.api.showSaveDialog({
       title: 'Create New Fidra Database',
       defaultPath: 'finances.fdra',
@@ -76,12 +80,15 @@ export function FileChooserDialog({ onDismiss }: FileChooserDialogProps) {
     });
     if (!dialogResult.canceled && dialogResult.filePath) {
       const result = await window.api.switchToFile(dialogResult.filePath);
+      if (result.error) { setErrorMessage(`Failed to create database: ${result.error}`); return; }
       if (result.success && !result.reloading) onDismiss?.();
     }
   };
 
   const handleOpenRecent = async (filePath: string) => {
+    setErrorMessage(null);
     const result = await window.api.switchToFile(filePath);
+    if (result.error) { setErrorMessage(`Failed to open database: ${result.error}`); return; }
     // If already showing this file (no reload), just dismiss the overlay
     if (result.success && !result.reloading) onDismiss?.();
   };
@@ -206,6 +213,13 @@ export function FileChooserDialog({ onDismiss }: FileChooserDialogProps) {
             Pick up where you left off or start something new.
           </p>
         </div>
+
+        {errorMessage && (
+          <div className="mb-4 flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm">
+            <AlertTriangle className="h-4 w-4 text-destructive shrink-0 mt-0.5" />
+            <p className="text-destructive">{errorMessage}</p>
+          </div>
+        )}
 
         {hasContent ? (
           <ScrollArea className="flex-1">

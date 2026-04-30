@@ -501,11 +501,11 @@ export interface IpcChannels {
   };
   'window:openFileDialog': {
     args: [];
-    result: { filePath: string | null; canceled: boolean };
+    result: { filePath: string | null; canceled: boolean; error?: string };
   };
   'window:createNewDb': {
     args: [];
-    result: { filePath: string | null; canceled: boolean };
+    result: { filePath: string | null; canceled: boolean; error?: string };
   };
   'window:getRecentFiles': {
     args: [];

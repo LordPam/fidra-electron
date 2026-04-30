@@ -108,6 +108,10 @@ export function loadGlobalSettings(): GlobalSettings {
       ...defaultSettings(),
       ...parsed,
     };
+    // If the sentinel file exists, always honour it (survives JSON corruption cycles)
+    if (!merged.firstRunComplete && isFirstRunSentinelPresent()) {
+      merged.firstRunComplete = true;
+    }
     // Decrypt sensitive fields in cloud server configs
     merged.cloudServers = merged.cloudServers.map(decryptConfig);
 
@@ -129,8 +133,14 @@ export function loadGlobalSettings(): GlobalSettings {
     }
 
     return merged;
-  } catch {
-    return defaultSettings();
+  } catch (e) {
+    console.error('[global-settings] Failed to load settings:', e instanceof Error ? e.message : String(e));
+    // If the JSON is unreadable but the sentinel file exists, preserve firstRunComplete
+    const defaults = defaultSettings();
+    if (isFirstRunSentinelPresent()) {
+      defaults.firstRunComplete = true;
+    }
+    return defaults;
   }
 }
 
@@ -146,8 +156,18 @@ export function saveGlobalSettings(settings: GlobalSettings): void {
   };
   const settingsPath = getSettingsPath();
   const tmpPath = settingsPath + '.tmp';
-  fs.writeFileSync(tmpPath, JSON.stringify(toWrite, null, 2), 'utf-8');
-  fs.renameSync(tmpPath, settingsPath);
+  try {
+    fs.writeFileSync(tmpPath, JSON.stringify(toWrite, null, 2), 'utf-8');
+    fs.renameSync(tmpPath, settingsPath);
+  } catch (e) {
+    console.error('[global-settings] Failed to save settings:', e instanceof Error ? e.message : String(e));
+    // Fallback: try writing directly (skip atomic rename — better than losing data)
+    try {
+      fs.writeFileSync(settingsPath, JSON.stringify(toWrite, null, 2), 'utf-8');
+    } catch (e2) {
+      console.error('[global-settings] Direct write also failed:', e2 instanceof Error ? e2.message : String(e2));
+    }
+  }
 }
 
 export function addRecentFile(filePath: string): void {
@@ -222,10 +242,27 @@ export function removeCloudServer(serverId: string): void {
   saveGlobalSettings(settings);
 }
 
+/** Sentinel file that survives settings.json corruption. */
+function getFirstRunSentinelPath(): string {
+  return path.join(getSettingsDir(), '.first-run-complete');
+}
+
+function isFirstRunSentinelPresent(): boolean {
+  try { return fs.existsSync(getFirstRunSentinelPath()); } catch { return false; }
+}
+
 export function markFirstRunComplete(): void {
   const settings = loadGlobalSettings();
   settings.firstRunComplete = true;
   saveGlobalSettings(settings);
+  // Write a sentinel file as a fallback — immune to JSON corruption
+  try {
+    const dir = getSettingsDir();
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(getFirstRunSentinelPath(), new Date().toISOString(), 'utf-8');
+  } catch (e) {
+    console.error('[global-settings] Failed to write first-run sentinel:', e instanceof Error ? e.message : String(e));
+  }
 }
 
 // ─── UI preferences ─────────────────────────────────────────────────

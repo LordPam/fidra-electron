@@ -34,6 +34,8 @@ export function registerTransactionHandlers(): void {
       }
     } else {
       logTransactionCreated(ctx, result);
+      // Rename any pre-attached files now that transaction data is available
+      attachmentService.renameAttachmentsForTransaction(result.id, ctx);
     }
     return result;
   });

@@ -10,8 +10,14 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { ComboboxInput } from '@/components/ComboboxInput';
-import { ChevronRight, ChevronDown } from 'lucide-react';
+import { DropZone } from '@/components/DropZone';
+import { ChevronRight, ChevronDown, X } from 'lucide-react';
 import type { TransactionRow } from '../../shared/ipc-types';
+
+export interface PendingFile {
+  path: string;
+  name: string;
+}
 
 interface AddTransactionFormProps {
   incomeCategories: string[];
@@ -21,7 +27,7 @@ interface AddTransactionFormProps {
   descriptionSuggestions: string[];
   partySuggestions: string[];
   activitySuggestions: string[];
-  onSubmit: (transaction: TransactionRow) => void;
+  onSubmit: (transaction: TransactionRow, pendingFiles: PendingFile[]) => void;
 }
 
 function generateId(): string {
@@ -53,6 +59,7 @@ export function AddTransactionForm({
   const [activity, setActivity] = useState('');
   const [notes, setNotes] = useState('');
   const [sheet, setSheet] = useState(currentSheet !== 'All Sheets' ? currentSheet : (sheets[0] ?? ''));
+  const [pendingFiles, setPendingFiles] = useState<PendingFile[]>([]);
   const [showDetails, setShowDetails] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, boolean>>({});
   const amountRef = useRef<HTMLInputElement>(null);
@@ -82,6 +89,7 @@ export function AddTransactionForm({
     setActivity('');
     setNotes('');
     setDate(todayISO());
+    setPendingFiles([]);
     setFieldErrors({});
     // Re-focus amount after reset
     setTimeout(() => amountRef.current?.focus(), 0);
@@ -141,7 +149,7 @@ export function AddTransactionForm({
       modified_by: null,
     };
 
-    onSubmit(transaction);
+    onSubmit(transaction, pendingFiles);
     resetForm();
   };
 
@@ -303,6 +311,31 @@ export function AddTransactionForm({
                 placeholder="Notes"
                 className="text-xs"
               />
+            </div>
+
+            {/* Attachments */}
+            <div>
+              <Label className="text-xs">Attachments</Label>
+              <DropZone
+                onFilesDropped={(files) => setPendingFiles((prev) => [...prev, ...files])}
+                className="mt-1"
+              />
+              {pendingFiles.length > 0 && (
+                <div className="flex flex-col gap-1 mt-1.5">
+                  {pendingFiles.map((f, i) => (
+                    <div key={`${f.name}-${i}`} className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                      <span className="truncate flex-1">{f.name}</span>
+                      <button
+                        type="button"
+                        className="shrink-0 rounded-sm opacity-50 hover:opacity-100 transition-opacity"
+                        onClick={() => setPendingFiles((prev) => prev.filter((_, j) => j !== i))}
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         )}

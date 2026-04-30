@@ -268,8 +268,13 @@ export default function TransactionsView() {
 
   // Handlers
   const handleAddTransaction = useCallback(
-    async (transaction: TransactionRow) => {
+    async (transaction: TransactionRow, pendingFiles?: { path: string; name: string }[]) => {
       await execute(createAddTransactionCommand(transaction));
+      if (pendingFiles && pendingFiles.length > 0) {
+        for (const file of pendingFiles) {
+          await window.api.addAttachment(transaction.id, file.path, file.name);
+        }
+      }
     },
     [execute],
   );
@@ -282,13 +287,16 @@ export default function TransactionsView() {
         convertingInstanceRef.current = null;
         const template = templates.find((t) => t.id === instance.templateId);
         if (template) {
-          const fulfilled: string[] = JSON.parse(template.fulfilled_dates || '[]');
-          fulfilled.push(instance.instanceDate);
-          const updatedTemplate: PlannedTemplateRow = {
-            ...template,
-            fulfilled_dates: JSON.stringify(fulfilled),
-            version: template.version + 1,
-          };
+          let updatedTemplate: PlannedTemplateRow | null = null;
+          if (template.frequency !== 'once') {
+            const fulfilled: string[] = JSON.parse(template.fulfilled_dates || '[]');
+            fulfilled.push(instance.instanceDate);
+            updatedTemplate = {
+              ...template,
+              fulfilled_dates: JSON.stringify(fulfilled),
+              version: template.version + 1,
+            };
+          }
           await execute(createConvertPlannedCommand(template, updatedTemplate, updated));
         } else {
           // Template not found — just add the transaction
