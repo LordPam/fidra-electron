@@ -276,10 +276,36 @@ function runMigrations(sqlite: Database.Database): void {
     sqlite.exec("ALTER TABLE personnel ADD COLUMN device_id TEXT DEFAULT ''");
   }
 
-  // Add notes column to planned_templates if missing
+  // Add notes column to planned_templates if missing.
   const ptCols = sqlite.pragma('table_info(planned_templates)') as { name: string }[];
   if (ptCols.length > 0 && !ptCols.some((c) => c.name === 'notes')) {
-    sqlite.exec('ALTER TABLE planned_templates ADD COLUMN notes TEXT');
+    const isCrrView = !!(sqlite.prepare(
+      "SELECT 1 FROM sqlite_master WHERE type = 'view' AND name = 'planned_templates'",
+    ).get());
+    if (isCrrView) {
+      sqlite.exec('ALTER TABLE planned_templates__crsql_crr ADD COLUMN notes TEXT');
+    } else {
+      sqlite.exec('ALTER TABLE planned_templates ADD COLUMN notes TEXT');
+    }
+  }
+
+  // After adding notes column to planned_templates, CRR triggers become stale
+  // (they reference the old column set, causing "expected N values, got M" errors).
+  // Drop stale triggers and re-register the CRR to rebuild them. Guarded by sentinel.
+  if (isCrrInitialized(sqlite)) {
+    const ptCrrSentinel = sqlite.prepare("SELECT value FROM sync_meta WHERE key = '_crr_planned_notes_v2'").get() as
+      | { value: string }
+      | undefined;
+    if (!ptCrrSentinel) {
+      // Must drop triggers first — crsql_as_crr skips re-creation if they exist
+      sqlite.exec('DROP TRIGGER IF EXISTS "planned_templates__crsql_itrig"');
+      sqlite.exec('DROP TRIGGER IF EXISTS "planned_templates__crsql_utrig"');
+      sqlite.exec('DROP TRIGGER IF EXISTS "planned_templates__crsql_dtrig"');
+      sqlite.exec("SELECT crsql_as_crr('planned_templates')");
+      sqlite.prepare(
+        "INSERT INTO sync_meta (key, value) VALUES ('_crr_planned_notes_v2', '1') ON CONFLICT(key) DO UPDATE SET value = '1'",
+      ).run();
+    }
   }
 
   // Migrate sync watermarks from CRR settings table to non-CRR sync_meta table.
