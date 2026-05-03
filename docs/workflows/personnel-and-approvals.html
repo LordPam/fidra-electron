@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Personnel and Approvals</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../styles.css">
+  </head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a class="brand" href="../index.html">
+        <img src="../../logo-header.svg" alt="Fidra">
+        <span>Fidra Docs</span>
+      </a>
+      <nav class="toplinks" aria-label="Secondary">
+        <a href="../../index.html">Website</a>
+        <a href="../../local-sync.html">Local Sync Guide</a>
+        <a href="../../cloud-connect.html">Cloud Connect Guide</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="page-shell">
+    <article class="doc-content">
+      <h1 id="personnel-and-approvals">Personnel and Approvals</h1>
+      <p>Back to <a href="../README.md">Docs Index</a></p>
+      <p>This page covers two separate ideas that clubs often mix
+      together:</p>
+      <ol type="1">
+      <li>who has access to the database</li>
+      <li>how transactions move through review</li>
+      </ol>
+      <p>They are related operationally, but they are not the same
+      thing.</p>
+      <h2 id="personnel">Personnel</h2>
+      <p>Personnel is Fidra's list of named people who can access a
+      shared database.</p>
+      <p>This only becomes relevant when you are using a shared mode
+      such as:</p>
+      <ul>
+      <li>Local Sync with personnel enabled</li>
+      <li>Cloud Connect</li>
+      </ul>
+      <p>If you are using a standalone local database, the Personnel
+      area stays disabled.</p>
+      <h2 id="roles">Roles</h2>
+      <p>Fidra currently has two personnel roles:</p>
+      <ul>
+      <li><code>Admin</code></li>
+      <li><code>Member</code></li>
+      </ul>
+      <h3 id="admin">Admin</h3>
+      <p>Admins can manage team access. In practice that means they
+      can:</p>
+      <ul>
+      <li>invite people</li>
+      <li>promote members to admins</li>
+      <li>demote admins to members</li>
+      <li>remove personnel entries</li>
+      </ul>
+      <p>Fidra protects the last remaining admin from being removed or
+      demoted.</p>
+      <h3 id="member">Member</h3>
+      <p>Members are normal non-admin identities for shared use of the
+      database.</p>
+      <h2 id="personnel-status">Personnel Status</h2>
+      <p>Personnel records can effectively be in two practical
+      states:</p>
+      <ul>
+      <li><code>Invited</code></li>
+      <li><code>Active</code></li>
+      </ul>
+      <p><code>Invited</code> means the person has been created in the
+      access list but has not completed their join/activation step
+      yet.</p>
+      <p><code>Active</code> means they have completed that setup and
+      now have a working identity.</p>
+      <h2 id="local-sync-invite-flow">Local Sync Invite Flow</h2>
+      <p>In Local Sync, the common workflow is:</p>
+      <ol type="1">
+      <li>an admin invites a person</li>
+      <li>Fidra generates an 8-character invite code</li>
+      <li>the admin shares that code with the person</li>
+      <li>the person joins using their email, the invite code, and a new
+      password</li>
+      </ol>
+      <p>That join flow creates their usable local identity without the
+      admin having to hand over the raw sync passphrase directly.</p>
+      <h2 id="recommended-role-setup-for-small-clubs">Recommended Role
+      Setup for Small Clubs</h2>
+      <p>For most clubs:</p>
+      <ul>
+      <li>keep admin rights limited to the people who actually need to
+      manage setup and access</li>
+      <li>make everyone else a member</li>
+      </ul>
+      <p>That keeps the personnel list simpler and reduces accidental
+      access-management changes.</p>
+      <h2 id="approvals">Approvals</h2>
+      <p>Approvals are about transaction review, not personnel
+      onboarding.</p>
+      <p>Fidra uses transaction statuses including:</p>
+      <ul>
+      <li><code>pending</code></li>
+      <li><code>approved</code></li>
+      <li><code>rejected</code></li>
+      <li><code>planned</code></li>
+      <li><code>--</code> for normal non-pending cases</li>
+      </ul>
+      <p>In practical club use, the common pattern is:</p>
+      <ul>
+      <li>expenses start as <code>pending</code></li>
+      <li>someone reviews them</li>
+      <li>they become <code>approved</code> or
+      <code>rejected</code></li>
+      </ul>
+      <h2 id="where-approvals-happen">Where Approvals Happen</h2>
+      <p>The main places to review pending items are:</p>
+      <ul>
+      <li>Dashboard</li>
+      <li>Transactions</li>
+      </ul>
+      <p>Transactions also supports keyboard shortcuts for fast review.
+      See <a href="../reference/keyboard-shortcuts.md">Keyboard
+      Shortcuts</a>.</p>
+      <h2 id="approval-date-behavior">Approval Date Behavior</h2>
+      <p>There is an important settings option here:</p>
+      <p><code>Settings -&gt; Transaction Behavior -&gt; Set date to today when approving transactions</code></p>
+      <p>If enabled, approving a pending transaction rewrites its date
+      to today's date.</p>
+      <p>If disabled, the original date is preserved.</p>
+      <p>This is a club policy choice, not just a technical toggle.</p>
+      <h2 id="planned-conversion-date-behavior">Planned Conversion Date
+      Behavior</h2>
+      <p>There is a similar setting for planned transactions:</p>
+      <p><code>Settings -&gt; Transaction Behavior -&gt; Set date to today when converting planned to actual</code></p>
+      <p>That controls whether conversion keeps the planned date or
+      stamps the current date.</p>
+      <h2 id="recommended-review-workflow">Recommended Review
+      Workflow</h2>
+      <p>For a typical small club:</p>
+      <ol type="1">
+      <li>record the expense as soon as it is known</li>
+      <li>leave it pending if it still needs review</li>
+      <li>approve or reject it from Dashboard or Transactions</li>
+      <li>decide once, as a club, whether approval should change the
+      transaction date</li>
+      </ol>
+      <p>That avoids inconsistent handling between different
+      treasurers.</p>
+    </article>
+  </main>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', function () {
+      const anchors = document.querySelectorAll('a[href]');
+      for (const anchor of anchors) {
+        const raw = anchor.getAttribute('href');
+        if (!raw) continue;
+        if (raw.startsWith('http://') || raw.startsWith('https://') || raw.startsWith('#') || raw.startsWith('mailto:')) continue;
+        const hashIndex = raw.indexOf('#');
+        const base = hashIndex >= 0 ? raw.slice(0, hashIndex) : raw;
+        const hash = hashIndex >= 0 ? raw.slice(hashIndex) : '';
+        let next = base;
+        if (base.includes('gh-pages/')) {
+          next = '../../' + base.split('gh-pages/').pop();
+        } else if (base.endsWith('README.md')) {
+          next = base.slice(0, -9) + 'index.html';
+        } else if (base.endsWith('.md')) {
+          next = base.slice(0, -3) + '.html';
+        }
+        anchor.setAttribute('href', next + hash);
+      }
+    });
+  </script>
+</body>
+</html>

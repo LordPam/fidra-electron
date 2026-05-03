@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Local Sync</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../styles.css">
+  </head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a class="brand" href="../index.html">
+        <img src="../../logo-header.svg" alt="Fidra">
+        <span>Fidra Docs</span>
+      </a>
+      <nav class="toplinks" aria-label="Secondary">
+        <a href="../../index.html">Website</a>
+        <a href="../../local-sync.html">Local Sync Guide</a>
+        <a href="../../cloud-connect.html">Cloud Connect Guide</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="page-shell">
+    <article class="doc-content">
+      <h1 id="local-sync">Local Sync</h1>
+      <p>Back to <a href="../README.md">Docs Index</a></p>
+      <p>For the public click-by-click setup walkthrough, use the <a
+      href="../../gh-pages/local-sync.html">Local Sync website
+      guide</a>.</p>
+      <p>This markdown page is deliberately narrower. It covers the
+      parts that are easy to get wrong or easy to forget once the
+      initial setup is done.</p>
+      <p>If your team uses OneDrive or SharePoint to host the shared
+      folder, also read <a href="shared-folders.md">Shared Folders in
+      OneDrive and SharePoint</a>.</p>
+      <p>Local Sync lets a team share one Fidra dataset through a shared
+      folder, without running a server.</p>
+      <h2 id="what-local-sync-is">What Local Sync Is</h2>
+      <p>In plain terms:</p>
+      <ul>
+      <li>each person keeps their own local <code>.fdra</code> database
+      on their own machine</li>
+      <li>Fidra writes encrypted sync data into a shared folder</li>
+      <li>other devices read that sync data and apply the same changes
+      locally</li>
+      </ul>
+      <p>So the shared folder is not the database itself. It is the
+      transport layer that lets separate local databases stay in
+      sync.</p>
+      <h2 id="how-it-works-under-the-hood">How It Works Under the
+      Hood</h2>
+      <p>The shared folder contains a small fixed structure:</p>
+      <pre class="text"><code>Shared Fidra Sync/
+  sync/
+  snapshots/
+  attachments/
+  invites/</code></pre>
+      <p>What each part does:</p>
+      <ul>
+      <li><code>sync/</code>: encrypted change bundles exchanged between
+      devices</li>
+      <li><code>snapshots/</code>: larger state snapshots that help new
+      devices join faster</li>
+      <li><code>attachments/</code>: synced attachment files</li>
+      <li><code>invites/</code>: invite data used when a new member
+      joins by invite code</li>
+      </ul>
+      <p>For users, the important point is simple: do not manually edit
+      these folders.</p>
+      <h2 id="recommended-setup">Recommended Setup</h2>
+      <p>Before you switch Local Sync on, choose two separate
+      locations:</p>
+      <ol type="1">
+      <li>A local folder for the real <code>.fdra</code> database on
+      this computer.</li>
+      <li>A shared sync root folder that every participating computer
+      can access.</li>
+      </ol>
+      <p>Recommended pattern:</p>
+      <pre class="text"><code>MacBook/
+  Club Finance/
+    finances.fdra
+    finances.fdra-wal
+    finances.fdra-shm
+
+Shared Drive or Shared Cloud Folder/
+  Fidra Sync/
+    sync/
+    snapshots/
+    attachments/
+    invites/</code></pre>
+      <p>That separation is worth keeping. It avoids confusing the
+      working database with the sync transport files.</p>
+      <h2 id="when-local-sync-is-a-good-fit">When Local Sync Is a Good
+      Fit</h2>
+      <p>Use Local Sync when:</p>
+      <ul>
+      <li>the team mainly works on Macs or PCs you control</li>
+      <li>there is a shared folder everyone can access</li>
+      <li>you do not want to run or administer a database server</li>
+      </ul>
+      <p>It is usually the simplest multi-user setup for a small
+      club.</p>
+      <h2 id="joining-another-device">Joining Another Device</h2>
+      <p>There are two ways to join:</p>
+      <ol type="1">
+      <li>Invite code</li>
+      <li>Shared passphrase</li>
+      </ol>
+      <p>Invite code is the easier workflow for most clubs.</p>
+      <h3 id="invite-code-join">Invite Code Join</h3>
+      <p>The joining user needs:</p>
+      <ul>
+      <li>the shared sync folder</li>
+      <li>the email address they were invited with</li>
+      <li>the 8-character invite code</li>
+      <li>a new password</li>
+      <li>a save location for their local <code>.fdra</code> file</li>
+      </ul>
+      <h3 id="passphrase-join">Passphrase Join</h3>
+      <p>This is the lower-level route. The joining user needs:</p>
+      <ul>
+      <li>the shared sync folder</li>
+      <li>the team passphrase</li>
+      <li>a save location for their local <code>.fdra</code> file</li>
+      </ul>
+      <h2 id="what-invite-codes-actually-do">What Invite Codes Actually
+      Do</h2>
+      <p>Invite codes do not create a second sync system.</p>
+      <p>They are just a safer way to hand a new member the shared Local
+      Sync passphrase without sending the passphrase itself around
+      directly.</p>
+      <p>From the user's point of view, the result is the same: their
+      device joins the same Local Sync group.</p>
+      <h2 id="folder-selection-warnings">Folder Selection Warnings</h2>
+      <p>Fidra checks for common mistakes when you choose a sync folder.
+      For example:</p>
+      <ul>
+      <li>choosing <code>sync/</code> instead of its parent folder</li>
+      <li>choosing a folder that already contains sync data</li>
+      <li>choosing a parent folder when the real sync root is inside a
+      child folder</li>
+      </ul>
+      <p>If Fidra warns you here, stop and read the warning. It is
+      usually catching the exact mistake you were about to make.</p>
+      <h2 id="what-this-page-intentionally-does-not-repeat">What This
+      Page Intentionally Does Not Repeat</h2>
+      <p>This page does not try to restate:</p>
+      <ul>
+      <li>every button in the setup flow</li>
+      <li>the exact sequence of the setup dialog</li>
+      <li>the public onboarding copy from the website guide</li>
+      </ul>
+      <p>That content should live in one place only: the website
+      guide.</p>
+      <h2 id="conflicts">Conflicts</h2>
+      <p>Different sync methods can store or transport changes
+      differently, but the user-facing rule is simple:</p>
+      <ul>
+      <li>if two changes conflict, Fidra surfaces that for review</li>
+      </ul>
+      <p>From the user's point of view, conflict review should feel the
+      same regardless of how the sync is implemented underneath.</p>
+      <h2 id="practical-rules">Practical Rules</h2>
+      <ul>
+      <li>Keep the working <code>.fdra</code> file in a dedicated local
+      folder.</li>
+      <li>Keep the Local Sync folder separate from that database
+      folder.</li>
+      <li>Do not manually rename, move, or clean up files inside the
+      Local Sync folder.</li>
+      <li>Do not open the same <code>.fdra</code> file directly from a
+      shared drive on multiple computers. Let Local Sync coordinate
+      separate local databases instead.</li>
+      <li>If you are setting this up for a club, document which folder
+      is the real Local Sync root before handing it over.</li>
+      </ul>
+      <h2 id="recover-files">Recover Files</h2>
+      <p>If Local Sync is active and attachment files seem to be missing
+      or out of place, check:</p>
+      <p><code>Settings -&gt; Local Sync -&gt; Recover Files</code></p>
+      <p>That is the recovery path for re-copying known attachment files
+      and exporting them back into the shared sync folder.</p>
+    </article>
+  </main>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', function () {
+      const anchors = document.querySelectorAll('a[href]');
+      for (const anchor of anchors) {
+        const raw = anchor.getAttribute('href');
+        if (!raw) continue;
+        if (raw.startsWith('http://') || raw.startsWith('https://') || raw.startsWith('#') || raw.startsWith('mailto:')) continue;
+        const hashIndex = raw.indexOf('#');
+        const base = hashIndex >= 0 ? raw.slice(0, hashIndex) : raw;
+        const hash = hashIndex >= 0 ? raw.slice(hashIndex) : '';
+        let next = base;
+        if (base.includes('gh-pages/')) {
+          next = '../../' + base.split('gh-pages/').pop();
+        } else if (base.endsWith('README.md')) {
+          next = base.slice(0, -9) + 'index.html';
+        } else if (base.endsWith('.md')) {
+          next = base.slice(0, -3) + '.html';
+        }
+        anchor.setAttribute('href', next + hash);
+      }
+    });
+  </script>
+</body>
+</html>
