@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Troubleshooting and Recovery</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/docs-preview/styles.css">
+  </head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a class="brand" href="/docs-preview/index.html">
+        <img src="/gh-pages/logo-header.svg" alt="Fidra">
+        <span>Fidra Docs Preview</span>
+      </a>
+      <nav class="toplinks" aria-label="Secondary">
+        <a href="/gh-pages/index.html">Website</a>
+        <a href="/gh-pages/local-sync.html">Local Sync Guide</a>
+        <a href="/gh-pages/cloud-connect.html">Cloud Connect Guide</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="page-shell">
+    <article class="doc-content">
+      <h1 id="troubleshooting-and-recovery">Troubleshooting and
+      Recovery</h1>
+      <p>Back to <a href="../README.md">Docs Index</a></p>
+      <p>This page is for common operational problems: missing files,
+      sync confusion, access issues, and knowing which recovery path to
+      try first.</p>
+      <h2 id="first-principle">First Principle</h2>
+      <p>Do not start by manually moving or deleting files inside
+      Fidra's storage or sync folders.</p>
+      <p>In most cases, Fidra already has a safer recovery path:</p>
+      <ul>
+      <li>backups</li>
+      <li>Local Sync <code>Recover Files</code></li>
+      <li>admin invite flow</li>
+      <li>attachment re-open / re-download behavior</li>
+      </ul>
+      <h2 id="i-cannot-find-the-attachments">I Cannot Find the
+      Attachments</h2>
+      <p>Current attachments live here:</p>
+      <pre class="text"><code>~/.fidra/attachments/&lt;databaseId&gt;/</code></pre>
+      <p>They are not stored beside the <code>.fdra</code> file
+      anymore.</p>
+      <p>So if you are looking only in the database folder, you are
+      probably looking in the wrong place.</p>
+      <p>See <a href="../setup/files-and-storage.md">Files and
+      Storage</a>.</p>
+      <h2 id="an-attachment-will-not-open">An Attachment Will Not
+      Open</h2>
+      <p>Start with these checks:</p>
+      <ol type="1">
+      <li>confirm the attachment row still exists in Fidra</li>
+      <li>try opening it again</li>
+      <li>if you use Local Sync, run
+      <code>Settings -&gt; Local Sync -&gt; Recover Files</code></li>
+      <li>if the file still seems missing, restore from backup if
+      necessary</li>
+      </ol>
+      <p>Fidra already tries a few fallback locations when opening
+      attachments, including legacy storage and cloud download where
+      relevant. If that still fails, treat it as a genuine file recovery
+      problem.</p>
+      <h2 id="i-picked-the-wrong-local-sync-folder">I Picked the Wrong
+      Local Sync Folder</h2>
+      <p>This is common.</p>
+      <p>The Local Sync root should be the parent folder containing:</p>
+      <pre class="text"><code>sync/
+snapshots/
+attachments/
+invites/</code></pre>
+      <p>Do not select:</p>
+      <ul>
+      <li>the <code>sync/</code> subfolder itself</li>
+      <li>the <code>snapshots/</code> subfolder itself</li>
+      <li>a parent folder above the real sync root unless you intend
+      that</li>
+      </ul>
+      <p>Fidra warns about many of these mistakes already. If the folder
+      chooser gives you a warning, stop and read it.</p>
+      <h2 id="local-sync-seems-to-have-reset">Local Sync Seems to Have
+      Reset</h2>
+      <p>If the database itself is in a cloud-synced path, Local Sync
+      settings can appear to drop out even though the underlying sync
+      data is still there.</p>
+      <p>If that happens:</p>
+      <ol type="1">
+      <li>reconfigure Local Sync</li>
+      <li>point it at the same sync folder</li>
+      </ol>
+      <p>The setup should pick up where it left off.</p>
+      <h2 id="missing-local-sync-attachments">Missing Local Sync
+      Attachments</h2>
+      <p>Use:</p>
+      <p><code>Settings -&gt; Local Sync -&gt; Recover Files</code></p>
+      <p>That recovery path is designed to:</p>
+      <ul>
+      <li>copy known attachment files from known source locations</li>
+      <li>export them back into the Local Sync shared folder</li>
+      </ul>
+      <p>It is the right first move before attempting manual folder
+      surgery.</p>
+      <h2 id="i-cannot-join-with-my-invite">I Cannot Join With My
+      Invite</h2>
+      <p>Common causes:</p>
+      <ul>
+      <li>wrong email address</li>
+      <li>wrong invite code</li>
+      <li>password confirmation mismatch</li>
+      <li>trying to sign in before activating the invited account</li>
+      </ul>
+      <p>For Local Sync, invited users must finish the invite join flow
+      and set their password before they can sign in normally.</p>
+      <h2 id="i-cannot-remove-or-demote-an-admin">I Cannot Remove or
+      Demote an Admin</h2>
+      <p>If Fidra refuses to remove or demote an admin, check whether
+      they are the last admin.</p>
+      <p>That block is intentional.</p>
+      <p>Fix:</p>
+      <ol type="1">
+      <li>promote or activate another admin first</li>
+      <li>then retry the removal or demotion</li>
+      </ol>
+      <h2 id="i-need-to-restore-an-older-state">I Need to Restore an
+      Older State</h2>
+      <p>Use:</p>
+      <p><code>Settings -&gt; Backup &amp; Restore</code></p>
+      <p>Important behavior:</p>
+      <ul>
+      <li>restore creates a pre-restore safety backup first</li>
+      <li>if the selected backup contains attachments, those are
+      restored too</li>
+      </ul>
+      <p>Default backup location, if you have not changed it:</p>
+      <pre class="text"><code>&lt;database-folder&gt;/&lt;database-name&gt;_backups/</code></pre>
+      <p>See <a href="backups-and-restore.md">Backups and
+      Restore</a>.</p>
+      <h2 id="reports-or-totals-look-wrong">Reports or Totals Look
+      Wrong</h2>
+      <p>Before assuming corruption, check:</p>
+      <ol type="1">
+      <li>the current sheet filter</li>
+      <li>the report date range</li>
+      <li>the activity filter</li>
+      <li>whether you are looking at pending, rejected, planned, or real
+      transactions</li>
+      </ol>
+      <p>In particular:</p>
+      <ul>
+      <li>quick exports use the currently filtered transaction set</li>
+      <li>formal PDF reports treat pending and rejected differently from
+      the main countable totals</li>
+      </ul>
+      <p>So some differences are reporting rules, not broken data.</p>
+      <h2 id="i-need-more-detail-than-the-ui-shows">I Need More Detail
+      Than the UI Shows</h2>
+      <p>Open:</p>
+      <p><code>Settings -&gt; About</code></p>
+      <p>Fidra exposes the current log path there.</p>
+      <p>That is the right place to start if:</p>
+      <ul>
+      <li>sync errors keep recurring</li>
+      <li>a recovery action fails</li>
+      <li>a backup or restore does not behave as expected</li>
+      </ul>
+      <h2 id="recovery-order">Recovery Order</h2>
+      <p>If you are unsure what to do, use this order:</p>
+      <ol type="1">
+      <li>verify the problem in the UI</li>
+      <li>check the relevant settings page</li>
+      <li>use the built-in recovery action, if one exists</li>
+      <li>check backups</li>
+      <li>check the log path</li>
+      <li>only then start thinking about direct file-level
+      intervention</li>
+      </ol>
+    </article>
+  </main>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', function () {
+      const anchors = document.querySelectorAll('a[href]');
+      for (const anchor of anchors) {
+        const raw = anchor.getAttribute('href');
+        if (!raw) continue;
+        if (raw.startsWith('http://') || raw.startsWith('https://') || raw.startsWith('#') || raw.startsWith('mailto:')) continue;
+        const hashIndex = raw.indexOf('#');
+        const base = hashIndex >= 0 ? raw.slice(0, hashIndex) : raw;
+        const hash = hashIndex >= 0 ? raw.slice(hashIndex) : '';
+        let next = base;
+        if (base.endsWith('README.md')) {
+          next = base.slice(0, -9) + 'index.html';
+        } else if (base.endsWith('.md')) {
+          next = base.slice(0, -3) + '.html';
+        }
+        anchor.setAttribute('href', next + hash);
+      }
+    });
+  </script>
+</body>
+</html>

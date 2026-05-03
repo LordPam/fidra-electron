@@ -32,22 +32,26 @@ The markdown docs should complement those pages with:
 ## Suggested Reading Order
 
 1. [Files and Storage](setup/files-and-storage.md)
-2. [Local Sync Notes](setup/local-sync.md)
-3. [Cloud Connect Notes](setup/cloud-connect.md)
-4. [Date-Based Activities](workflows/date-based-activities.md)
-5. [Personnel and Approvals](workflows/personnel-and-approvals.md)
-6. [Planned Transactions](workflows/planned-transactions.md)
-7. [Reports and Invoices](workflows/reports-and-invoices.md)
-8. [Keyboard Shortcuts](reference/keyboard-shortcuts.md)
-9. [Backups and Restore](operations/backups-and-restore.md)
-10. [Treasurer Handover](workflows/treasurer-handover.md)
-11. [Troubleshooting and Recovery](operations/troubleshooting-and-recovery.md)
+2. [Install Notes](setup/install-notes.md)
+3. [Shared Folders in OneDrive and SharePoint](setup/shared-folders.md)
+4. [Local Sync Notes](setup/local-sync.md)
+5. [Cloud Connect Notes](setup/cloud-connect.md)
+6. [Date-Based Activities](workflows/date-based-activities.md)
+7. [Personnel and Approvals](workflows/personnel-and-approvals.md)
+8. [Planned Transactions](workflows/planned-transactions.md)
+9. [Reports and Invoices](workflows/reports-and-invoices.md)
+10. [Keyboard Shortcuts](reference/keyboard-shortcuts.md)
+11. [Backups and Restore](operations/backups-and-restore.md)
+12. [Treasurer Handover](workflows/treasurer-handover.md)
+13. [Troubleshooting and Recovery](operations/troubleshooting-and-recovery.md)
 
 ## Current Docs
 
 ### Setup
 
 - [Files and Storage](setup/files-and-storage.md)
+- [Install Notes](setup/install-notes.md)
+- [Shared Folders in OneDrive and SharePoint](setup/shared-folders.md)
 - [Local Sync Notes](setup/local-sync.md)
 - [Cloud Connect Notes](setup/cloud-connect.md)
 
@@ -70,7 +74,6 @@ The markdown docs should complement those pages with:
 
 ## Planned Next Pages
 
-- Install notes for unsigned desktop builds
 - Sync conflict review
 - Audit log usage
 

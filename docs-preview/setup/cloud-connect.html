@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Cloud Connect</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/docs-preview/styles.css">
+  </head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a class="brand" href="/docs-preview/index.html">
+        <img src="/gh-pages/logo-header.svg" alt="Fidra">
+        <span>Fidra Docs Preview</span>
+      </a>
+      <nav class="toplinks" aria-label="Secondary">
+        <a href="/gh-pages/index.html">Website</a>
+        <a href="/gh-pages/local-sync.html">Local Sync Guide</a>
+        <a href="/gh-pages/cloud-connect.html">Cloud Connect Guide</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="page-shell">
+    <article class="doc-content">
+      <h1 id="cloud-connect">Cloud Connect</h1>
+      <p>Back to <a href="../README.md">Docs Index</a></p>
+      <p>For the public click-by-click setup walkthrough, use the <a
+      href="../../gh-pages/cloud-connect.html">Cloud Connect website
+      guide</a>.</p>
+      <p>This markdown page is the companion note, not a second setup
+      manual.</p>
+      <p>Cloud Connect is Fidra's server-based sharing model.</p>
+      <h2 id="what-cloud-connect-is">What Cloud Connect Is</h2>
+      <p>In plain terms:</p>
+      <ul>
+      <li>the team works against a shared cloud database</li>
+      <li>people sign in rather than joining through a shared
+      folder</li>
+      <li>if configured, attachments can also be stored in cloud
+      storage</li>
+      </ul>
+      <p>This is the better fit when a club needs multi-user access
+      without relying on a shared drive.</p>
+      <h2 id="when-cloud-connect-is-a-good-fit">When Cloud Connect Is a
+      Good Fit</h2>
+      <p>Use Cloud Connect when:</p>
+      <ul>
+      <li>members are not all on the same shared file system</li>
+      <li>the team wants a more always-connected setup</li>
+      <li>someone can manage the server details</li>
+      </ul>
+      <p>For many small clubs, Local Sync is still the simpler option.
+      Cloud Connect is stronger when members are more distributed or
+      when you want a server-backed model.</p>
+      <h2 id="two-main-modes">Two Main Modes</h2>
+      <p>Fidra's Cloud Connect setup currently reflects two practical
+      roles:</p>
+      <ol type="1">
+      <li>Direct database access for setup and administration.</li>
+      <li>Authenticated member access through Supabase.</li>
+      </ol>
+      <p>In the UI, that shows up as server configuration rather than
+      shared-folder setup.</p>
+      <h2 id="attachments-in-cloud-connect">Attachments in Cloud
+      Connect</h2>
+      <p>Cloud attachments are optional at setup time, but if you want
+      attachment files to live in the cloud as well, you need Supabase
+      Storage configured.</p>
+      <p>Relevant pieces are:</p>
+      <ul>
+      <li>Supabase project URL</li>
+      <li>Supabase anon key</li>
+      <li>storage bucket name, usually <code>attachments</code></li>
+      </ul>
+      <p>Without that storage layer, the structured record of the
+      attachment can still exist, but file handling is not the same as a
+      fully configured cloud attachment setup.</p>
+      <h2 id="what-this-page-is-for">What This Page Is For</h2>
+      <p>This page should cover:</p>
+      <ul>
+      <li>how Cloud Connect differs from Local Sync</li>
+      <li>what infrastructure pieces exist</li>
+      <li>what an admin needs to know before rolling it out</li>
+      <li>attachment-storage expectations</li>
+      </ul>
+      <p>It should not restate every field and every click from the
+      website guide.</p>
+      <h2 id="what-to-document-next">What to Document Next</h2>
+      <p>This page is intentionally short for the first markdown
+      pass.</p>
+      <p>The next fuller version should cover:</p>
+      <ul>
+      <li>creating a server entry</li>
+      <li>direct Postgres setup</li>
+      <li>Supabase member setup</li>
+      <li>attachment storage setup</li>
+      <li>recommended admin/member rollout</li>
+      </ul>
+      <p>For now, treat this page as the conceptual companion to the
+      Local Sync guide: same goal, different transport.</p>
+    </article>
+  </main>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', function () {
+      const anchors = document.querySelectorAll('a[href]');
+      for (const anchor of anchors) {
+        const raw = anchor.getAttribute('href');
+        if (!raw) continue;
+        if (raw.startsWith('http://') || raw.startsWith('https://') || raw.startsWith('#') || raw.startsWith('mailto:')) continue;
+        const hashIndex = raw.indexOf('#');
+        const base = hashIndex >= 0 ? raw.slice(0, hashIndex) : raw;
+        const hash = hashIndex >= 0 ? raw.slice(hashIndex) : '';
+        let next = base;
+        if (base.endsWith('README.md')) {
+          next = base.slice(0, -9) + 'index.html';
+        } else if (base.endsWith('.md')) {
+          next = base.slice(0, -3) + '.html';
+        }
+        anchor.setAttribute('href', next + hash);
+      }
+    });
+  </script>
+</body>
+</html>

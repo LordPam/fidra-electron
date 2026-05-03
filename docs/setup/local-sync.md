@@ -6,6 +6,8 @@ For the public click-by-click setup walkthrough, use the [Local Sync website gui
 
 This markdown page is deliberately narrower. It covers the parts that are easy to get wrong or easy to forget once the initial setup is done.
 
+If your team uses OneDrive or SharePoint to host the shared folder, also read [Shared Folders in OneDrive and SharePoint](shared-folders.md).
+
 Local Sync lets a team share one Fidra dataset through a shared folder, without running a server.
 
 ## What Local Sync Is
