@@ -13,13 +13,13 @@
   <header class="topbar">
     <div class="topbar-inner">
       <a class="brand" href="../index.html">
-        <img src="../../gh-pages/logo-header.svg" alt="Fidra">
-        <span>Fidra Docs Preview</span>
+        <img src="../../logo-header.svg" alt="Fidra">
+        <span>Fidra Docs</span>
       </a>
       <nav class="toplinks" aria-label="Secondary">
-        <a href="../../gh-pages/index.html">Website</a>
-        <a href="../../gh-pages/local-sync.html">Local Sync Guide</a>
-        <a href="../../gh-pages/cloud-connect.html">Cloud Connect Guide</a>
+        <a href="../../index.html">Website</a>
+        <a href="../../local-sync.html">Local Sync Guide</a>
+        <a href="../../cloud-connect.html">Cloud Connect Guide</a>
       </nav>
     </div>
   </header>
@@ -167,7 +167,7 @@
         const hash = hashIndex >= 0 ? raw.slice(hashIndex) : '';
         let next = base;
         if (base.includes('gh-pages/')) {
-          next = '../../gh-pages/' + base.split('gh-pages/').pop();
+          next = '../../' + base.split('gh-pages/').pop();
         } else if (base.endsWith('README.md')) {
           next = base.slice(0, -9) + 'index.html';
         } else if (base.endsWith('.md')) {

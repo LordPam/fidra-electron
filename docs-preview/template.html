@@ -3,11 +3,11 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>$if(title-prefix)$$title-prefix$ - $endif$$if(pagetitle)$$pagetitle$$else$$if(title)$$title$$else$Fidra Docs Preview$endif$$endif$</title>
+  <title>$if(title-prefix)$$title-prefix$ - $endif$$if(pagetitle)$$pagetitle$$else$$if(title)$$title$$else$Fidra Docs$endif$$endif$</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/docs-preview/styles.css">
+  <link rel="stylesheet" href="$docsroot$styles.css">
   $for(css)$
   <link rel="stylesheet" href="$css$">
   $endfor$
@@ -15,14 +15,14 @@
 <body>
   <header class="topbar">
     <div class="topbar-inner">
-      <a class="brand" href="/docs-preview/index.html">
-        <img src="/gh-pages/logo-header.svg" alt="Fidra">
-        <span>Fidra Docs Preview</span>
+      <a class="brand" href="$docsroot$index.html">
+        <img src="$siteroot$logo-header.svg" alt="Fidra">
+        <span>$brandname$</span>
       </a>
       <nav class="toplinks" aria-label="Secondary">
-        <a href="/gh-pages/index.html">Website</a>
-        <a href="/gh-pages/local-sync.html">Local Sync Guide</a>
-        <a href="/gh-pages/cloud-connect.html">Cloud Connect Guide</a>
+        <a href="$siteroot$index.html">Website</a>
+        <a href="$siteroot$local-sync.html">Local Sync Guide</a>
+        <a href="$siteroot$cloud-connect.html">Cloud Connect Guide</a>
       </nav>
     </div>
   </header>
@@ -44,7 +44,9 @@
         const base = hashIndex >= 0 ? raw.slice(0, hashIndex) : raw;
         const hash = hashIndex >= 0 ? raw.slice(hashIndex) : '';
         let next = base;
-        if (base.endsWith('README.md')) {
+        if (base.includes('gh-pages/')) {
+          next = '$siteroot$' + base.split('gh-pages/').pop();
+        } else if (base.endsWith('README.md')) {
           next = base.slice(0, -9) + 'index.html';
         } else if (base.endsWith('.md')) {
           next = base.slice(0, -3) + '.html';
