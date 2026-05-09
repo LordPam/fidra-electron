@@ -1,11 +1,12 @@
 import { useEffect, useState, useCallback } from 'react';
-import { Download, X, Check, AlertTriangle, RefreshCw } from 'lucide-react';
+import { Download, X, Check, AlertTriangle, RefreshCw, ExternalLink } from 'lucide-react';
 import type { UpdateInfo } from '../../shared/ipc-types';
 
 type ToastState =
   | { kind: 'available'; info: UpdateInfo }
   | { kind: 'downloading'; percent: number }
   | { kind: 'downloaded' }
+  | { kind: 'installFailed'; releaseUrl: string }
   | { kind: 'upToDate'; version: string }
   | { kind: 'error'; message: string };
 
@@ -30,7 +31,10 @@ export function UpdateToast() {
     const unsub5 = window.api.onUpdateDownloaded(() => {
       setState({ kind: 'downloaded' });
     });
-    return () => { unsub1(); unsub2(); unsub3(); unsub4(); unsub5(); };
+    const unsub6 = window.api.onUpdateInstallFailed((releaseUrl) => {
+      setState({ kind: 'installFailed', releaseUrl });
+    });
+    return () => { unsub1(); unsub2(); unsub3(); unsub4(); unsub5(); unsub6(); };
   }, []);
 
   // Auto-dismiss "up to date" and "error" after a few seconds
@@ -65,7 +69,7 @@ export function UpdateToast() {
                   You have v{state.info.currentVersion}
                 </p>
                 {state.info.releaseNotes && (
-                  <p className="text-xs text-muted-foreground mt-1.5 line-clamp-3">
+                  <p className="text-xs text-muted-foreground mt-1.5 line-clamp-3 whitespace-pre-line">
                     {state.info.releaseNotes}
                   </p>
                 )}
@@ -143,6 +147,43 @@ export function UpdateToast() {
                 <RefreshCw className="h-3 w-3" />
                 Install & Restart
               </button>
+            </div>
+          </>
+        )}
+
+        {state.kind === 'installFailed' && (
+          <>
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="h-5 w-5 text-fidra-warning mt-0.5 shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium">Auto-install unavailable</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  The app needs to be code-signed for automatic updates. You can download and install manually instead.
+                </p>
+              </div>
+              <button
+                onClick={dismiss}
+                className="shrink-0 rounded-sm opacity-70 hover:opacity-100 transition-opacity"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+            <div className="flex gap-2 mt-3 justify-end">
+              <button
+                onClick={dismiss}
+                className="px-3 py-1.5 text-xs rounded-md border hover:bg-accent transition-colors"
+              >
+                Dismiss
+              </button>
+              <a
+                href={state.releaseUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-3 py-1.5 text-xs rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors inline-flex items-center gap-1.5"
+              >
+                <ExternalLink className="h-3 w-3" />
+                Open Release
+              </a>
             </div>
           </>
         )}

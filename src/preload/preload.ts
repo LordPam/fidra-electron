@@ -448,6 +448,11 @@ const api = {
     ipcRenderer.on('update:downloaded', handler);
     return () => ipcRenderer.removeListener('update:downloaded', handler);
   },
+  onUpdateInstallFailed: (callback: (releaseUrl: string) => void): (() => void) => {
+    const handler = (_event: unknown, url: string) => callback(url);
+    ipcRenderer.on('update:installFailed', handler);
+    return () => ipcRenderer.removeListener('update:installFailed', handler);
+  },
 };
 
 contextBridge.exposeInMainWorld('api', api);

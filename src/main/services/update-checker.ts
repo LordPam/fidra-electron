@@ -1,7 +1,9 @@
-import { app, BrowserWindow, ipcMain } from 'electron';
+import { app, BrowserWindow, ipcMain, shell } from 'electron';
 import { autoUpdater } from 'electron-updater';
 import type { UpdateInfo as ElectronUpdateInfo, ProgressInfo } from 'electron-updater';
 import type { UpdateInfo } from '../../shared/ipc-types';
+
+const RELEASES_URL = 'https://github.com/LordPam/fidra-electron/releases/latest';
 
 // ─── Configuration ──────────────────────────────────────────────────
 
@@ -12,24 +14,50 @@ autoUpdater.logger = null; // We log manually below
 /** Whether a silent check found nothing — suppresses "up to date" toast. */
 let silentCheck = true;
 
+/** Cached version for fallback download URL. */
+let latestVersion: string | null = null;
+
 function sendToAllWindows(channel: string, data?: unknown): void {
   for (const win of BrowserWindow.getAllWindows()) {
     win.webContents.send(channel, data);
   }
 }
 
+/** Strip HTML tags from release notes (GitHub returns HTML). */
+function stripHtml(html: string): string {
+  return html
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/p>/gi, '\n')
+    .replace(/<\/li>/gi, '\n')
+    .replace(/<li>/gi, '• ')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
 function mapUpdateInfo(raw: ElectronUpdateInfo): UpdateInfo {
-  const notes = typeof raw.releaseNotes === 'string'
-    ? raw.releaseNotes.slice(0, 500)
-    : Array.isArray(raw.releaseNotes)
-      ? raw.releaseNotes.map((n) => (typeof n === 'string' ? n : n.note)).join('\n').slice(0, 500)
-      : null;
+  let notes: string | null;
+  if (typeof raw.releaseNotes === 'string') {
+    notes = stripHtml(raw.releaseNotes).slice(0, 500);
+  } else if (Array.isArray(raw.releaseNotes)) {
+    notes = raw.releaseNotes
+      .map((n) => stripHtml(typeof n === 'string' ? n : n.note ?? ''))
+      .join('\n')
+      .slice(0, 500);
+  } else {
+    notes = null;
+  }
 
   return {
     version: raw.version,
     currentVersion: app.getVersion(),
     releaseNotes: notes,
-    downloadUrl: null, // Not needed — electron-updater handles downloads internally
+    downloadUrl: null,
   };
 }
 
@@ -37,6 +65,7 @@ function mapUpdateInfo(raw: ElectronUpdateInfo): UpdateInfo {
 
 autoUpdater.on('update-available', (info: ElectronUpdateInfo) => {
   console.log(`[updater] Update available: v${info.version}`);
+  latestVersion = info.version;
   sendToAllWindows('update:available', mapUpdateInfo(info));
 });
 
@@ -94,8 +123,19 @@ export function registerUpdateHandlers(): void {
     await autoUpdater.downloadUpdate();
   });
 
-  ipcMain.handle('app:quitAndInstall', () => {
+  ipcMain.handle('app:quitAndInstall', async () => {
     console.log('[updater] Quit and install requested by user');
-    autoUpdater.quitAndInstall();
+    try {
+      autoUpdater.quitAndInstall();
+    } catch (err) {
+      // Squirrel.Mac rejects ad-hoc or unsigned apps — fall back to
+      // opening the release page so the user can install manually.
+      console.error('[updater] quitAndInstall failed (likely code signing):', err instanceof Error ? err.message : String(err));
+      const tag = latestVersion ? `v${latestVersion}` : 'latest';
+      const url = latestVersion
+        ? `https://github.com/LordPam/fidra-electron/releases/tag/${tag}`
+        : RELEASES_URL;
+      sendToAllWindows('update:installFailed', url);
+    }
   });
 }
