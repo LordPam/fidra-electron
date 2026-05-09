@@ -160,6 +160,34 @@ export function getOverdueDate(template: PlannedTemplateRow): string | null {
   return lastOverdue;
 }
 
+/**
+ * Returns today's date if the template has an unfulfilled, unskipped occurrence
+ * due today. Returns null otherwise.
+ */
+export function getDueTodayDate(template: PlannedTemplateRow): string | null {
+  const today = todayISO();
+  const skipped: Set<string> = new Set(JSON.parse(template.skipped_dates || '[]'));
+  const fulfilled: Set<string> = new Set(JSON.parse(template.fulfilled_dates || '[]'));
+
+  let current = template.start_date;
+  let count = 0;
+
+  while (current <= today) {
+    if (template.occurrence_count !== null && count >= template.occurrence_count) break;
+    if (template.end_date && current > template.end_date) break;
+
+    if (current === today && !skipped.has(current) && !fulfilled.has(current)) {
+      return today;
+    }
+
+    if (!skipped.has(current)) count++;
+    if (template.frequency === 'once') break;
+    current = nextOccurrence(current, template.frequency);
+  }
+
+  return null;
+}
+
 export function getNextDueDate(template: PlannedTemplateRow): string | null {
   const today = todayISO();
   const skipped: Set<string> = new Set(JSON.parse(template.skipped_dates || '[]'));

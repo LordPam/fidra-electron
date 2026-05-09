@@ -86,7 +86,7 @@ function statusLabel(s: string): string {
 }
 
 function sortAsc(txns: TransactionRow[]): TransactionRow[] {
-  return [...txns].sort((a, b) => a.date.localeCompare(b.date) || a.created_at.localeCompare(b.created_at));
+  return [...txns].sort((a, b) => a.date.localeCompare(b.date) || a.created_at.localeCompare(b.created_at) || a.id.localeCompare(b.id));
 }
 
 function buildBreakdown(

@@ -22,6 +22,7 @@ import type {
   BackupListItem,
   BackupSettings,
   UpdateInfo,
+  UpdateDownloadProgress,
 } from '../shared/ipc-types';
 import type { AuthSession, PersonnelRecord, PersonnelRole, LocalAuthStatus } from '../shared/auth-types';
 
@@ -420,6 +421,8 @@ const api = {
   // Update
   installUpdate: (): Promise<void> =>
     ipcRenderer.invoke('app:installUpdate'),
+  quitAndInstall: (): Promise<void> =>
+    ipcRenderer.invoke('app:quitAndInstall'),
   onUpdateAvailable: (callback: (info: UpdateInfo) => void): (() => void) => {
     const handler = (_event: unknown, info: UpdateInfo) => callback(info);
     ipcRenderer.on('update:available', handler);
@@ -434,6 +437,16 @@ const api = {
     const handler = (_event: unknown, message: string) => callback(message);
     ipcRenderer.on('update:error', handler);
     return () => ipcRenderer.removeListener('update:error', handler);
+  },
+  onUpdateDownloadProgress: (callback: (progress: UpdateDownloadProgress) => void): (() => void) => {
+    const handler = (_event: unknown, progress: UpdateDownloadProgress) => callback(progress);
+    ipcRenderer.on('update:downloadProgress', handler);
+    return () => ipcRenderer.removeListener('update:downloadProgress', handler);
+  },
+  onUpdateDownloaded: (callback: (info: UpdateInfo) => void): (() => void) => {
+    const handler = (_event: unknown, info: UpdateInfo) => callback(info);
+    ipcRenderer.on('update:downloaded', handler);
+    return () => ipcRenderer.removeListener('update:downloaded', handler);
   },
 };
 

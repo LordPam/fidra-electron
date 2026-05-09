@@ -13,7 +13,7 @@ import { execSync } from 'node:child_process';
 import fs from 'fs-extra';
 
 // Native/external modules that Vite externalises and must be copied into the package
-const nativeModules = ['better-sqlite3', '@vlcn.io/crsqlite', 'pg'];
+const nativeModules = ['better-sqlite3', '@vlcn.io/crsqlite', 'pg', 'electron-updater'];
 
 // Recursively resolve production dependencies of a module
 function collectDeps(modName: string, projectDir: string, collected: Set<string> = new Set()): Set<string> {
@@ -38,6 +38,7 @@ const config: ForgeConfig = {
     asar: {
       unpack: '**/node_modules/{better-sqlite3,@vlcn.io}/**',
     },
+    extraResource: ['app-update.yml'],
     protocols: [
       {
         name: 'Fidra',

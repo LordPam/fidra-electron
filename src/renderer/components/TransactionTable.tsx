@@ -357,6 +357,13 @@ export const TransactionTable = forwardRef<TransactionTableHandle, TransactionTa
             </button>
           ),
           cell: ({ getValue }) => <span className="text-foreground">{formatDate(getValue<string>())}</span>,
+          sortingFn: (a, b) => {
+            const dateCompare = a.original.date.localeCompare(b.original.date);
+            if (dateCompare !== 0) return dateCompare;
+            const createdCompare = a.original.created_at.localeCompare(b.original.created_at);
+            if (createdCompare !== 0) return createdCompare;
+            return a.original.id.localeCompare(b.original.id);
+          },
           size: 110,
         },
         {

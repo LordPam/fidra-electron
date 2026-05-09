@@ -196,10 +196,16 @@ export interface LocalSyncImportResult {
 
 // ─── Sync notification types ─────────────────────────────────────────
 
+export interface ImportChangeDetail {
+  action: 'created' | 'updated' | 'deleted';
+  label: string;
+}
+
 export interface ImportChangeSummary {
   created: number;
   updated: number;
   deleted: number;
+  details?: ImportChangeDetail[];
 }
 
 export interface ImportPersonSummary {
@@ -220,6 +226,12 @@ export interface UpdateInfo {
   currentVersion: string;
   releaseNotes: string | null;
   downloadUrl: string | null;
+}
+
+export interface UpdateDownloadProgress {
+  percent: number;
+  transferred: number;
+  total: number;
 }
 
 // ─── Backup types ───────────────────────────────────────────────────
@@ -808,6 +820,10 @@ export interface IpcChannels {
 
   // Update
   'app:installUpdate': {
+    args: [];
+    result: void;
+  };
+  'app:quitAndInstall': {
     args: [];
     result: void;
   };

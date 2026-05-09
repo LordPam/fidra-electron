@@ -6,7 +6,7 @@ export default defineConfig({
   },
   build: {
     rollupOptions: {
-      external: ['better-sqlite3', 'pg', '@vlcn.io/crsqlite'],
+      external: ['better-sqlite3', 'pg', '@vlcn.io/crsqlite', 'electron-updater'],
     },
   },
 });

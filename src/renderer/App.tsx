@@ -375,6 +375,7 @@ export function App() {
       <>
         <AuthWiring />
         <ThemeWatcher />
+        <UpdateToast />
         <div className="flex h-screen items-center justify-center bg-surface" />
       </>
     );
@@ -385,6 +386,7 @@ export function App() {
       <>
         <AuthWiring />
         <ThemeWatcher />
+        <UpdateToast />
         <SetupWizard onComplete={() => {
           window.location.hash = '#/';
           setStartupOverlay(null);
@@ -398,6 +400,7 @@ export function App() {
       <>
         <AuthWiring />
         <ThemeWatcher />
+        <UpdateToast />
         <FileChooserDialog onDismiss={() => {
           window.location.hash = '#/';
           setStartupOverlay(null);
@@ -413,6 +416,7 @@ export function App() {
       <>
         <AuthWiring />
         <LocalSyncEarlyWiring />
+        <UpdateToast />
         <AuthGateDialog open={true} personnelEmpty={personnelEmpty} authMode={authMode} onDisconnected={showFileChooser} />
       </>
     );

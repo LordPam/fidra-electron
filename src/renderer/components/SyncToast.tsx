@@ -35,16 +35,34 @@ function describeChanges(summary: ImportPersonSummary): string {
   return parts.join(' and ');
 }
 
+/** Collect all detail lines from a summary, across all tables. */
+function collectDetails(summary: ImportPersonSummary): { action: string; label: string }[] {
+  const details: { action: string; label: string }[] = [];
+  for (const counts of Object.values(summary.changes)) {
+    if (counts.details) {
+      details.push(...counts.details);
+    }
+  }
+  return details;
+}
+
+/** Check if any table in the summary has detail labels. */
+function hasDetails(summary: ImportPersonSummary): boolean {
+  return Object.values(summary.changes).some((c) => c.details && c.details.length > 0);
+}
+
 interface ToastItem {
   id: number;
   personName: string;
   description: string;
+  details: { action: string; label: string }[];
 }
 
 let toastIdCounter = 0;
 
 const MAX_TOASTS = 3;
-const AUTO_DISMISS_MS = 5000;
+const AUTO_DISMISS_MS = 12000;
+const MAX_VISIBLE_DETAILS = 4;
 
 export function SyncToast() {
   const [toasts, setToasts] = useState<ToastItem[]>([]);
@@ -66,6 +84,7 @@ export function SyncToast() {
           id: ++toastIdCounter,
           personName: summary.personName,
           description,
+          details: hasDetails(summary) ? collectDetails(summary) : [],
         });
       }
 
@@ -93,12 +112,27 @@ export function SyncToast() {
       {toasts.map((toast) => (
         <div
           key={toast.id}
-          className="pointer-events-auto animate-in fade-in slide-in-from-right-5 duration-300 max-w-sm rounded-lg border bg-popover p-3 shadow-lg"
+          className="pointer-events-auto animate-in fade-in slide-in-from-right-5 duration-300 max-w-md rounded-lg border bg-popover p-3 shadow-lg"
         >
           <div className="flex items-start gap-2">
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium">{toast.personName}</p>
-              <p className="text-xs text-muted-foreground mt-0.5">{toast.description}</p>
+              {toast.details.length > 0 ? (
+                <ul className="mt-1 space-y-0.5">
+                  {toast.details.slice(0, MAX_VISIBLE_DETAILS).map((d, i) => (
+                    <li key={i} className="text-xs text-muted-foreground truncate">
+                      <span className="capitalize">{d.action}</span>: {d.label}
+                    </li>
+                  ))}
+                  {toast.details.length > MAX_VISIBLE_DETAILS && (
+                    <li className="text-xs text-muted-foreground">
+                      + {toast.details.length - MAX_VISIBLE_DETAILS} more
+                    </li>
+                  )}
+                </ul>
+              ) : (
+                <p className="text-xs text-muted-foreground mt-0.5">{toast.description}</p>
+              )}
             </div>
             <button
               onClick={() => dismiss(toast.id)}

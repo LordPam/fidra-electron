@@ -8,7 +8,7 @@ import { useUndoStore } from '@/stores/undo-store';
 import { useUiStore } from '@/stores/ui-store';
 import { useAuthStore } from '@/stores/auth-store';
 import { computeTotal, computePendingTotal } from '@/services/balance';
-import { expandTemplate, getOverdueDate } from '@/services/forecast';
+import { expandTemplate, getOverdueDate, getDueTodayDate } from '@/services/forecast';
 import { createBulkEditCommand } from '@/services/undo';
 import { formatCurrency, formatDate } from '@/lib/format';
 import { computeDailyBalances, groupByMonth, toISODate, getFYStart, getFYEnd } from '@/lib/chart-utils';
@@ -198,20 +198,29 @@ export default function DashboardView() {
   const pendingTransactions = useMemo(() => {
     return sheetFiltered
       .filter((t) => t.status === 'pending')
-      .sort((a, b) => a.date.localeCompare(b.date) || a.created_at.localeCompare(b.created_at));
+      .sort((a, b) => a.date.localeCompare(b.date) || a.created_at.localeCompare(b.created_at) || a.id.localeCompare(b.id));
   }, [sheetFiltered]);
 
   const totalPendingCount = pendingTransactions.length;
 
-  // Overdue planned templates
+  // Overdue + due-today planned templates
   const overdueTemplates = useMemo(() => {
     const filtered = currentSheet === 'All Sheets'
       ? templates
       : templates.filter((t) => t.target_sheet === currentSheet);
-    return filtered
-      .map((t) => ({ template: t, overdueDate: getOverdueDate(t) }))
-      .filter((item): item is { template: PlannedTemplateRow; overdueDate: string } => item.overdueDate !== null)
-      .sort((a, b) => a.overdueDate.localeCompare(b.overdueDate));
+    const items: { template: PlannedTemplateRow; dueDate: string; isDueToday: boolean }[] = [];
+    for (const t of filtered) {
+      const overdueDate = getOverdueDate(t);
+      if (overdueDate) {
+        items.push({ template: t, dueDate: overdueDate, isDueToday: false });
+        continue; // overdue takes priority over due-today for the same template
+      }
+      const dueTodayDate = getDueTodayDate(t);
+      if (dueTodayDate) {
+        items.push({ template: t, dueDate: dueTodayDate, isDueToday: true });
+      }
+    }
+    return items.sort((a, b) => a.dueDate.localeCompare(b.dueDate));
   }, [templates, currentSheet]);
 
   // Needs attention: profile missing + pending txns + overdue planned, capped at 5 total
@@ -412,6 +421,9 @@ export default function DashboardView() {
                         <p className="text-sm truncate">{t.description}</p>
                         <div className="flex items-center gap-1.5">
                           <span className="text-xs text-muted-foreground">{formatDate(t.date)}</span>
+                          {t.party && (
+                            <span className="text-xs text-muted-foreground truncate max-w-[120px]">{t.party}</span>
+                          )}
                           <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded-full bg-fidra-warning/15 text-fidra-warning font-medium">
                             Pending
                           </span>
@@ -442,7 +454,7 @@ export default function DashboardView() {
                       </span>
                     </div>
                   ))}
-                  {displayedOverdue.map(({ template, overdueDate }) => (
+                  {displayedOverdue.map(({ template, dueDate, isDueToday }) => (
                     <div
                       key={template.id}
                       className="flex items-center gap-2 py-2 px-2 rounded hover:bg-muted/50 cursor-pointer"
@@ -452,9 +464,17 @@ export default function DashboardView() {
                       <div className="flex-1 min-w-0">
                         <p className="text-sm truncate">{template.description}</p>
                         <div className="flex items-center gap-1.5">
-                          <span className="text-xs text-muted-foreground">{formatDate(overdueDate)}</span>
-                          <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded-full bg-fidra-warning/15 text-fidra-warning font-medium">
-                            Overdue
+                          <span className="text-xs text-muted-foreground">{formatDate(dueDate)}</span>
+                          {template.party && (
+                            <span className="text-xs text-muted-foreground truncate max-w-[120px]">{template.party}</span>
+                          )}
+                          <span className={cn(
+                            'shrink-0 text-[10px] px-1.5 py-0.5 rounded-full font-medium',
+                            isDueToday
+                              ? 'bg-fidra-teal/15 text-fidra-teal'
+                              : 'bg-fidra-warning/15 text-fidra-warning',
+                          )}>
+                            {isDueToday ? 'Due today' : 'Overdue'}
                           </span>
                         </div>
                       </div>

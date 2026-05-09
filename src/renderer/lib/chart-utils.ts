@@ -64,7 +64,7 @@ export function computeDailyBalances(
   // Sort transactions date ASC
   const sorted = [...transactions]
     .filter((t) => isCountable(t))
-    .sort((a, b) => a.date.localeCompare(b.date) || a.created_at.localeCompare(b.created_at));
+    .sort((a, b) => a.date.localeCompare(b.date) || a.created_at.localeCompare(b.created_at) || a.id.localeCompare(b.id));
 
   // Compute opening balance (transactions before startDate)
   let balance = 0;

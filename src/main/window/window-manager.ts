@@ -868,10 +868,24 @@ function handleImportSummary(
           0,
         );
         if (totalChanges > 0) {
-          new Notification({
-            title: 'Fidra',
-            body: `${summary.personName} synced ${totalChanges} change${totalChanges === 1 ? '' : 's'}`,
-          }).show();
+          // Build a richer body when change count is small and details are available
+          let body: string;
+          if (totalChanges <= 3) {
+            const detailLines: string[] = [];
+            for (const counts of Object.values(summary.changes)) {
+              if (counts.details) {
+                for (const d of counts.details) {
+                  detailLines.push(`${d.action}: ${d.label}`);
+                }
+              }
+            }
+            body = detailLines.length > 0
+              ? `${summary.personName}:\n${detailLines.join('\n')}`
+              : `${summary.personName} synced ${totalChanges} change${totalChanges === 1 ? '' : 's'}`;
+          } else {
+            body = `${summary.personName} synced ${totalChanges} change${totalChanges === 1 ? '' : 's'}`;
+          }
+          new Notification({ title: 'Fidra', body }).show();
         }
       }
     }

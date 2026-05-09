@@ -5,7 +5,7 @@ import { shell } from 'electron';
 import type { AttachmentRow } from '../../shared/ipc-types';
 import type { WindowContext } from '../window/window-context';
 import { getAttachmentStoragePath } from '../database/connection';
-import { writeAttachmentFile } from '../sync/attachment-transport';
+import { writeAttachmentFile, readAttachmentFile, removeAttachmentFile } from '../sync/attachment-transport';
 
 const MIME_MAP: Record<string, string> = {
   '.pdf': 'application/pdf',
@@ -223,6 +223,22 @@ export async function openAttachment(id: string, ctx: WindowContext): Promise<bo
   const localPath = safePath(storageDir, attachment.stored_name);
 
   if (!fs.existsSync(localPath)) {
+    // Try Local Sync shared folder (plain or legacy .enc)
+    const syncFolder = ctx.localSyncOrchestrator
+      ? ctx.settingsRepo.getSetting('localSync.syncFolder')
+      : null;
+    if (syncFolder) {
+      try {
+        const pulled = readAttachmentFile(
+          syncFolder, attachment.stored_name, localPath, ctx.localSyncPassphrase ?? undefined,
+        );
+        if (pulled) {
+          shell.openPath(localPath);
+          return true;
+        }
+      } catch { /* fall through to other sources */ }
+    }
+
     // Try legacy cloud-cache location (pre-migration files)
     const legacyPath = path.join(
       os.homedir(), '.fidra', 'cloud-cache', 'fidra_attachments', attachment.stored_name,
@@ -265,6 +281,10 @@ export function renameAttachmentsForTransaction(transactionId: string, ctx: Wind
 
   const storageDir = getStorageDir(ctx);
 
+  const syncFolder = ctx.localSyncOrchestrator
+    ? ctx.settingsRepo.getSetting('localSync.syncFolder')
+    : null;
+
   for (const attachment of attachments) {
     const newStoredName = buildDescriptiveName(
       transactionId,
@@ -278,6 +298,13 @@ export function renameAttachmentsForTransaction(transactionId: string, ctx: Wind
     const oldPath = safePath(storageDir, attachment.stored_name);
     const newPath = safePath(storageDir, newStoredName);
 
+    // If local file is missing but available in sync folder, pull it first
+    if (!fs.existsSync(oldPath) && syncFolder) {
+      try {
+        readAttachmentFile(syncFolder, attachment.stored_name, oldPath, ctx.localSyncPassphrase ?? undefined);
+      } catch { /* non-fatal — file may just be gone */ }
+    }
+
     // Rename physical file
     if (fs.existsSync(oldPath)) {
       fs.renameSync(oldPath, newPath);
@@ -286,16 +313,15 @@ export function renameAttachmentsForTransaction(transactionId: string, ctx: Wind
     // Update DB row
     ctx.repos.attachments.save({ ...attachment, stored_name: newStoredName });
 
-    // Export renamed file to sync shared folder if Local Sync is active
-    if (ctx.localSyncOrchestrator && fs.existsSync(newPath)) {
-      const syncFolder = ctx.settingsRepo.getSetting('localSync.syncFolder');
-      const passphrase = ctx.localSyncPassphrase ?? ctx.settingsRepo.getSetting('localSync.passphrase');
-      if (syncFolder && passphrase) {
-        try {
-          writeAttachmentFile(syncFolder, newStoredName, newPath, passphrase);
-        } catch {
-          // Best-effort — the orchestrator's normal export cycle will also pick this up
-        }
+    // Sync folder maintenance: remove old name, export new name
+    if (syncFolder && fs.existsSync(newPath)) {
+      try {
+        removeAttachmentFile(syncFolder, attachment.stored_name);
+      } catch { /* non-fatal */ }
+      try {
+        writeAttachmentFile(syncFolder, newStoredName, newPath);
+      } catch {
+        // Best-effort — the orchestrator's normal export cycle will also pick this up
       }
     }
   }

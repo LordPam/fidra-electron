@@ -1,7 +1,7 @@
 {
   "name": "fidra-web",
   "productName": "Fidra",
-  "version": "0.1.13",
+  "version": "0.1.14",
   "description": "Financial ledger application",
   "main": ".vite/build/index.js",
   "private": true,
@@ -76,6 +76,7 @@
     "cmdk": "^1.1.1",
     "drizzle-orm": "^0.45.2",
     "electron-squirrel-startup": "^1.0.1",
+    "electron-updater": "^6.8.3",
     "lucide-react": "^0.577.0",
     "pg": "^8.20.0",
     "postcss": "^8.5.8",
@@ -85,7 +86,6 @@
     "recharts": "^3.8.0",
     "tailwind-merge": "^3.5.0",
     "tailwindcss": "^4.2.1",
-    "update-electron-app": "^3.1.2",
     "zod": "^4.3.6",
     "zustand": "^5.0.12"
   }

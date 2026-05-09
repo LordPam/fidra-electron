@@ -39,12 +39,14 @@ import {
   writeAttachmentFile,
   readAttachmentFile,
   listRemoteAttachments,
+  migrateEncryptedAttachments,
 } from './attachment-transport';
 import { BundleIntegrityError, BundleCryptoError } from './bundle-crypto';
 import { BundleFormatError } from './bundle-format';
 import { syncLog, errorMessage } from './sync-log';
 import { findLatestSnapshot } from './bundle-io';
 import { getAttachmentStoragePath } from '../database/connection';
+import type { ImportChangeDetail } from '../../shared/ipc-types';
 import {
   compactBundles,
   shouldAutoSnapshot,
@@ -102,6 +104,107 @@ export interface ImportResult {
 
 const SETTING_LAST_EXPORTED_VERSION = 'sync.lastExportedVersion';
 const SETTING_SEQUENCE_NUMBER = 'sync.sequenceNumber';
+
+/** Max entities per table to include detail labels for (keeps toasts compact). */
+const DETAIL_THRESHOLD = 8;
+
+/**
+ * Format a currency amount as a simple £X.XX string.
+ * Main-process-only — renderer uses its own formatCurrency().
+ */
+function fmtAmount(amount: string): string {
+  const n = parseFloat(amount);
+  if (isNaN(n)) return amount;
+  return `£${Math.abs(n).toFixed(2)}`;
+}
+
+/**
+ * Build human-readable detail labels for changed entities in a table.
+ * Returns labels for created/updated PKs (deleted entities can't be queried).
+ */
+function buildDetailLabels(
+  db: Database.Database,
+  table: string,
+  pks: { created: Set<string>; updated: Set<string>; deleted: Set<string> },
+): ImportChangeDetail[] {
+  const total = pks.created.size + pks.updated.size + pks.deleted.size;
+  if (total > DETAIL_THRESHOLD) return [];
+
+  const details: ImportChangeDetail[] = [];
+  const livePks = [...pks.created, ...pks.updated];
+
+  if (livePks.length > 0) {
+    try {
+      const placeholders = livePks.map(() => '?').join(',');
+
+      if (table === 'transactions') {
+        const rows = db
+          .prepare(`SELECT id, description, amount, type, party, date FROM transactions WHERE id IN (${placeholders})`)
+          .all(...livePks) as { id: string; description: string; amount: string; type: string; party: string | null; date: string }[];
+        const rowMap = new Map(rows.map((r) => [r.id, r]));
+        for (const pk of livePks) {
+          const r = rowMap.get(pk);
+          const action = pks.created.has(pk) ? 'created' as const : 'updated' as const;
+          if (r) {
+            const partyPart = r.party ? ` · ${r.party}` : '';
+            details.push({ action, label: `${fmtAmount(r.amount)} ${r.type} — ${r.description}${partyPart} (${r.date})` });
+          } else {
+            details.push({ action, label: pk });
+          }
+        }
+      } else if (table === 'planned_templates') {
+        const rows = db
+          .prepare(`SELECT id, description, amount, type, frequency FROM planned_templates WHERE id IN (${placeholders})`)
+          .all(...livePks) as { id: string; description: string; amount: string; type: string; frequency: string }[];
+        const rowMap = new Map(rows.map((r) => [r.id, r]));
+        for (const pk of livePks) {
+          const r = rowMap.get(pk);
+          const action = pks.created.has(pk) ? 'created' as const : 'updated' as const;
+          if (r) {
+            details.push({ action, label: `${fmtAmount(r.amount)} ${r.frequency} ${r.type} — ${r.description}` });
+          } else {
+            details.push({ action, label: pk });
+          }
+        }
+      } else if (table === 'invoices') {
+        const rows = db
+          .prepare(`SELECT id, invoice_number, to_name, subtotal FROM invoices WHERE id IN (${placeholders})`)
+          .all(...livePks) as { id: string; invoice_number: string; to_name: string; subtotal: string }[];
+        const rowMap = new Map(rows.map((r) => [r.id, r]));
+        for (const pk of livePks) {
+          const r = rowMap.get(pk);
+          const action = pks.created.has(pk) ? 'created' as const : 'updated' as const;
+          if (r) {
+            details.push({ action, label: `Invoice #${r.invoice_number} to ${r.to_name} (${fmtAmount(r.subtotal)})` });
+          } else {
+            details.push({ action, label: pk });
+          }
+        }
+      } else if (table === 'sheets' || table === 'categories' || table === 'personnel') {
+        const rows = db
+          .prepare(`SELECT id, name FROM ${table} WHERE id IN (${placeholders})`)
+          .all(...livePks) as { id: string; name: string }[];
+        const rowMap = new Map(rows.map((r) => [r.id, r]));
+        for (const pk of livePks) {
+          const r = rowMap.get(pk);
+          const action = pks.created.has(pk) ? 'created' as const : 'updated' as const;
+          details.push({ action, label: r?.name ?? pk });
+        }
+      }
+      // activity_notes, settings, attachments: skip details — counts only
+    } catch {
+      // Non-fatal — fall back to count-based display
+      return [];
+    }
+  }
+
+  // Deleted entities: can't query (row gone)
+  for (const _pk of pks.deleted) {
+    details.push({ action: 'deleted', label: '(deleted)' });
+  }
+
+  return details;
+}
 
 // ─── Class ──────────────────────────────────────────────────────────
 
@@ -205,6 +308,14 @@ export class SyncOrchestrator {
     // Check for newer snapshot and apply if found (idempotent — safe on both
     // fresh and existing databases since cr-sqlite changesets are CRDTs)
     this.tryApplyLatestSnapshot();
+
+    // Migrate any legacy encrypted (.enc) attachments to plain files.
+    // Idempotent — safe to call on every start.
+    migrateEncryptedAttachments(this.syncFolder, this.passphrase);
+
+    // Export all local attachments that peers don't have yet (covers existing
+    // databases whose attachments were never exported or were only in .enc format).
+    this.exportAllAttachmentFiles();
 
     // Initial import scan
     this.doImportAll();
@@ -572,10 +683,12 @@ export class SyncOrchestrator {
 
           const changes: Record<string, import('../../shared/ipc-types').ImportChangeSummary> = {};
           for (const [table, sets] of tableMap) {
+            const details = buildDetailLabels(this.db, table, sets);
             changes[table] = {
               created: sets.created.size,
               updated: sets.updated.size,
               deleted: sets.deleted.size,
+              ...(details.length > 0 ? { details } : {}),
             };
           }
           summaries.push({ personName, deviceId: devId, changes });
@@ -809,7 +922,7 @@ export class SyncOrchestrator {
       if (!fs.existsSync(localPath)) continue;
 
       try {
-        writeAttachmentFile(this.syncFolder, storedName, localPath, this.passphrase);
+        writeAttachmentFile(this.syncFolder, storedName, localPath);
         count++;
       } catch (e) {
         syncLog('warn', 'Failed to export attachment', { storedName, error: errorMessage(e) });
@@ -845,6 +958,7 @@ export class SyncOrchestrator {
       if (!row) continue;
 
       try {
+        // Pass passphrase for legacy .enc fallback during transition period
         const ok = readAttachmentFile(this.syncFolder, storedName, localPath, this.passphrase);
         if (ok) count++;
       } catch (e) {
@@ -878,7 +992,7 @@ export class SyncOrchestrator {
       if (!fs.existsSync(localPath)) continue;
 
       try {
-        writeAttachmentFile(this.syncFolder, row.stored_name, localPath, this.passphrase);
+        writeAttachmentFile(this.syncFolder, row.stored_name, localPath);
         count++;
       } catch (e) {
         syncLog('warn', 'Failed to export attachment (bulk)', { storedName: row.stored_name, error: errorMessage(e) });
