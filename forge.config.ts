@@ -9,6 +9,7 @@ import { VitePlugin } from '@electron-forge/plugin-vite';
 import { FusesPlugin } from '@electron-forge/plugin-fuses';
 import { FuseV1Options, FuseVersion } from '@electron/fuses';
 import path from 'node:path';
+import crypto from 'node:crypto';
 import { execSync } from 'node:child_process';
 import fs from 'fs-extra';
 
@@ -173,7 +174,67 @@ const config: ForgeConfig = {
         });
       }
 
-      // 2. Remove intermediate packaged app directories so Spotlight
+      // 2. Generate electron-updater metadata files (latest-mac.yml / latest.yml)
+      //    electron-updater checks these to discover new versions and verify downloads.
+      const projectPkg = fs.readJsonSync(path.resolve(__dirname, 'package.json'));
+      const appVersion: string = projectPkg.version;
+      const releaseDate = new Date().toISOString();
+
+      for (const result of makeResults) {
+        // macOS: generate latest-mac.yml from the ZIP artifact
+        if (result.platform === 'darwin') {
+          const zipPath = result.artifacts.find((a) => a.endsWith('.zip'));
+          if (zipPath && fs.existsSync(zipPath)) {
+            const zipName = path.basename(zipPath);
+            const zipBuf = fs.readFileSync(zipPath);
+            const sha512 = crypto.createHash('sha512').update(zipBuf).digest('base64');
+            const size = zipBuf.length;
+            const yml = [
+              `version: ${appVersion}`,
+              `files:`,
+              `  - url: ${zipName}`,
+              `    sha512: ${sha512}`,
+              `    size: ${size}`,
+              `path: ${zipName}`,
+              `sha512: ${sha512}`,
+              `releaseDate: '${releaseDate}'`,
+              '',
+            ].join('\n');
+            const ymlPath = path.join(path.dirname(zipPath), 'latest-mac.yml');
+            fs.writeFileSync(ymlPath, yml);
+            result.artifacts.push(ymlPath);
+            console.log(`[UPDATE-YML] Generated latest-mac.yml for ${zipName}`);
+          }
+        }
+
+        // Windows: generate latest.yml from the Setup.exe artifact
+        if (result.platform === 'win32') {
+          const exePath = result.artifacts.find((a) => a.endsWith('.exe'));
+          if (exePath && fs.existsSync(exePath)) {
+            const exeName = path.basename(exePath);
+            const exeBuf = fs.readFileSync(exePath);
+            const sha512 = crypto.createHash('sha512').update(exeBuf).digest('base64');
+            const size = exeBuf.length;
+            const yml = [
+              `version: ${appVersion}`,
+              `files:`,
+              `  - url: ${exeName}`,
+              `    sha512: ${sha512}`,
+              `    size: ${size}`,
+              `path: ${exeName}`,
+              `sha512: ${sha512}`,
+              `releaseDate: '${releaseDate}'`,
+              '',
+            ].join('\n');
+            const ymlPath = path.join(path.dirname(exePath), 'latest.yml');
+            fs.writeFileSync(ymlPath, yml);
+            result.artifacts.push(ymlPath);
+            console.log(`[UPDATE-YML] Generated latest.yml for ${exeName}`);
+          }
+        }
+      }
+
+      // 3. Remove intermediate packaged app directories so Spotlight
       //    doesn't index them (the DMG/ZIP in out/make/ is the real output)
       const outBase = path.resolve(__dirname, 'out');
       if (fs.existsSync(outBase)) {
