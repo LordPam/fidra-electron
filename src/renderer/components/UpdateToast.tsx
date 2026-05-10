@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import { Download, X, Check, AlertTriangle, RefreshCw, ExternalLink } from 'lucide-react';
+import { Download, X, Check, AlertTriangle, RefreshCw } from 'lucide-react';
 import type { UpdateInfo } from '../../shared/ipc-types';
 
 type ToastState =
@@ -181,8 +181,8 @@ export function UpdateToast() {
                 rel="noopener noreferrer"
                 className="px-3 py-1.5 text-xs rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors inline-flex items-center gap-1.5"
               >
-                <ExternalLink className="h-3 w-3" />
-                Open Release
+                <Download className="h-3 w-3" />
+                Download DMG
               </a>
             </div>
           </>

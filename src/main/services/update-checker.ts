@@ -131,9 +131,9 @@ export function registerUpdateHandlers(): void {
       // Squirrel.Mac rejects ad-hoc or unsigned apps — fall back to
       // opening the release page so the user can install manually.
       console.error('[updater] quitAndInstall failed (likely code signing):', err instanceof Error ? err.message : String(err));
-      const tag = latestVersion ? `v${latestVersion}` : 'latest';
+      // Direct download link for the DMG (name matches postMake rename in forge.config.ts)
       const url = latestVersion
-        ? `https://github.com/LordPam/fidra-electron/releases/tag/${tag}`
+        ? `https://github.com/LordPam/fidra-electron/releases/download/v${latestVersion}/Fidra-macOS.dmg`
         : RELEASES_URL;
       sendToAllWindows('update:installFailed', url);
     }
