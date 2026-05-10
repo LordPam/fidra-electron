@@ -4,224 +4,244 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Reports and Invoices</title>
+  <meta name="theme-color" content="#f5f5f7">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="../styles.css">
   </head>
-<body>
+<body class="docs-page" data-docs-root="../" data-site-root="../../gh-pages/" data-doc-path="workflows/reports-and-invoices.html">
   <header class="topbar">
     <div class="topbar-inner">
       <a class="brand" href="../index.html">
         <img src="../../gh-pages/logo-header.svg" alt="Fidra">
         <span>Fidra Docs Preview</span>
       </a>
-      <nav class="toplinks" aria-label="Secondary">
-        <a href="../../gh-pages/index.html">Website</a>
-        <a href="../../gh-pages/local-sync.html">Local Sync Guide</a>
-        <a href="../../gh-pages/cloud-connect.html">Cloud Connect Guide</a>
-      </nav>
+      <div class="topbar-actions">
+        <nav class="toplinks" aria-label="Secondary">
+          <a href="../../gh-pages/index.html">Website</a>
+          <a href="../../gh-pages/local-sync.html">Local Sync Guide</a>
+          <a href="../../gh-pages/cloud-connect.html">Cloud Connect Guide</a>
+        </nav>
+        <button class="mobile-nav-trigger topbar-trigger" type="button" data-sidebar-open aria-controls="docs-sidebar" aria-expanded="false">
+          Browse Docs
+        </button>
+      </div>
     </div>
   </header>
 
   <main class="page-shell">
-    <article class="doc-content">
-      <h1 id="reports-and-invoices">Reports and Invoices</h1>
-      <p>Back to <a href="../README.md">Docs Index</a></p>
-      <p>Reports and invoices are separate parts of Fidra, but in
-      practice they are both "output" tools: one for internal finance
-      reporting, the other for external billing.</p>
-      <h2 id="reports">Reports</h2>
-      <p>The Reports view is split into four tabs:</p>
-      <ul>
-      <li>Overview</li>
-      <li>Breakdowns</li>
-      <li>Charts</li>
-      <li>Export</li>
-      </ul>
-      <p>The current sheet and the local date/activity filters shape
-      what you are looking at.</p>
-      <h2 id="what-reports-include">What Reports Include</h2>
-      <p>In normal report filtering:</p>
-      <ul>
-      <li>planned transactions are excluded from the main transaction
-      set</li>
-      <li>date range and activity filters are applied first</li>
-      </ul>
-      <p>That means reports are fundamentally built from real
-      transactions, not from planned templates directly.</p>
-      <h2 id="quick-export">Quick Export</h2>
-      <p>The Quick Export section is the fastest route when you already
-      have the right report filter set.</p>
-      <p>Current quick exports are:</p>
-      <ul>
-      <li>CSV</li>
-      <li>Markdown</li>
-      <li>PDF</li>
-      <li>Clipboard</li>
-      </ul>
-      <p>These work from the currently filtered transaction set.</p>
-      <h2 id="custom-report-builder">Custom Report Builder</h2>
-      <p>The Custom Report Builder is the more formal reporting
-      path.</p>
-      <p>It lets you choose:</p>
-      <ul>
-      <li>organisation name</li>
-      <li>report date range</li>
-      <li>output format</li>
-      <li>which sections to include</li>
-      </ul>
-      <p>Current output formats:</p>
-      <ul>
-      <li>PDF</li>
-      <li>Markdown</li>
-      </ul>
-      <h2 id="pdf-vs-markdown-reports">PDF vs Markdown Reports</h2>
-      <p>The PDF path is richer.</p>
-      <p>It can include:</p>
-      <ul>
-      <li>summary</li>
-      <li>category breakdowns</li>
-      <li>activity breakdowns</li>
-      <li>transaction register</li>
-      <li>charts</li>
-      <li>pending section when relevant</li>
-      <li>upcoming planned section when relevant</li>
-      </ul>
-      <p>The Markdown path is simpler and is better thought of as
-      structured export rather than presentation output.</p>
-      <h2 id="category-detail-thresholds">Category Detail
-      Thresholds</h2>
-      <p>In the PDF builder, category detail can be filtered by:</p>
-      <ul>
-      <li>minimum transaction count</li>
-      <li>minimum total amount</li>
-      <li><code>OR</code> / <code>AND</code> logic between those two
-      thresholds</li>
-      </ul>
-      <p>That is useful for keeping reports readable when there are many
-      minor categories or descriptions.</p>
-      <h2 id="persistent-report-identity">Persistent Report
-      Identity</h2>
-      <p>The report builder remembers the organisation name across
-      sessions.</p>
-      <p>That makes sense for clubs, because the organisation name
-      usually changes rarely.</p>
-      <h2 id="invoices">Invoices</h2>
-      <p>The Invoices view is a PDF invoice builder with a live
-      preview.</p>
-      <p>Each invoice can include:</p>
-      <ul>
-      <li>sender details</li>
-      <li>recipient details</li>
-      <li>invoice number</li>
-      <li>invoice date</li>
-      <li>due date</li>
-      <li>multiple line items</li>
-      <li>tax rate</li>
-      <li>bank details</li>
-      <li>notes / terms</li>
-      <li>branding accent</li>
-      <li>optional logo</li>
-      </ul>
-      <h2 id="invoice-lifecycle">Invoice Lifecycle</h2>
-      <p>In practical terms, invoices move through three states:</p>
-      <ul>
-      <li>draft</li>
-      <li>sent</li>
-      <li>paid</li>
-      </ul>
-      <p>Generating the invoice PDF saves the invoice record as sent if
-      it is not already paid.</p>
-      <h2 id="mark-as-paid">Mark as Paid</h2>
-      <p>When you mark an invoice as paid:</p>
-      <ul>
-      <li>Fidra creates an income transaction</li>
-      <li>the invoice is linked to that transaction</li>
-      <li>the invoice status changes to paid</li>
-      </ul>
-      <p>If the invoice came from a planned template, marking it paid
-      can also update the planned side appropriately.</p>
-      <h2 id="revert-to-draft">Revert to Draft</h2>
-      <p>Paid is not an irreversible dead end.</p>
-      <p>You can revert a paid invoice to draft, which also unwinds the
-      linked transaction/template state as needed.</p>
-      <p>That is useful when something was marked paid too early or
-      against the wrong transaction context.</p>
-      <h2 id="what-the-invoice-builder-remembers">What the Invoice
-      Builder Remembers</h2>
-      <p>Some invoice fields are intentionally remembered across
-      sessions, including:</p>
-      <ul>
-      <li>sender name</li>
-      <li>sender address</li>
-      <li>bank details</li>
-      <li>invoice notes / terms</li>
-      <li>invoice numbering counter</li>
-      <li>accent choice</li>
-      </ul>
-      <p>This reduces repetitive re-entry for clubs that issue invoices
-      in a consistent format.</p>
-      <h2 id="invoice-logo-caveat">Invoice Logo Caveat</h2>
-      <p>There is one important subtlety with branding:</p>
-      <ul>
-      <li>the saved <code>logoPath</code> is device-local</li>
-      <li>synced <code>logoData</code> can act as a fallback</li>
-      </ul>
-      <p>So if a new machine or new treasurer opens the same database,
-      re-check the invoice preview rather than assuming the exact same
-      logo file path exists there.</p>
-      <h2 id="planned-transactions-and-invoices">Planned Transactions
-      and Invoices</h2>
-      <p>Planned transactions and invoices are intentionally linked in a
-      few places:</p>
-      <ul>
-      <li>creating an invoice from Planned can prefill recipient,
-      description, amount, and date</li>
-      <li>a planned template only gets one live invoice at a time</li>
-      <li>marking that invoice paid can fulfill the planned item</li>
-      </ul>
-      <p>If you use planned invoices for recurring billing, this linkage
-      is worth understanding up front.</p>
-      <h2 id="recommended-use">Recommended Use</h2>
-      <p>Use Reports for:</p>
-      <ul>
-      <li>internal committee review</li>
-      <li>year-end summaries</li>
-      <li>grant or society reporting</li>
-      <li>committee handover packs</li>
-      </ul>
-      <p>Use Invoices for:</p>
-      <ul>
-      <li>membership invoices</li>
-      <li>reimbursements due back to the club</li>
-      <li>external charges</li>
-      <li>any case where the club needs a clean PDF billing record</li>
-      </ul>
-    </article>
+    <aside class="docs-sidebar" id="docs-sidebar" data-sidebar>
+      <div class="sidebar-inner">
+        <div class="sidebar-header">
+          <div>
+            <p class="sidebar-eyebrow">Documentation</p>
+            <h2 class="sidebar-title">Fidra Docs</h2>
+          </div>
+          <button class="sidebar-expand" type="button" data-expand-all>Expand all</button>
+        </div>
+
+        <label class="sidebar-filter" for="docs-filter">
+          <span class="sidebar-filter-label">Filter</span>
+          <span class="sidebar-filter-field">
+            <span class="sidebar-filter-icon" aria-hidden="true"></span>
+            <input id="docs-filter" type="search" placeholder="Filter docs" autocomplete="off" spellcheck="false" data-doc-filter>
+          </span>
+        </label>
+
+        <nav class="sidebar-nav" aria-label="Documentation" data-doc-nav></nav>
+        <p class="sidebar-empty" hidden data-doc-empty>No matching docs.</p>
+      </div>
+    </aside>
+
+    <button class="sidebar-backdrop" type="button" data-sidebar-close aria-hidden="true" tabindex="-1"></button>
+
+    <section class="docs-main">
+      <div class="docs-main-toolbar">
+        <button class="mobile-nav-trigger" type="button" data-sidebar-open aria-controls="docs-sidebar" aria-expanded="false">
+          Browse Docs
+        </button>
+      </div>
+
+      <article class="doc-content">
+        <h1 id="reports-and-invoices">Reports and Invoices</h1>
+        <p>Reports and invoices are separate parts of Fidra, but in
+        practice they are both "output" tools: one for internal finance
+        reporting, the other for external billing.</p>
+        <h2 id="reports">Reports</h2>
+        <p>The Reports view is split into four tabs:</p>
+        <ul>
+        <li>Overview</li>
+        <li>Breakdowns</li>
+        <li>Charts</li>
+        <li>Export</li>
+        </ul>
+        <p>The current sheet and the local date/activity filters shape
+        what you are looking at.</p>
+        <h2 id="what-reports-include">What Reports Include</h2>
+        <p>In normal report filtering:</p>
+        <ul>
+        <li>planned transactions are excluded from the main transaction
+        set</li>
+        <li>date range and activity filters are applied first</li>
+        </ul>
+        <p>That means reports are fundamentally built from real
+        transactions, not from planned templates directly.</p>
+        <h2 id="quick-export">Quick Export</h2>
+        <p>The Quick Export section is the fastest route when you
+        already have the right report filter set.</p>
+        <p>Current quick exports are:</p>
+        <ul>
+        <li>CSV</li>
+        <li>Markdown</li>
+        <li>PDF</li>
+        <li>Clipboard</li>
+        </ul>
+        <p>These work from the currently filtered transaction set.</p>
+        <h2 id="custom-report-builder">Custom Report Builder</h2>
+        <p>The Custom Report Builder is the more formal reporting
+        path.</p>
+        <p>It lets you choose:</p>
+        <ul>
+        <li>organisation name</li>
+        <li>report date range</li>
+        <li>output format</li>
+        <li>which sections to include</li>
+        </ul>
+        <p>Current output formats:</p>
+        <ul>
+        <li>PDF</li>
+        <li>Markdown</li>
+        </ul>
+        <h2 id="pdf-vs-markdown-reports">PDF vs Markdown Reports</h2>
+        <p>The PDF path is richer.</p>
+        <p>It can include:</p>
+        <ul>
+        <li>summary</li>
+        <li>category breakdowns</li>
+        <li>activity breakdowns</li>
+        <li>transaction register</li>
+        <li>charts</li>
+        <li>pending section when relevant</li>
+        <li>upcoming planned section when relevant</li>
+        </ul>
+        <p>The Markdown path is simpler and is better thought of as
+        structured export rather than presentation output.</p>
+        <h2 id="category-detail-thresholds">Category Detail
+        Thresholds</h2>
+        <p>In the PDF builder, category detail can be filtered by:</p>
+        <ul>
+        <li>minimum transaction count</li>
+        <li>minimum total amount</li>
+        <li><code>OR</code> / <code>AND</code> logic between those two
+        thresholds</li>
+        </ul>
+        <p>That is useful for keeping reports readable when there are
+        many minor categories or descriptions.</p>
+        <h2 id="persistent-report-identity">Persistent Report
+        Identity</h2>
+        <p>The report builder remembers the organisation name across
+        sessions.</p>
+        <p>That makes sense for clubs, because the organisation name
+        usually changes rarely.</p>
+        <h2 id="invoices">Invoices</h2>
+        <p>The Invoices view is a PDF invoice builder with a live
+        preview.</p>
+        <p>Each invoice can include:</p>
+        <ul>
+        <li>sender details</li>
+        <li>recipient details</li>
+        <li>invoice number</li>
+        <li>invoice date</li>
+        <li>due date</li>
+        <li>multiple line items</li>
+        <li>tax rate</li>
+        <li>bank details</li>
+        <li>notes / terms</li>
+        <li>branding accent</li>
+        <li>optional logo</li>
+        </ul>
+        <h2 id="invoice-lifecycle">Invoice Lifecycle</h2>
+        <p>In practical terms, invoices move through three states:</p>
+        <ul>
+        <li>draft</li>
+        <li>sent</li>
+        <li>paid</li>
+        </ul>
+        <p>Generating the invoice PDF saves the invoice record as sent
+        if it is not already paid.</p>
+        <h2 id="mark-as-paid">Mark as Paid</h2>
+        <p>When you mark an invoice as paid:</p>
+        <ul>
+        <li>Fidra creates an income transaction</li>
+        <li>the invoice is linked to that transaction</li>
+        <li>the invoice status changes to paid</li>
+        </ul>
+        <p>If the invoice came from a planned template, marking it paid
+        can also update the planned side appropriately.</p>
+        <h2 id="revert-to-draft">Revert to Draft</h2>
+        <p>Paid is not an irreversible dead end.</p>
+        <p>You can revert a paid invoice to draft, which also unwinds
+        the linked transaction/template state as needed.</p>
+        <p>That is useful when something was marked paid too early or
+        against the wrong transaction context.</p>
+        <h2 id="what-the-invoice-builder-remembers">What the Invoice
+        Builder Remembers</h2>
+        <p>Some invoice fields are intentionally remembered across
+        sessions, including:</p>
+        <ul>
+        <li>sender name</li>
+        <li>sender address</li>
+        <li>bank details</li>
+        <li>invoice notes / terms</li>
+        <li>invoice numbering counter</li>
+        <li>accent choice</li>
+        </ul>
+        <p>This reduces repetitive re-entry for clubs that issue
+        invoices in a consistent format.</p>
+        <h2 id="invoice-logo-caveat">Invoice Logo Caveat</h2>
+        <p>There is one important subtlety with branding:</p>
+        <ul>
+        <li>the saved <code>logoPath</code> is device-local</li>
+        <li>synced <code>logoData</code> can act as a fallback</li>
+        </ul>
+        <p>So if a new machine or new treasurer opens the same database,
+        re-check the invoice preview rather than assuming the exact same
+        logo file path exists there.</p>
+        <h2 id="planned-transactions-and-invoices">Planned Transactions
+        and Invoices</h2>
+        <p>Planned transactions and invoices are intentionally linked in
+        a few places:</p>
+        <ul>
+        <li>creating an invoice from Planned can prefill recipient,
+        description, amount, and date</li>
+        <li>a planned template only gets one live invoice at a time</li>
+        <li>marking that invoice paid can fulfill the planned item</li>
+        </ul>
+        <p>If you use planned invoices for recurring billing, this
+        linkage is worth understanding up front.</p>
+        <h2 id="recommended-use">Recommended Use</h2>
+        <p>Use Reports for:</p>
+        <ul>
+        <li>internal committee review</li>
+        <li>year-end summaries</li>
+        <li>grant or society reporting</li>
+        <li>committee handover packs</li>
+        </ul>
+        <p>Use Invoices for:</p>
+        <ul>
+        <li>membership invoices</li>
+        <li>reimbursements due back to the club</li>
+        <li>external charges</li>
+        <li>any case where the club needs a clean PDF billing
+        record</li>
+        </ul>
+      </article>
+
+      <nav class="doc-pagination" aria-label="Page navigation" data-doc-pagination></nav>
+    </section>
   </main>
 
-  <script>
-    document.addEventListener('DOMContentLoaded', function () {
-      const anchors = document.querySelectorAll('a[href]');
-      for (const anchor of anchors) {
-        const raw = anchor.getAttribute('href');
-        if (!raw) continue;
-        if (raw.startsWith('http://') || raw.startsWith('https://') || raw.startsWith('#') || raw.startsWith('mailto:')) continue;
-        const hashIndex = raw.indexOf('#');
-        const base = hashIndex >= 0 ? raw.slice(0, hashIndex) : raw;
-        const hash = hashIndex >= 0 ? raw.slice(hashIndex) : '';
-        let next = base;
-        if (base.includes('gh-pages/')) {
-          next = '../../gh-pages/' + base.split('gh-pages/').pop();
-        } else if (base.endsWith('README.md')) {
-          next = base.slice(0, -9) + 'index.html';
-        } else if (base.endsWith('.md')) {
-          next = base.slice(0, -3) + '.html';
-        }
-        anchor.setAttribute('href', next + hash);
-      }
-    });
-  </script>
+  <script src="../shell.js" defer></script>
 </body>
 </html>

@@ -1,7 +1,5 @@
 # Treasurer Handover
 
-Back to [Docs Index](../README.md)
-
 Fidra handover is not just "give the next person the file".
 
 The safe handover method depends on how the club is using Fidra:

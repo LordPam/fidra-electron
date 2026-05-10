@@ -1,7 +1,5 @@
 # Cloud Connect
 
-Back to [Docs Index](../README.md)
-
 For the public click-by-click setup walkthrough, use the [Cloud Connect website guide](../../gh-pages/cloud-connect.html).
 
 This markdown page is the companion note, not a second setup manual.

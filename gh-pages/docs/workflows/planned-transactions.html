@@ -4,204 +4,228 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Planned Transactions</title>
+  <meta name="theme-color" content="#f5f5f7">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="../styles.css">
   </head>
-<body>
+<body class="docs-page" data-docs-root="../" data-site-root="../../" data-doc-path="workflows/planned-transactions.html">
   <header class="topbar">
     <div class="topbar-inner">
       <a class="brand" href="../index.html">
         <img src="../../logo-header.svg" alt="Fidra">
         <span>Fidra Docs</span>
       </a>
-      <nav class="toplinks" aria-label="Secondary">
-        <a href="../../index.html">Website</a>
-        <a href="../../local-sync.html">Local Sync Guide</a>
-        <a href="../../cloud-connect.html">Cloud Connect Guide</a>
-      </nav>
+      <div class="topbar-actions">
+        <nav class="toplinks" aria-label="Secondary">
+          <a href="../../index.html">Website</a>
+          <a href="../../local-sync.html">Local Sync Guide</a>
+          <a href="../../cloud-connect.html">Cloud Connect Guide</a>
+        </nav>
+        <button class="mobile-nav-trigger topbar-trigger" type="button" data-sidebar-open aria-controls="docs-sidebar" aria-expanded="false">
+          Browse Docs
+        </button>
+      </div>
     </div>
   </header>
 
   <main class="page-shell">
-    <article class="doc-content">
-      <h1 id="planned-transactions">Planned Transactions</h1>
-      <p>Back to <a href="../README.md">Docs Index</a></p>
-      <p>Planned transactions are recurring or future transaction
-      templates.</p>
-      <p>They are not the same thing as real posted transactions.</p>
-      <h2 id="what-a-planned-template-contains">What a Planned Template
-      Contains</h2>
-      <p>A planned template can include:</p>
-      <ul>
-      <li>start date</li>
-      <li>description</li>
-      <li>amount</li>
-      <li>income or expense type</li>
-      <li>frequency</li>
-      <li>target sheet</li>
-      <li>category</li>
-      <li>party</li>
-      <li>activity</li>
-      <li>notes</li>
-      <li>optional end condition</li>
-      </ul>
-      <p>Supported frequencies are:</p>
-      <ul>
-      <li>once</li>
-      <li>weekly</li>
-      <li>biweekly</li>
-      <li>monthly</li>
-      <li>quarterly</li>
-      <li>yearly</li>
-      </ul>
-      <h2 id="end-conditions">End Conditions</h2>
-      <p>Recurring templates can stop in one of two ways:</p>
-      <ol type="1">
-      <li>on a fixed end date</li>
-      <li>after a fixed number of occurrences</li>
-      </ol>
-      <p>If neither is set, the template keeps recurring.</p>
-      <h2 id="how-the-planned-view-works">How the Planned View
-      Works</h2>
-      <p>The Planned view expands templates into upcoming instances.</p>
-      <p>Current behavior:</p>
-      <ul>
-      <li>it shows the next 180 days of instances</li>
-      <li>it also surfaces overdue instances when relevant</li>
-      </ul>
-      <p>That means a planned template is not just one row in the UI.
-      Fidra is turning it into upcoming due items.</p>
-      <h2 id="next-due-and-overdue">Next Due and Overdue</h2>
-      <p>Fidra tracks:</p>
-      <ul>
-      <li>next due date</li>
-      <li>overdue date, if something should already have happened but
-      has not been fulfilled or skipped</li>
-      </ul>
-      <p>This is why a planned template can still show up even if there
-      are no future visible instances beyond its due state.</p>
-      <h2 id="converting-planned-to-actual">Converting Planned to
-      Actual</h2>
-      <p>When you convert a planned instance into a real
-      transaction:</p>
-      <ul>
-      <li>a new real transaction is created</li>
-      <li>the template is updated to reflect that the instance has been
-      dealt with</li>
-      </ul>
-      <p>The behavior depends on template type:</p>
-      <h3 id="one-off-templates">One-off templates</h3>
-      <p>If the template frequency is <code>once</code>, converting it
-      removes the planned template.</p>
-      <h3 id="recurring-templates">Recurring templates</h3>
-      <p>If the template is recurring, converting it marks that instance
-      as fulfilled and keeps the template for future occurrences.</p>
-      <h2 id="date-on-conversion">Date on Conversion</h2>
-      <p>There is an important global setting:</p>
-      <p><code>Settings -&gt; Transaction Behavior -&gt; Set date to today when converting planned to actual</code></p>
-      <p>If enabled:</p>
-      <ul>
-      <li>the created transaction uses today's date</li>
-      </ul>
-      <p>If disabled:</p>
-      <ul>
-      <li>the created transaction uses the planned instance date</li>
-      </ul>
-      <h2 id="status-after-conversion">Status After Conversion</h2>
-      <p>Converted planned transactions do not all get the same
-      status.</p>
-      <ul>
-      <li>converted income becomes <code>--</code></li>
-      <li>converted expense becomes <code>pending</code></li>
-      </ul>
-      <p>That means expenses can still go through the normal approval
-      flow after conversion.</p>
-      <p>See <a href="personnel-and-approvals.md">Personnel and
-      Approvals</a>.</p>
-      <h2 id="skipping-an-instance">Skipping an Instance</h2>
-      <p>You can skip a planned occurrence without deleting the
-      template.</p>
-      <p>Under the hood, Fidra records that date as skipped, so it does
-      not keep reappearing as still due.</p>
-      <p>Use skip when:</p>
-      <ul>
-      <li>the recurring pattern still exists</li>
-      <li>one specific occurrence should not happen</li>
-      </ul>
-      <p>Do not delete the whole template if only one occurrence is
-      being dropped.</p>
-      <h2 id="duplication">Duplication</h2>
-      <p>Duplicating a template creates a new template with:</p>
-      <ul>
-      <li>a new ID</li>
-      <li>fresh skipped dates</li>
-      <li>fresh fulfilled dates</li>
-      </ul>
-      <p>That is useful when you want a similar pattern without carrying
-      over the old completion history.</p>
-      <h2 id="planned-transactions-and-invoices">Planned Transactions
-      and Invoices</h2>
-      <p>Planned transactions can also be used to prefill invoices.</p>
-      <p>If you create an invoice from a planned template, Fidra uses
-      the template data for:</p>
-      <ul>
-      <li>recipient name</li>
-      <li>description</li>
-      <li>amount</li>
-      <li>due date</li>
-      </ul>
-      <p>If an invoice already exists for that planned template, Fidra
-      opens the existing invoice instead of creating a duplicate
-      one.</p>
-      <h2 id="when-a-paid-invoice-is-linked-to-a-planned-template">When
-      a Paid Invoice Is Linked to a Planned Template</h2>
-      <p>If an invoice linked to a planned template is marked as
-      paid:</p>
-      <ul>
-      <li>Fidra creates the linked income transaction</li>
-      <li>one-off planned templates can be cleared out</li>
-      <li>recurring planned templates can have the paid occurrence
-      marked fulfilled</li>
-      </ul>
-      <p>This is one of the tighter integrations between the Planned and
-      Invoices views.</p>
-      <h2 id="recommended-usage-pattern">Recommended Usage Pattern</h2>
-      <p>Use planned transactions for:</p>
-      <ul>
-      <li>predictable subscriptions</li>
-      <li>recurring memberships</li>
-      <li>regular training or hire costs</li>
-      <li>known future income</li>
-      <li>events you already know will happen</li>
-      </ul>
-      <p>Use notes and activities consistently so the planned item
-      carries enough context when it eventually becomes real.</p>
-    </article>
+    <aside class="docs-sidebar" id="docs-sidebar" data-sidebar>
+      <div class="sidebar-inner">
+        <div class="sidebar-header">
+          <div>
+            <p class="sidebar-eyebrow">Documentation</p>
+            <h2 class="sidebar-title">Fidra Docs</h2>
+          </div>
+          <button class="sidebar-expand" type="button" data-expand-all>Expand all</button>
+        </div>
+
+        <label class="sidebar-filter" for="docs-filter">
+          <span class="sidebar-filter-label">Filter</span>
+          <span class="sidebar-filter-field">
+            <span class="sidebar-filter-icon" aria-hidden="true"></span>
+            <input id="docs-filter" type="search" placeholder="Filter docs" autocomplete="off" spellcheck="false" data-doc-filter>
+          </span>
+        </label>
+
+        <nav class="sidebar-nav" aria-label="Documentation" data-doc-nav></nav>
+        <p class="sidebar-empty" hidden data-doc-empty>No matching docs.</p>
+      </div>
+    </aside>
+
+    <button class="sidebar-backdrop" type="button" data-sidebar-close aria-hidden="true" tabindex="-1"></button>
+
+    <section class="docs-main">
+      <div class="docs-main-toolbar">
+        <button class="mobile-nav-trigger" type="button" data-sidebar-open aria-controls="docs-sidebar" aria-expanded="false">
+          Browse Docs
+        </button>
+      </div>
+
+      <article class="doc-content">
+        <h1 id="planned-transactions">Planned Transactions</h1>
+        <p>Planned transactions are recurring or future transaction
+        templates.</p>
+        <p>They are not the same thing as real posted transactions.</p>
+        <h2 id="what-a-planned-template-contains">What a Planned
+        Template Contains</h2>
+        <p>A planned template can include:</p>
+        <ul>
+        <li>start date</li>
+        <li>description</li>
+        <li>amount</li>
+        <li>income or expense type</li>
+        <li>frequency</li>
+        <li>target sheet</li>
+        <li>category</li>
+        <li>party</li>
+        <li>activity</li>
+        <li>notes</li>
+        <li>optional end condition</li>
+        </ul>
+        <p>Supported frequencies are:</p>
+        <ul>
+        <li>once</li>
+        <li>weekly</li>
+        <li>biweekly</li>
+        <li>monthly</li>
+        <li>quarterly</li>
+        <li>yearly</li>
+        </ul>
+        <h2 id="end-conditions">End Conditions</h2>
+        <p>Recurring templates can stop in one of two ways:</p>
+        <ol type="1">
+        <li>on a fixed end date</li>
+        <li>after a fixed number of occurrences</li>
+        </ol>
+        <p>If neither is set, the template keeps recurring.</p>
+        <h2 id="how-the-planned-view-works">How the Planned View
+        Works</h2>
+        <p>The Planned view expands templates into upcoming
+        instances.</p>
+        <p>Current behavior:</p>
+        <ul>
+        <li>it shows the next 180 days of instances</li>
+        <li>it also surfaces overdue instances when relevant</li>
+        </ul>
+        <p>That means a planned template is not just one row in the UI.
+        Fidra is turning it into upcoming due items.</p>
+        <h2 id="next-due-and-overdue">Next Due and Overdue</h2>
+        <p>Fidra tracks:</p>
+        <ul>
+        <li>next due date</li>
+        <li>overdue date, if something should already have happened but
+        has not been fulfilled or skipped</li>
+        </ul>
+        <p>This is why a planned template can still show up even if
+        there are no future visible instances beyond its due state.</p>
+        <h2 id="converting-planned-to-actual">Converting Planned to
+        Actual</h2>
+        <p>When you convert a planned instance into a real
+        transaction:</p>
+        <ul>
+        <li>a new real transaction is created</li>
+        <li>the template is updated to reflect that the instance has
+        been dealt with</li>
+        </ul>
+        <p>The behavior depends on template type:</p>
+        <h3 id="one-off-templates">One-off templates</h3>
+        <p>If the template frequency is <code>once</code>, converting it
+        removes the planned template.</p>
+        <h3 id="recurring-templates">Recurring templates</h3>
+        <p>If the template is recurring, converting it marks that
+        instance as fulfilled and keeps the template for future
+        occurrences.</p>
+        <h2 id="date-on-conversion">Date on Conversion</h2>
+        <p>There is an important global setting:</p>
+        <p><code>Settings -&gt; Transaction Behavior -&gt; Set date to today when converting planned to actual</code></p>
+        <p>If enabled:</p>
+        <ul>
+        <li>the created transaction uses today's date</li>
+        </ul>
+        <p>If disabled:</p>
+        <ul>
+        <li>the created transaction uses the planned instance date</li>
+        </ul>
+        <h2 id="status-after-conversion">Status After Conversion</h2>
+        <p>Converted planned transactions do not all get the same
+        status.</p>
+        <ul>
+        <li>converted income becomes <code>--</code></li>
+        <li>converted expense becomes <code>pending</code></li>
+        </ul>
+        <p>That means expenses can still go through the normal approval
+        flow after conversion.</p>
+        <p>See <a href="personnel-and-approvals.md">Personnel and
+        Approvals</a>.</p>
+        <h2 id="skipping-an-instance">Skipping an Instance</h2>
+        <p>You can skip a planned occurrence without deleting the
+        template.</p>
+        <p>Under the hood, Fidra records that date as skipped, so it
+        does not keep reappearing as still due.</p>
+        <p>Use skip when:</p>
+        <ul>
+        <li>the recurring pattern still exists</li>
+        <li>one specific occurrence should not happen</li>
+        </ul>
+        <p>Do not delete the whole template if only one occurrence is
+        being dropped.</p>
+        <h2 id="duplication">Duplication</h2>
+        <p>Duplicating a template creates a new template with:</p>
+        <ul>
+        <li>a new ID</li>
+        <li>fresh skipped dates</li>
+        <li>fresh fulfilled dates</li>
+        </ul>
+        <p>That is useful when you want a similar pattern without
+        carrying over the old completion history.</p>
+        <h2 id="planned-transactions-and-invoices">Planned Transactions
+        and Invoices</h2>
+        <p>Planned transactions can also be used to prefill
+        invoices.</p>
+        <p>If you create an invoice from a planned template, Fidra uses
+        the template data for:</p>
+        <ul>
+        <li>recipient name</li>
+        <li>description</li>
+        <li>amount</li>
+        <li>due date</li>
+        </ul>
+        <p>If an invoice already exists for that planned template, Fidra
+        opens the existing invoice instead of creating a duplicate
+        one.</p>
+        <h2
+        id="when-a-paid-invoice-is-linked-to-a-planned-template">When a
+        Paid Invoice Is Linked to a Planned Template</h2>
+        <p>If an invoice linked to a planned template is marked as
+        paid:</p>
+        <ul>
+        <li>Fidra creates the linked income transaction</li>
+        <li>one-off planned templates can be cleared out</li>
+        <li>recurring planned templates can have the paid occurrence
+        marked fulfilled</li>
+        </ul>
+        <p>This is one of the tighter integrations between the Planned
+        and Invoices views.</p>
+        <h2 id="recommended-usage-pattern">Recommended Usage
+        Pattern</h2>
+        <p>Use planned transactions for:</p>
+        <ul>
+        <li>predictable subscriptions</li>
+        <li>recurring memberships</li>
+        <li>regular training or hire costs</li>
+        <li>known future income</li>
+        <li>events you already know will happen</li>
+        </ul>
+        <p>Use notes and activities consistently so the planned item
+        carries enough context when it eventually becomes real.</p>
+      </article>
+
+      <nav class="doc-pagination" aria-label="Page navigation" data-doc-pagination></nav>
+    </section>
   </main>
 
-  <script>
-    document.addEventListener('DOMContentLoaded', function () {
-      const anchors = document.querySelectorAll('a[href]');
-      for (const anchor of anchors) {
-        const raw = anchor.getAttribute('href');
-        if (!raw) continue;
-        if (raw.startsWith('http://') || raw.startsWith('https://') || raw.startsWith('#') || raw.startsWith('mailto:')) continue;
-        const hashIndex = raw.indexOf('#');
-        const base = hashIndex >= 0 ? raw.slice(0, hashIndex) : raw;
-        const hash = hashIndex >= 0 ? raw.slice(hashIndex) : '';
-        let next = base;
-        if (base.includes('gh-pages/')) {
-          next = '../../' + base.split('gh-pages/').pop();
-        } else if (base.endsWith('README.md')) {
-          next = base.slice(0, -9) + 'index.html';
-        } else if (base.endsWith('.md')) {
-          next = base.slice(0, -3) + '.html';
-        }
-        anchor.setAttribute('href', next + hash);
-      }
-    });
-  </script>
+  <script src="../shell.js" defer></script>
 </body>
 </html>

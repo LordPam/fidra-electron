@@ -4,215 +4,239 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Treasurer Handover</title>
+  <meta name="theme-color" content="#f5f5f7">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="../styles.css">
   </head>
-<body>
+<body class="docs-page" data-docs-root="../" data-site-root="../../" data-doc-path="workflows/treasurer-handover.html">
   <header class="topbar">
     <div class="topbar-inner">
       <a class="brand" href="../index.html">
         <img src="../../logo-header.svg" alt="Fidra">
         <span>Fidra Docs</span>
       </a>
-      <nav class="toplinks" aria-label="Secondary">
-        <a href="../../index.html">Website</a>
-        <a href="../../local-sync.html">Local Sync Guide</a>
-        <a href="../../cloud-connect.html">Cloud Connect Guide</a>
-      </nav>
+      <div class="topbar-actions">
+        <nav class="toplinks" aria-label="Secondary">
+          <a href="../../index.html">Website</a>
+          <a href="../../local-sync.html">Local Sync Guide</a>
+          <a href="../../cloud-connect.html">Cloud Connect Guide</a>
+        </nav>
+        <button class="mobile-nav-trigger topbar-trigger" type="button" data-sidebar-open aria-controls="docs-sidebar" aria-expanded="false">
+          Browse Docs
+        </button>
+      </div>
     </div>
   </header>
 
   <main class="page-shell">
-    <article class="doc-content">
-      <h1 id="treasurer-handover">Treasurer Handover</h1>
-      <p>Back to <a href="../README.md">Docs Index</a></p>
-      <p>Fidra handover is not just "give the next person the file".</p>
-      <p>The safe handover method depends on how the club is using
-      Fidra:</p>
-      <ul>
-      <li>standalone local database</li>
-      <li>Local Sync</li>
-      <li>Cloud Connect</li>
-      </ul>
-      <h2 id="core-rule">Core Rule</h2>
-      <p>If you are handing Fidra over to someone else, prefer a
-      backup-based or access-based handover over manually copying raw
-      files around.</p>
-      <p>That matters because:</p>
-      <ul>
-      <li>the main <code>.fdra</code> file uses SQLite sidecar files
-      while active</li>
-      <li>attachments live separately under
-      <code>~/.fidra/attachments/&lt;databaseId&gt;/</code></li>
-      <li>sync and personnel settings may matter as much as the database
-      itself</li>
-      </ul>
-      <h2 id="what-the-new-treasurer-should-receive">What the New
-      Treasurer Should Receive</h2>
-      <p>Regardless of sync mode, the incoming treasurer should get:</p>
-      <ol type="1">
-      <li>the current database or a restorable backup</li>
-      <li>the current sync mode and how it is configured</li>
-      <li>the backup location</li>
-      <li>any team access details they need</li>
-      <li>any reporting or invoicing defaults the club relies on</li>
-      </ol>
-      <p>At minimum, write down:</p>
-      <ul>
-      <li>the database path</li>
-      <li>whether the club uses standalone, Local Sync, or Cloud
-      Connect</li>
-      <li>the Local Sync shared folder, if applicable</li>
-      <li>the backup directory, if it has been customized</li>
-      <li>who currently has admin access</li>
-      </ul>
-      <h2 id="best-handover-method-by-setup">Best Handover Method by
-      Setup</h2>
-      <h3 id="standalone-local-database">Standalone Local Database</h3>
-      <p>This is the simplest case, but it still should not be done
-      casually.</p>
-      <p>Recommended process:</p>
-      <ol type="1">
-      <li>Create a manual backup in
-      <code>Settings -&gt; Backup &amp; Restore</code>.</li>
-      <li>Confirm the backup completed successfully.</li>
-      <li>Move the backup set, not just the raw <code>.fdra</code> file,
-      to the new treasurer.</li>
-      <li>Restore the backup on the new machine.</li>
-      <li>Verify that attachments open properly.</li>
-      </ol>
-      <p>Why use a backup instead of just the database file:</p>
-      <ul>
-      <li>backups include the database and the attachment set</li>
-      <li>copying only the <code>.fdra</code> file can leave attachments
-      behind</li>
-      </ul>
-      <h3 id="local-sync">Local Sync</h3>
-      <p>For Local Sync, the safest handover is not "move ownership". It
-      is "bring the new treasurer in properly, then step the old one
-      out".</p>
-      <p>Recommended process:</p>
-      <ol type="1">
-      <li>Make sure Local Sync is healthy.</li>
-      <li>Run <code>Sync Now</code>.</li>
-      <li>Create a manual backup.</li>
-      <li>Invite the incoming treasurer as an admin.</li>
-      <li>Have them join on their own machine and save their own local
-      <code>.fdra</code> file in a dedicated folder.</li>
-      <li>Verify that they can sync, access Personnel, and see the
-      correct shared data.</li>
-      <li>Only then demote or remove the outgoing treasurer if
-      appropriate.</li>
-      </ol>
-      <p>This is better than trying to transfer one person's local
-      working copy.</p>
-      <h3 id="cloud-connect">Cloud Connect</h3>
-      <p>Cloud Connect handover is mostly an access and infrastructure
-      handover.</p>
-      <p>Recommended process:</p>
-      <ol type="1">
-      <li>Invite the incoming treasurer.</li>
-      <li>Promote them to admin if they need administrative access.</li>
-      <li>Verify they can sign in and access the correct database.</li>
-      <li>Transfer any infrastructure knowledge that lives outside
-      Fidra:
-      <ul>
-      <li>database server details</li>
-      <li>Supabase project details</li>
-      <li>storage bucket details</li>
-      </ul></li>
-      <li>Only then demote or remove the outgoing treasurer if
-      appropriate.</li>
-      </ol>
-      <h2 id="admin-safety-rule">Admin Safety Rule</h2>
-      <p>Fidra protects the last admin from being removed or
-      demoted.</p>
-      <p>That means the correct order is:</p>
-      <ol type="1">
-      <li>add the replacement admin</li>
-      <li>verify they are active</li>
-      <li>then remove or demote the outgoing admin</li>
-      </ol>
-      <h2 id="invoice-and-report-settings-to-recheck">Invoice and Report
-      Settings to Recheck</h2>
-      <p>If the club uses invoices and reports, the incoming treasurer
-      should verify:</p>
-      <ul>
-      <li>organisation name for report builder output</li>
-      <li>invoice sender name and address</li>
-      <li>bank details</li>
-      <li>invoice notes / terms</li>
-      <li>invoice branding / logo</li>
-      </ul>
-      <p>One subtle point:</p>
-      <ul>
-      <li>invoice <code>logoPath</code> is device-local</li>
-      <li>synced invoice <code>logoData</code> can act as a
-      fallback</li>
-      </ul>
-      <p>So if the club relies on a specific logo file, re-check invoice
-      appearance on the new machine instead of assuming it will look
-      identical immediately.</p>
-      <h2 id="recommended-handover-checklist">Recommended Handover
-      Checklist</h2>
-      <ul class="task-list">
-      <li><label><input type="checkbox" />Manual backup
-      created</label></li>
-      <li><label><input type="checkbox" />Backup restore tested or at
-      least understood</label></li>
-      <li><label><input type="checkbox" />Database location
-      recorded</label></li>
-      <li><label><input type="checkbox" />Sync mode
-      recorded</label></li>
-      <li><label><input type="checkbox" />Local Sync shared folder
-      recorded, if used</label></li>
-      <li><label><input type="checkbox" />Backup directory
-      recorded</label></li>
-      <li><label><input type="checkbox" />Incoming treasurer confirmed
-      as active</label></li>
-      <li><label><input type="checkbox" />Admin access transferred
-      safely</label></li>
-      <li><label><input type="checkbox" />Attachments
-      verified</label></li>
-      <li><label><input type="checkbox" />Invoice/report defaults
-      verified</label></li>
-      </ul>
-      <h2 id="what-not-to-do">What Not to Do</h2>
-      <ul>
-      <li>do not pass around only the raw <code>.fdra</code> file and
-      assume that is everything</li>
-      <li>do not point multiple computers directly at one shared live
-      database file instead of using Local Sync or Cloud Connect
-      properly</li>
-      <li>do not remove the outgoing admin before the incoming admin is
-      fully active</li>
-      </ul>
-    </article>
+    <aside class="docs-sidebar" id="docs-sidebar" data-sidebar>
+      <div class="sidebar-inner">
+        <div class="sidebar-header">
+          <div>
+            <p class="sidebar-eyebrow">Documentation</p>
+            <h2 class="sidebar-title">Fidra Docs</h2>
+          </div>
+          <button class="sidebar-expand" type="button" data-expand-all>Expand all</button>
+        </div>
+
+        <label class="sidebar-filter" for="docs-filter">
+          <span class="sidebar-filter-label">Filter</span>
+          <span class="sidebar-filter-field">
+            <span class="sidebar-filter-icon" aria-hidden="true"></span>
+            <input id="docs-filter" type="search" placeholder="Filter docs" autocomplete="off" spellcheck="false" data-doc-filter>
+          </span>
+        </label>
+
+        <nav class="sidebar-nav" aria-label="Documentation" data-doc-nav></nav>
+        <p class="sidebar-empty" hidden data-doc-empty>No matching docs.</p>
+      </div>
+    </aside>
+
+    <button class="sidebar-backdrop" type="button" data-sidebar-close aria-hidden="true" tabindex="-1"></button>
+
+    <section class="docs-main">
+      <div class="docs-main-toolbar">
+        <button class="mobile-nav-trigger" type="button" data-sidebar-open aria-controls="docs-sidebar" aria-expanded="false">
+          Browse Docs
+        </button>
+      </div>
+
+      <article class="doc-content">
+        <h1 id="treasurer-handover">Treasurer Handover</h1>
+        <p>Fidra handover is not just "give the next person the
+        file".</p>
+        <p>The safe handover method depends on how the club is using
+        Fidra:</p>
+        <ul>
+        <li>standalone local database</li>
+        <li>Local Sync</li>
+        <li>Cloud Connect</li>
+        </ul>
+        <h2 id="core-rule">Core Rule</h2>
+        <p>If you are handing Fidra over to someone else, prefer a
+        backup-based or access-based handover over manually copying raw
+        files around.</p>
+        <p>That matters because:</p>
+        <ul>
+        <li>the main <code>.fdra</code> file uses SQLite sidecar files
+        while active</li>
+        <li>attachments live separately under
+        <code>~/.fidra/attachments/&lt;databaseId&gt;/</code></li>
+        <li>sync and personnel settings may matter as much as the
+        database itself</li>
+        </ul>
+        <h2 id="what-the-new-treasurer-should-receive">What the New
+        Treasurer Should Receive</h2>
+        <p>Regardless of sync mode, the incoming treasurer should
+        get:</p>
+        <ol type="1">
+        <li>the current database or a restorable backup</li>
+        <li>the current sync mode and how it is configured</li>
+        <li>the backup location</li>
+        <li>any team access details they need</li>
+        <li>any reporting or invoicing defaults the club relies on</li>
+        </ol>
+        <p>At minimum, write down:</p>
+        <ul>
+        <li>the database path</li>
+        <li>whether the club uses standalone, Local Sync, or Cloud
+        Connect</li>
+        <li>the Local Sync shared folder, if applicable</li>
+        <li>the backup directory, if it has been customized</li>
+        <li>who currently has admin access</li>
+        </ul>
+        <h2 id="best-handover-method-by-setup">Best Handover Method by
+        Setup</h2>
+        <h3 id="standalone-local-database">Standalone Local
+        Database</h3>
+        <p>This is the simplest case, but it still should not be done
+        casually.</p>
+        <p>Recommended process:</p>
+        <ol type="1">
+        <li>Create a manual backup in
+        <code>Settings -&gt; Backup &amp; Restore</code>.</li>
+        <li>Confirm the backup completed successfully.</li>
+        <li>Move the backup set, not just the raw <code>.fdra</code>
+        file, to the new treasurer.</li>
+        <li>Restore the backup on the new machine.</li>
+        <li>Verify that attachments open properly.</li>
+        </ol>
+        <p>Why use a backup instead of just the database file:</p>
+        <ul>
+        <li>backups include the database and the attachment set</li>
+        <li>copying only the <code>.fdra</code> file can leave
+        attachments behind</li>
+        </ul>
+        <h3 id="local-sync">Local Sync</h3>
+        <p>For Local Sync, the safest handover is not "move ownership".
+        It is "bring the new treasurer in properly, then step the old
+        one out".</p>
+        <p>Recommended process:</p>
+        <ol type="1">
+        <li>Make sure Local Sync is healthy.</li>
+        <li>Run <code>Sync Now</code>.</li>
+        <li>Create a manual backup.</li>
+        <li>Invite the incoming treasurer as an admin.</li>
+        <li>Have them join on their own machine and save their own local
+        <code>.fdra</code> file in a dedicated folder.</li>
+        <li>Verify that they can sync, access Personnel, and see the
+        correct shared data.</li>
+        <li>Only then demote or remove the outgoing treasurer if
+        appropriate.</li>
+        </ol>
+        <p>This is better than trying to transfer one person's local
+        working copy.</p>
+        <h3 id="cloud-connect">Cloud Connect</h3>
+        <p>Cloud Connect handover is mostly an access and infrastructure
+        handover.</p>
+        <p>Recommended process:</p>
+        <ol type="1">
+        <li>Invite the incoming treasurer.</li>
+        <li>Promote them to admin if they need administrative
+        access.</li>
+        <li>Verify they can sign in and access the correct
+        database.</li>
+        <li>Transfer any infrastructure knowledge that lives outside
+        Fidra:
+        <ul>
+        <li>database server details</li>
+        <li>Supabase project details</li>
+        <li>storage bucket details</li>
+        </ul></li>
+        <li>Only then demote or remove the outgoing treasurer if
+        appropriate.</li>
+        </ol>
+        <h2 id="admin-safety-rule">Admin Safety Rule</h2>
+        <p>Fidra protects the last admin from being removed or
+        demoted.</p>
+        <p>That means the correct order is:</p>
+        <ol type="1">
+        <li>add the replacement admin</li>
+        <li>verify they are active</li>
+        <li>then remove or demote the outgoing admin</li>
+        </ol>
+        <h2 id="invoice-and-report-settings-to-recheck">Invoice and
+        Report Settings to Recheck</h2>
+        <p>If the club uses invoices and reports, the incoming treasurer
+        should verify:</p>
+        <ul>
+        <li>organisation name for report builder output</li>
+        <li>invoice sender name and address</li>
+        <li>bank details</li>
+        <li>invoice notes / terms</li>
+        <li>invoice branding / logo</li>
+        </ul>
+        <p>One subtle point:</p>
+        <ul>
+        <li>invoice <code>logoPath</code> is device-local</li>
+        <li>synced invoice <code>logoData</code> can act as a
+        fallback</li>
+        </ul>
+        <p>So if the club relies on a specific logo file, re-check
+        invoice appearance on the new machine instead of assuming it
+        will look identical immediately.</p>
+        <h2 id="recommended-handover-checklist">Recommended Handover
+        Checklist</h2>
+        <ul class="task-list">
+        <li><label><input type="checkbox" />Manual backup
+        created</label></li>
+        <li><label><input type="checkbox" />Backup restore tested or at
+        least understood</label></li>
+        <li><label><input type="checkbox" />Database location
+        recorded</label></li>
+        <li><label><input type="checkbox" />Sync mode
+        recorded</label></li>
+        <li><label><input type="checkbox" />Local Sync shared folder
+        recorded, if used</label></li>
+        <li><label><input type="checkbox" />Backup directory
+        recorded</label></li>
+        <li><label><input type="checkbox" />Incoming treasurer confirmed
+        as active</label></li>
+        <li><label><input type="checkbox" />Admin access transferred
+        safely</label></li>
+        <li><label><input type="checkbox" />Attachments
+        verified</label></li>
+        <li><label><input type="checkbox" />Invoice/report defaults
+        verified</label></li>
+        </ul>
+        <h2 id="what-not-to-do">What Not to Do</h2>
+        <ul>
+        <li>do not pass around only the raw <code>.fdra</code> file and
+        assume that is everything</li>
+        <li>do not point multiple computers directly at one shared live
+        database file instead of using Local Sync or Cloud Connect
+        properly</li>
+        <li>do not remove the outgoing admin before the incoming admin
+        is fully active</li>
+        </ul>
+      </article>
+
+      <nav class="doc-pagination" aria-label="Page navigation" data-doc-pagination></nav>
+    </section>
   </main>
 
-  <script>
-    document.addEventListener('DOMContentLoaded', function () {
-      const anchors = document.querySelectorAll('a[href]');
-      for (const anchor of anchors) {
-        const raw = anchor.getAttribute('href');
-        if (!raw) continue;
-        if (raw.startsWith('http://') || raw.startsWith('https://') || raw.startsWith('#') || raw.startsWith('mailto:')) continue;
-        const hashIndex = raw.indexOf('#');
-        const base = hashIndex >= 0 ? raw.slice(0, hashIndex) : raw;
-        const hash = hashIndex >= 0 ? raw.slice(hashIndex) : '';
-        let next = base;
-        if (base.includes('gh-pages/')) {
-          next = '../../' + base.split('gh-pages/').pop();
-        } else if (base.endsWith('README.md')) {
-          next = base.slice(0, -9) + 'index.html';
-        } else if (base.endsWith('.md')) {
-          next = base.slice(0, -3) + '.html';
-        }
-        anchor.setAttribute('href', next + hash);
-      }
-    });
-  </script>
+  <script src="../shell.js" defer></script>
 </body>
 </html>

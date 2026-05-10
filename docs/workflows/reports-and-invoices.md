@@ -1,7 +1,5 @@
 # Reports and Invoices
 
-Back to [Docs Index](../README.md)
-
 Reports and invoices are separate parts of Fidra, but in practice they are both "output" tools: one for internal finance reporting, the other for external billing.
 
 ## Reports

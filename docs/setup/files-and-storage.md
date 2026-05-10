@@ -1,7 +1,5 @@
 # Files and Storage
 
-Back to [Docs Index](../README.md)
-
 This page explains where Fidra stores its main database, attachments, and sync-related files.
 
 ## The Main Database File

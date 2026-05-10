@@ -1,7 +1,5 @@
 # Keyboard Shortcuts
 
-Back to [Docs Index](../README.md)
-
 On macOS, use `Command`.
 
 On Windows and Linux, use `Ctrl`.

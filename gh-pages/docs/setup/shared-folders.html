@@ -4,193 +4,214 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Shared Folders in OneDrive and SharePoint</title>
+  <meta name="theme-color" content="#f5f5f7">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="../styles.css">
   </head>
-<body>
+<body class="docs-page" data-docs-root="../" data-site-root="../../" data-doc-path="setup/shared-folders.html">
   <header class="topbar">
     <div class="topbar-inner">
       <a class="brand" href="../index.html">
         <img src="../../logo-header.svg" alt="Fidra">
         <span>Fidra Docs</span>
       </a>
-      <nav class="toplinks" aria-label="Secondary">
-        <a href="../../index.html">Website</a>
-        <a href="../../local-sync.html">Local Sync Guide</a>
-        <a href="../../cloud-connect.html">Cloud Connect Guide</a>
-      </nav>
+      <div class="topbar-actions">
+        <nav class="toplinks" aria-label="Secondary">
+          <a href="../../index.html">Website</a>
+          <a href="../../local-sync.html">Local Sync Guide</a>
+          <a href="../../cloud-connect.html">Cloud Connect Guide</a>
+        </nav>
+        <button class="mobile-nav-trigger topbar-trigger" type="button" data-sidebar-open aria-controls="docs-sidebar" aria-expanded="false">
+          Browse Docs
+        </button>
+      </div>
     </div>
   </header>
 
   <main class="page-shell">
-    <article class="doc-content">
-      <h1 id="shared-folders-in-onedrive-and-sharepoint">Shared Folders
-      in OneDrive and SharePoint</h1>
-      <p>Back to <a href="../README.md">Docs Index</a></p>
-      <p>This page exists because Local Sync needs a real folder on your
-      computer, not just a folder you can see in a browser tab.</p>
-      <p>That distinction is easy to miss.</p>
-      <h2 id="what-fidra-needs">What Fidra Needs</h2>
-      <p>For Local Sync, Fidra needs a folder that:</p>
-      <ul>
-      <li>appears in Finder or File Explorer</li>
-      <li>stays synced by OneDrive</li>
-      <li>behaves like a normal local folder path when you select it in
-      Fidra</li>
-      </ul>
-      <p>A folder that only exists on <code>onedrive.com</code> or in a
-      SharePoint web page is not enough on its own.</p>
-      <h2 id="the-key-idea">The Key Idea</h2>
-      <p>You are not trying to give Fidra a website.</p>
-      <p>You are trying to give Fidra a local path that OneDrive keeps
-      in sync with the cloud behind the scenes.</p>
-      <h2 id="typical-working-setup">Typical Working Setup</h2>
-      <p>The common pattern is:</p>
-      <ol type="1">
-      <li>install and sign in to the OneDrive desktop app</li>
-      <li>make the shared folder appear in your OneDrive locally</li>
-      <li>confirm the folder shows up in Finder or File Explorer</li>
-      <li>choose that local folder in Fidra as the Local Sync
-      folder</li>
-      </ol>
-      <h2 id="if-the-folder-was-shared-with-you">If the Folder Was
-      Shared With You</h2>
-      <p>If someone shared a folder with you directly, the usual route
-      is:</p>
-      <ol type="1">
-      <li>open OneDrive on the web</li>
-      <li>go to <code>Shared</code> or
-      <code>Shared &gt; With you</code></li>
-      <li>find the shared folder</li>
-      <li>choose <code>Add shortcut to My files</code></li>
-      <li>let OneDrive sync it to your computer</li>
-      </ol>
-      <p>Microsoft's guidance for this flow:</p>
-      <ul>
-      <li><a
-      href="https://support.microsoft.com/en-gb/office/add-shortcuts-to-shared-folders-in-onedrive-d66b1347-99b7-4470-9360-ffc048d35a33">Add
-      shortcuts to shared folders in OneDrive</a></li>
-      </ul>
-      <h2 id="if-it-is-a-sharepoint-library-or-team-files-area">If It Is
-      a SharePoint Library or Team Files Area</h2>
-      <p>If the folder lives in a SharePoint document library or a
-      Team's Files area, the common routes are:</p>
-      <ol type="1">
-      <li>use <code>Add shortcut to My files</code> for the folder or
-      library</li>
-      <li>or use <code>Sync</code> from the SharePoint library</li>
-      </ol>
-      <p>Microsoft's guidance for this flow:</p>
-      <ul>
-      <li><a
-      href="https://support.microsoft.com/en-us/office/sync-sharepoint-files-and-folders-87a96948-4dd7-43e4-aca1-53f3e18bea9b">Sync
-      SharePoint files and folders</a></li>
-      </ul>
-      <h2 id="how-to-check-that-it-worked">How To Check That It
-      Worked</h2>
-      <h3 id="on-windows">On Windows</h3>
-      <p>Open File Explorer and look for the synced location under your
-      OneDrive or organisation area.</p>
-      <p>Microsoft reference:</p>
-      <ul>
-      <li><a
-      href="https://support.microsoft.com/en-us/office/work-with-synced-files-in-file-explorer-8d9b1c45-4a3f-4fa8-a55b-fd0635e77d4d">Work
-      with synced files in File Explorer</a></li>
-      </ul>
-      <h3 id="on-macos">On macOS</h3>
-      <p>Open Finder and confirm the folder appears through OneDrive
-      Finder integration.</p>
-      <p>Microsoft reference:</p>
-      <ul>
-      <li><a
-      href="https://support.microsoft.com/en-us/office/sync-files-with-onedrive-on-macos-d11b9f29-00bb-4172-be39-997da46f913f">Sync
-      files with OneDrive on macOS</a></li>
-      </ul>
-      <h2 id="what-you-should-hand-to-fidra">What You Should Hand To
-      Fidra</h2>
-      <p>In Fidra, choose the actual local synced folder path.</p>
-      <p>Examples:</p>
-      <pre class="text"><code>/Users/your-name/Library/CloudStorage/OneDrive-Organisation/Fidra Sync</code></pre>
-      <p>or on Windows:</p>
-      <pre class="text"><code>C:\Users\YourName\Organisation\Fidra Sync</code></pre>
-      <p>The exact path name can vary. That is fine.</p>
-      <p>What matters is that it is a real local folder kept in sync by
-      OneDrive.</p>
-      <h2 id="common-mistakes">Common Mistakes</h2>
-      <h3 id="mistake-1-using-a-browser-url">Mistake 1: using a browser
-      URL</h3>
-      <p>If you are looking at a SharePoint or OneDrive web address and
-      thinking "this is the folder", you are still one step too
-      early.</p>
-      <p>Fidra needs the synced local version of that folder.</p>
-      <h3 id="mistake-2-using-the-wrong-subfolder">Mistake 2: using the
-      wrong subfolder</h3>
-      <p>Once synced, choose the real Local Sync root, not one of
-      Fidra's transport subfolders.</p>
-      <p>You want the parent that contains:</p>
-      <pre class="text"><code>sync/
+    <aside class="docs-sidebar" id="docs-sidebar" data-sidebar>
+      <div class="sidebar-inner">
+        <div class="sidebar-header">
+          <div>
+            <p class="sidebar-eyebrow">Documentation</p>
+            <h2 class="sidebar-title">Fidra Docs</h2>
+          </div>
+          <button class="sidebar-expand" type="button" data-expand-all>Expand all</button>
+        </div>
+
+        <label class="sidebar-filter" for="docs-filter">
+          <span class="sidebar-filter-label">Filter</span>
+          <span class="sidebar-filter-field">
+            <span class="sidebar-filter-icon" aria-hidden="true"></span>
+            <input id="docs-filter" type="search" placeholder="Filter docs" autocomplete="off" spellcheck="false" data-doc-filter>
+          </span>
+        </label>
+
+        <nav class="sidebar-nav" aria-label="Documentation" data-doc-nav></nav>
+        <p class="sidebar-empty" hidden data-doc-empty>No matching docs.</p>
+      </div>
+    </aside>
+
+    <button class="sidebar-backdrop" type="button" data-sidebar-close aria-hidden="true" tabindex="-1"></button>
+
+    <section class="docs-main">
+      <div class="docs-main-toolbar">
+        <button class="mobile-nav-trigger" type="button" data-sidebar-open aria-controls="docs-sidebar" aria-expanded="false">
+          Browse Docs
+        </button>
+      </div>
+
+      <article class="doc-content">
+        <h1 id="shared-folders-in-onedrive-and-sharepoint">Shared
+        Folders in OneDrive and SharePoint</h1>
+        <p>This page exists because Local Sync needs a real folder on
+        your computer, not just a folder you can see in a browser
+        tab.</p>
+        <p>That distinction is easy to miss.</p>
+        <h2 id="what-fidra-needs">What Fidra Needs</h2>
+        <p>For Local Sync, Fidra needs a folder that:</p>
+        <ul>
+        <li>appears in Finder or File Explorer</li>
+        <li>stays synced by OneDrive</li>
+        <li>behaves like a normal local folder path when you select it
+        in Fidra</li>
+        </ul>
+        <p>A folder that only exists on <code>onedrive.com</code> or in
+        a SharePoint web page is not enough on its own.</p>
+        <h2 id="the-key-idea">The Key Idea</h2>
+        <p>You are not trying to give Fidra a website.</p>
+        <p>You are trying to give Fidra a local path that OneDrive keeps
+        in sync with the cloud behind the scenes.</p>
+        <h2 id="typical-working-setup">Typical Working Setup</h2>
+        <p>The common pattern is:</p>
+        <ol type="1">
+        <li>install and sign in to the OneDrive desktop app</li>
+        <li>make the shared folder appear in your OneDrive locally</li>
+        <li>confirm the folder shows up in Finder or File Explorer</li>
+        <li>choose that local folder in Fidra as the Local Sync
+        folder</li>
+        </ol>
+        <h2 id="if-the-folder-was-shared-with-you">If the Folder Was
+        Shared With You</h2>
+        <p>If someone shared a folder with you directly, the usual route
+        is:</p>
+        <ol type="1">
+        <li>open OneDrive on the web</li>
+        <li>go to <code>Shared</code> or
+        <code>Shared &gt; With you</code></li>
+        <li>find the shared folder</li>
+        <li>choose <code>Add shortcut to My files</code></li>
+        <li>let OneDrive sync it to your computer</li>
+        </ol>
+        <p>Microsoft's guidance for this flow:</p>
+        <ul>
+        <li><a
+        href="https://support.microsoft.com/en-gb/office/add-shortcuts-to-shared-folders-in-onedrive-d66b1347-99b7-4470-9360-ffc048d35a33">Add
+        shortcuts to shared folders in OneDrive</a></li>
+        </ul>
+        <h2 id="if-it-is-a-sharepoint-library-or-team-files-area">If It
+        Is a SharePoint Library or Team Files Area</h2>
+        <p>If the folder lives in a SharePoint document library or a
+        Team's Files area, the common routes are:</p>
+        <ol type="1">
+        <li>use <code>Add shortcut to My files</code> for the folder or
+        library</li>
+        <li>or use <code>Sync</code> from the SharePoint library</li>
+        </ol>
+        <p>Microsoft's guidance for this flow:</p>
+        <ul>
+        <li><a
+        href="https://support.microsoft.com/en-us/office/sync-sharepoint-files-and-folders-87a96948-4dd7-43e4-aca1-53f3e18bea9b">Sync
+        SharePoint files and folders</a></li>
+        </ul>
+        <h2 id="how-to-check-that-it-worked">How To Check That It
+        Worked</h2>
+        <h3 id="on-windows">On Windows</h3>
+        <p>Open File Explorer and look for the synced location under
+        your OneDrive or organisation area.</p>
+        <p>Microsoft reference:</p>
+        <ul>
+        <li><a
+        href="https://support.microsoft.com/en-us/office/work-with-synced-files-in-file-explorer-8d9b1c45-4a3f-4fa8-a55b-fd0635e77d4d">Work
+        with synced files in File Explorer</a></li>
+        </ul>
+        <h3 id="on-macos">On macOS</h3>
+        <p>Open Finder and confirm the folder appears through OneDrive
+        Finder integration.</p>
+        <p>Microsoft reference:</p>
+        <ul>
+        <li><a
+        href="https://support.microsoft.com/en-us/office/sync-files-with-onedrive-on-macos-d11b9f29-00bb-4172-be39-997da46f913f">Sync
+        files with OneDrive on macOS</a></li>
+        </ul>
+        <h2 id="what-you-should-hand-to-fidra">What You Should Hand To
+        Fidra</h2>
+        <p>In Fidra, choose the actual local synced folder path.</p>
+        <p>Examples:</p>
+        <pre class="text"><code>/Users/your-name/Library/CloudStorage/OneDrive-Organisation/Fidra Sync</code></pre>
+        <p>or on Windows:</p>
+        <pre class="text"><code>C:\Users\YourName\Organisation\Fidra Sync</code></pre>
+        <p>The exact path name can vary. That is fine.</p>
+        <p>What matters is that it is a real local folder kept in sync
+        by OneDrive.</p>
+        <h2 id="common-mistakes">Common Mistakes</h2>
+        <h3 id="mistake-1-using-a-browser-url">Mistake 1: using a
+        browser URL</h3>
+        <p>If you are looking at a SharePoint or OneDrive web address
+        and thinking "this is the folder", you are still one step too
+        early.</p>
+        <p>Fidra needs the synced local version of that folder.</p>
+        <h3 id="mistake-2-using-the-wrong-subfolder">Mistake 2: using
+        the wrong subfolder</h3>
+        <p>Once synced, choose the real Local Sync root, not one of
+        Fidra's transport subfolders.</p>
+        <p>You want the parent that contains:</p>
+        <pre class="text"><code>sync/
 snapshots/
 attachments/
 invites/</code></pre>
-      <h3
-      id="mistake-3-assuming-everyone-sees-the-exact-same-path">Mistake
-      3: assuming everyone sees the exact same path</h3>
-      <p>Different users can have different local path names.</p>
-      <p>That is normal.</p>
-      <p>They do not need identical path strings. They need local
-      folders that are all synced to the same shared content.</p>
-      <h2
-      id="if-onedrive-adds-a-web-shortcut-instead-of-a-real-folder">If
-      OneDrive Adds a Web Shortcut Instead of a Real Folder</h2>
-      <p>Microsoft currently notes that some shared-folder shortcuts can
-      temporarily appear as <code>.url</code> internet shortcuts instead
-      of as real folders.</p>
-      <p>If that happens:</p>
-      <ul>
-      <li>the shortcut may open a webpage instead of a local folder</li>
-      <li>Fidra cannot use that as a Local Sync folder</li>
-      </ul>
-      <p>Practical next steps:</p>
-      <ol type="1">
-      <li>try the SharePoint <code>Sync</code> route instead of only the
-      shortcut route</li>
-      <li>confirm OneDrive has finished syncing</li>
-      <li>check whether the folder now appears as a normal local folder
-      in Finder or File Explorer</li>
-      </ol>
-      <h2 id="recommended-club-instruction">Recommended Club
-      Instruction</h2>
-      <p>If your club expects people to use OneDrive or SharePoint for
-      Local Sync, write the instruction like this:</p>
-      <p><code>Use the shared OneDrive/SharePoint folder only after it appears as a local folder in Finder or File Explorer.</code></p>
-      <p>That is much clearer than just saying "use the SharePoint
-      folder".</p>
-    </article>
+        <h3
+        id="mistake-3-assuming-everyone-sees-the-exact-same-path">Mistake
+        3: assuming everyone sees the exact same path</h3>
+        <p>Different users can have different local path names.</p>
+        <p>That is normal.</p>
+        <p>They do not need identical path strings. They need local
+        folders that are all synced to the same shared content.</p>
+        <h2
+        id="if-onedrive-adds-a-web-shortcut-instead-of-a-real-folder">If
+        OneDrive Adds a Web Shortcut Instead of a Real Folder</h2>
+        <p>Microsoft currently notes that some shared-folder shortcuts
+        can temporarily appear as <code>.url</code> internet shortcuts
+        instead of as real folders.</p>
+        <p>If that happens:</p>
+        <ul>
+        <li>the shortcut may open a webpage instead of a local
+        folder</li>
+        <li>Fidra cannot use that as a Local Sync folder</li>
+        </ul>
+        <p>Practical next steps:</p>
+        <ol type="1">
+        <li>try the SharePoint <code>Sync</code> route instead of only
+        the shortcut route</li>
+        <li>confirm OneDrive has finished syncing</li>
+        <li>check whether the folder now appears as a normal local
+        folder in Finder or File Explorer</li>
+        </ol>
+        <h2 id="recommended-club-instruction">Recommended Club
+        Instruction</h2>
+        <p>If your club expects people to use OneDrive or SharePoint for
+        Local Sync, write the instruction like this:</p>
+        <p><code>Use the shared OneDrive/SharePoint folder only after it appears as a local folder in Finder or File Explorer.</code></p>
+        <p>That is much clearer than just saying "use the SharePoint
+        folder".</p>
+      </article>
+
+      <nav class="doc-pagination" aria-label="Page navigation" data-doc-pagination></nav>
+    </section>
   </main>
 
-  <script>
-    document.addEventListener('DOMContentLoaded', function () {
-      const anchors = document.querySelectorAll('a[href]');
-      for (const anchor of anchors) {
-        const raw = anchor.getAttribute('href');
-        if (!raw) continue;
-        if (raw.startsWith('http://') || raw.startsWith('https://') || raw.startsWith('#') || raw.startsWith('mailto:')) continue;
-        const hashIndex = raw.indexOf('#');
-        const base = hashIndex >= 0 ? raw.slice(0, hashIndex) : raw;
-        const hash = hashIndex >= 0 ? raw.slice(hashIndex) : '';
-        let next = base;
-        if (base.includes('gh-pages/')) {
-          next = '../../' + base.split('gh-pages/').pop();
-        } else if (base.endsWith('README.md')) {
-          next = base.slice(0, -9) + 'index.html';
-        } else if (base.endsWith('.md')) {
-          next = base.slice(0, -3) + '.html';
-        }
-        anchor.setAttribute('href', next + hash);
-      }
-    });
-  </script>
+  <script src="../shell.js" defer></script>
 </body>
 </html>

@@ -1,7 +1,5 @@
 # Planned Transactions
 
-Back to [Docs Index](../README.md)
-
 Planned transactions are recurring or future transaction templates.
 
 They are not the same thing as real posted transactions.

@@ -4,131 +4,150 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Date-Based Activities</title>
+  <meta name="theme-color" content="#f5f5f7">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="../styles.css">
   </head>
-<body>
+<body class="docs-page" data-docs-root="../" data-site-root="../../" data-doc-path="workflows/date-based-activities.html">
   <header class="topbar">
     <div class="topbar-inner">
       <a class="brand" href="../index.html">
         <img src="../../logo-header.svg" alt="Fidra">
         <span>Fidra Docs</span>
       </a>
-      <nav class="toplinks" aria-label="Secondary">
-        <a href="../../index.html">Website</a>
-        <a href="../../local-sync.html">Local Sync Guide</a>
-        <a href="../../cloud-connect.html">Cloud Connect Guide</a>
-      </nav>
+      <div class="topbar-actions">
+        <nav class="toplinks" aria-label="Secondary">
+          <a href="../../index.html">Website</a>
+          <a href="../../local-sync.html">Local Sync Guide</a>
+          <a href="../../cloud-connect.html">Cloud Connect Guide</a>
+        </nav>
+        <button class="mobile-nav-trigger topbar-trigger" type="button" data-sidebar-open aria-controls="docs-sidebar" aria-expanded="false">
+          Browse Docs
+        </button>
+      </div>
     </div>
   </header>
 
   <main class="page-shell">
-    <article class="doc-content">
-      <h1 id="date-based-activities">Date-Based Activities</h1>
-      <p>Back to <a href="../README.md">Docs Index</a></p>
-      <p>Fidra can read a leading date prefix from an activity name and
-      use that as structured activity timing.</p>
-      <p>This is useful for one-off events, month buckets, year buckets,
-      and multi-day activities.</p>
-      <h2 id="the-core-rule">The Core Rule</h2>
-      <p>Put the date at the start of the activity name, then put the
-      human-readable title after it.</p>
-      <p>Good:</p>
-      <pre class="text"><code>2026-04-18 Spring Social
+    <aside class="docs-sidebar" id="docs-sidebar" data-sidebar>
+      <div class="sidebar-inner">
+        <div class="sidebar-header">
+          <div>
+            <p class="sidebar-eyebrow">Documentation</p>
+            <h2 class="sidebar-title">Fidra Docs</h2>
+          </div>
+          <button class="sidebar-expand" type="button" data-expand-all>Expand all</button>
+        </div>
+
+        <label class="sidebar-filter" for="docs-filter">
+          <span class="sidebar-filter-label">Filter</span>
+          <span class="sidebar-filter-field">
+            <span class="sidebar-filter-icon" aria-hidden="true"></span>
+            <input id="docs-filter" type="search" placeholder="Filter docs" autocomplete="off" spellcheck="false" data-doc-filter>
+          </span>
+        </label>
+
+        <nav class="sidebar-nav" aria-label="Documentation" data-doc-nav></nav>
+        <p class="sidebar-empty" hidden data-doc-empty>No matching docs.</p>
+      </div>
+    </aside>
+
+    <button class="sidebar-backdrop" type="button" data-sidebar-close aria-hidden="true" tabindex="-1"></button>
+
+    <section class="docs-main">
+      <div class="docs-main-toolbar">
+        <button class="mobile-nav-trigger" type="button" data-sidebar-open aria-controls="docs-sidebar" aria-expanded="false">
+          Browse Docs
+        </button>
+      </div>
+
+      <article class="doc-content">
+        <h1 id="date-based-activities">Date-Based Activities</h1>
+        <p>Fidra can read a leading date prefix from an activity name
+        and use that as structured activity timing.</p>
+        <p>This is useful for one-off events, month buckets, year
+        buckets, and multi-day activities.</p>
+        <h2 id="the-core-rule">The Core Rule</h2>
+        <p>Put the date at the start of the activity name, then put the
+        human-readable title after it.</p>
+        <p>Good:</p>
+        <pre class="text"><code>2026-04-18 Spring Social
 2026-05 Training Month
 2026 Annual Membership
 2026-03-15 to 2026-03-16 Coastal Dive Weekend</code></pre>
-      <p>Less useful:</p>
-      <pre class="text"><code>2026-04-18
+        <p>Less useful:</p>
+        <pre class="text"><code>2026-04-18
 Spring Social 2026-04-18</code></pre>
-      <p>The date needs to be first, and the activity should still have
-      a real name after it.</p>
-      <h2 id="supported-formats">Supported Formats</h2>
-      <h3 id="single-day">Single day</h3>
-      <pre class="text"><code>YYYY-MM-DD Name</code></pre>
-      <p>Example:</p>
-      <pre class="text"><code>2026-04-18 Spring Social</code></pre>
-      <h3 id="whole-month">Whole month</h3>
-      <pre class="text"><code>YYYY-MM Name</code></pre>
-      <p>Example:</p>
-      <pre class="text"><code>2026-05 Training Month</code></pre>
-      <h3 id="whole-year">Whole year</h3>
-      <pre class="text"><code>YYYY Name</code></pre>
-      <p>Example:</p>
-      <pre class="text"><code>2026 Annual Membership</code></pre>
-      <h3 id="date-range">Date range</h3>
-      <pre class="text"><code>YYYY-MM-DD to YYYY-MM-DD Name</code></pre>
-      <p>Example:</p>
-      <pre class="text"><code>2026-03-15 to 2026-03-16 Coastal Dive Weekend</code></pre>
-      <p>Fidra also recognizes a date range written with a dash between
-      the two dates.</p>
-      <h2 id="what-fidra-does-with-it">What Fidra Does With It</h2>
-      <p>Fidra splits the activity into two parts:</p>
-      <ol type="1">
-      <li>the structured date prefix</li>
-      <li>the display title after the prefix</li>
-      </ol>
-      <p>So in:</p>
-      <pre class="text"><code>2026-03-15 to 2026-03-16 Coastal Dive Weekend</code></pre>
-      <p>the dates are treated as dates, and
-      <code>Coastal Dive Weekend</code> is the activity title.</p>
-      <h2 id="recommended-naming-pattern">Recommended Naming
-      Pattern</h2>
-      <p>Use this format consistently:</p>
-      <pre class="text"><code>&lt;date prefix&gt; &lt;clear activity name&gt;</code></pre>
-      <p>Examples:</p>
-      <ul>
-      <li><code>2026-01-08 Membership Dues Run</code></li>
-      <li><code>2026-02-03 Pool Training Night</code></li>
-      <li><code>2026-04-18 Spring Social</code></li>
-      <li><code>2026-06-12 to 2026-06-14 Skye Weekend</code></li>
-      </ul>
-      <h2 id="when-to-use-each-precision">When to Use Each
-      Precision</h2>
-      <ul>
-      <li>Use <code>YYYY-MM-DD</code> for a specific event day.</li>
-      <li>Use <code>YYYY-MM-DD to YYYY-MM-DD</code> for trips, camps, or
-      weekends.</li>
-      <li>Use <code>YYYY-MM</code> for a month-long programme or
-      bucket.</li>
-      <li>Use <code>YYYY</code> for annual items that do not need more
-      precision.</li>
-      </ul>
-      <h2 id="practical-advice">Practical Advice</h2>
-      <ul>
-      <li>Always include a readable name after the date.</li>
-      <li>Keep one naming convention across the whole club.</li>
-      <li>If two activities are genuinely different, give them different
-      titles even if they share the same date.</li>
-      <li>Do not hide the date in the middle or end of the activity name
-      and expect Fidra to parse it.</li>
-      </ul>
-    </article>
+        <p>The date needs to be first, and the activity should still
+        have a real name after it.</p>
+        <h2 id="supported-formats">Supported Formats</h2>
+        <h3 id="single-day">Single day</h3>
+        <pre class="text"><code>YYYY-MM-DD Name</code></pre>
+        <p>Example:</p>
+        <pre class="text"><code>2026-04-18 Spring Social</code></pre>
+        <h3 id="whole-month">Whole month</h3>
+        <pre class="text"><code>YYYY-MM Name</code></pre>
+        <p>Example:</p>
+        <pre class="text"><code>2026-05 Training Month</code></pre>
+        <h3 id="whole-year">Whole year</h3>
+        <pre class="text"><code>YYYY Name</code></pre>
+        <p>Example:</p>
+        <pre class="text"><code>2026 Annual Membership</code></pre>
+        <h3 id="date-range">Date range</h3>
+        <pre class="text"><code>YYYY-MM-DD to YYYY-MM-DD Name</code></pre>
+        <p>Example:</p>
+        <pre class="text"><code>2026-03-15 to 2026-03-16 Coastal Dive Weekend</code></pre>
+        <p>Fidra also recognizes a date range written with a dash
+        between the two dates.</p>
+        <h2 id="what-fidra-does-with-it">What Fidra Does With It</h2>
+        <p>Fidra splits the activity into two parts:</p>
+        <ol type="1">
+        <li>the structured date prefix</li>
+        <li>the display title after the prefix</li>
+        </ol>
+        <p>So in:</p>
+        <pre class="text"><code>2026-03-15 to 2026-03-16 Coastal Dive Weekend</code></pre>
+        <p>the dates are treated as dates, and
+        <code>Coastal Dive Weekend</code> is the activity title.</p>
+        <h2 id="recommended-naming-pattern">Recommended Naming
+        Pattern</h2>
+        <p>Use this format consistently:</p>
+        <pre class="text"><code>&lt;date prefix&gt; &lt;clear activity name&gt;</code></pre>
+        <p>Examples:</p>
+        <ul>
+        <li><code>2026-01-08 Membership Dues Run</code></li>
+        <li><code>2026-02-03 Pool Training Night</code></li>
+        <li><code>2026-04-18 Spring Social</code></li>
+        <li><code>2026-06-12 to 2026-06-14 Skye Weekend</code></li>
+        </ul>
+        <h2 id="when-to-use-each-precision">When to Use Each
+        Precision</h2>
+        <ul>
+        <li>Use <code>YYYY-MM-DD</code> for a specific event day.</li>
+        <li>Use <code>YYYY-MM-DD to YYYY-MM-DD</code> for trips, camps,
+        or weekends.</li>
+        <li>Use <code>YYYY-MM</code> for a month-long programme or
+        bucket.</li>
+        <li>Use <code>YYYY</code> for annual items that do not need more
+        precision.</li>
+        </ul>
+        <h2 id="practical-advice">Practical Advice</h2>
+        <ul>
+        <li>Always include a readable name after the date.</li>
+        <li>Keep one naming convention across the whole club.</li>
+        <li>If two activities are genuinely different, give them
+        different titles even if they share the same date.</li>
+        <li>Do not hide the date in the middle or end of the activity
+        name and expect Fidra to parse it.</li>
+        </ul>
+      </article>
+
+      <nav class="doc-pagination" aria-label="Page navigation" data-doc-pagination></nav>
+    </section>
   </main>
 
-  <script>
-    document.addEventListener('DOMContentLoaded', function () {
-      const anchors = document.querySelectorAll('a[href]');
-      for (const anchor of anchors) {
-        const raw = anchor.getAttribute('href');
-        if (!raw) continue;
-        if (raw.startsWith('http://') || raw.startsWith('https://') || raw.startsWith('#') || raw.startsWith('mailto:')) continue;
-        const hashIndex = raw.indexOf('#');
-        const base = hashIndex >= 0 ? raw.slice(0, hashIndex) : raw;
-        const hash = hashIndex >= 0 ? raw.slice(hashIndex) : '';
-        let next = base;
-        if (base.includes('gh-pages/')) {
-          next = '../../' + base.split('gh-pages/').pop();
-        } else if (base.endsWith('README.md')) {
-          next = base.slice(0, -9) + 'index.html';
-        } else if (base.endsWith('.md')) {
-          next = base.slice(0, -3) + '.html';
-        }
-        anchor.setAttribute('href', next + hash);
-      }
-    });
-  </script>
+  <script src="../shell.js" defer></script>
 </body>
 </html>

@@ -4,132 +4,151 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Backups and Restore</title>
+  <meta name="theme-color" content="#f5f5f7">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="../styles.css">
   </head>
-<body>
+<body class="docs-page" data-docs-root="../" data-site-root="../../gh-pages/" data-doc-path="operations/backups-and-restore.html">
   <header class="topbar">
     <div class="topbar-inner">
       <a class="brand" href="../index.html">
         <img src="../../gh-pages/logo-header.svg" alt="Fidra">
         <span>Fidra Docs Preview</span>
       </a>
-      <nav class="toplinks" aria-label="Secondary">
-        <a href="../../gh-pages/index.html">Website</a>
-        <a href="../../gh-pages/local-sync.html">Local Sync Guide</a>
-        <a href="../../gh-pages/cloud-connect.html">Cloud Connect Guide</a>
-      </nav>
+      <div class="topbar-actions">
+        <nav class="toplinks" aria-label="Secondary">
+          <a href="../../gh-pages/index.html">Website</a>
+          <a href="../../gh-pages/local-sync.html">Local Sync Guide</a>
+          <a href="../../gh-pages/cloud-connect.html">Cloud Connect Guide</a>
+        </nav>
+        <button class="mobile-nav-trigger topbar-trigger" type="button" data-sidebar-open aria-controls="docs-sidebar" aria-expanded="false">
+          Browse Docs
+        </button>
+      </div>
     </div>
   </header>
 
   <main class="page-shell">
-    <article class="doc-content">
-      <h1 id="backups-and-restore">Backups and Restore</h1>
-      <p>Back to <a href="../README.md">Docs Index</a></p>
-      <p>Backups are part of normal Fidra operation, not just disaster
-      recovery.</p>
-      <h2 id="what-backups-cover">What Backups Cover</h2>
-      <p>Fidra's backup tools are designed to cover:</p>
-      <ul>
-      <li>the database itself</li>
-      <li>attachments associated with that database</li>
-      </ul>
-      <p>That matters because attachments do not live in the same place
-      as the <code>.fdra</code> file.</p>
-      <h2 id="where-to-manage-backups">Where to Manage Backups</h2>
-      <p>Open:</p>
-      <p><code>Settings -&gt; Backup &amp; Restore -&gt; Manage Backups</code></p>
-      <p>From there you can:</p>
-      <ul>
-      <li>create a backup manually</li>
-      <li>choose a backup directory</li>
-      <li>enable automatic backups</li>
-      <li>restore a previous backup</li>
-      <li>delete old backups</li>
-      </ul>
-      <h2 id="recommended-times-to-create-a-manual-backup">Recommended
-      Times to Create a Manual Backup</h2>
-      <p>Create a backup before:</p>
-      <ul>
-      <li>a treasurer handover</li>
-      <li>a large import</li>
-      <li>a large bulk edit</li>
-      <li>enabling or migrating sync</li>
-      <li>moving the working database to a new location</li>
-      </ul>
-      <h2 id="automatic-backups">Automatic Backups</h2>
-      <p>Fidra can create backups automatically when the database window
-      closes.</p>
-      <p>For most clubs, that is worth enabling once you have chosen a
-      sensible backup location.</p>
-      <h2 id="backup-location-recommendation">Backup Location
-      Recommendation</h2>
-      <p>Use a location that is:</p>
-      <ul>
-      <li>easy to find</li>
-      <li>separate from the live database folder</li>
-      <li>included in your normal machine backup strategy</li>
-      </ul>
-      <p>Example:</p>
-      <pre class="text"><code>Club Finance/
+    <aside class="docs-sidebar" id="docs-sidebar" data-sidebar>
+      <div class="sidebar-inner">
+        <div class="sidebar-header">
+          <div>
+            <p class="sidebar-eyebrow">Documentation</p>
+            <h2 class="sidebar-title">Fidra Docs</h2>
+          </div>
+          <button class="sidebar-expand" type="button" data-expand-all>Expand all</button>
+        </div>
+
+        <label class="sidebar-filter" for="docs-filter">
+          <span class="sidebar-filter-label">Filter</span>
+          <span class="sidebar-filter-field">
+            <span class="sidebar-filter-icon" aria-hidden="true"></span>
+            <input id="docs-filter" type="search" placeholder="Filter docs" autocomplete="off" spellcheck="false" data-doc-filter>
+          </span>
+        </label>
+
+        <nav class="sidebar-nav" aria-label="Documentation" data-doc-nav></nav>
+        <p class="sidebar-empty" hidden data-doc-empty>No matching docs.</p>
+      </div>
+    </aside>
+
+    <button class="sidebar-backdrop" type="button" data-sidebar-close aria-hidden="true" tabindex="-1"></button>
+
+    <section class="docs-main">
+      <div class="docs-main-toolbar">
+        <button class="mobile-nav-trigger" type="button" data-sidebar-open aria-controls="docs-sidebar" aria-expanded="false">
+          Browse Docs
+        </button>
+      </div>
+
+      <article class="doc-content">
+        <h1 id="backups-and-restore">Backups and Restore</h1>
+        <p>Backups are part of normal Fidra operation, not just disaster
+        recovery.</p>
+        <h2 id="what-backups-cover">What Backups Cover</h2>
+        <p>Fidra's backup tools are designed to cover:</p>
+        <ul>
+        <li>the database itself</li>
+        <li>attachments associated with that database</li>
+        </ul>
+        <p>That matters because attachments do not live in the same
+        place as the <code>.fdra</code> file.</p>
+        <h2 id="where-to-manage-backups">Where to Manage Backups</h2>
+        <p>Open:</p>
+        <p><code>Settings -&gt; Backup &amp; Restore -&gt; Manage Backups</code></p>
+        <p>From there you can:</p>
+        <ul>
+        <li>create a backup manually</li>
+        <li>choose a backup directory</li>
+        <li>enable automatic backups</li>
+        <li>restore a previous backup</li>
+        <li>delete old backups</li>
+        </ul>
+        <h2 id="recommended-times-to-create-a-manual-backup">Recommended
+        Times to Create a Manual Backup</h2>
+        <p>Create a backup before:</p>
+        <ul>
+        <li>a treasurer handover</li>
+        <li>a large import</li>
+        <li>a large bulk edit</li>
+        <li>enabling or migrating sync</li>
+        <li>moving the working database to a new location</li>
+        </ul>
+        <h2 id="automatic-backups">Automatic Backups</h2>
+        <p>Fidra can create backups automatically when the database
+        window closes.</p>
+        <p>For most clubs, that is worth enabling once you have chosen a
+        sensible backup location.</p>
+        <h2 id="backup-location-recommendation">Backup Location
+        Recommendation</h2>
+        <p>Use a location that is:</p>
+        <ul>
+        <li>easy to find</li>
+        <li>separate from the live database folder</li>
+        <li>included in your normal machine backup strategy</li>
+        </ul>
+        <p>Example:</p>
+        <pre class="text"><code>Club Finance/
   Live/
     finances.fdra
   Backups/
     ...</code></pre>
-      <h2 id="restoring-a-backup">Restoring a Backup</h2>
-      <p>When you restore a backup, treat it as an operational event,
-      not a casual undo.</p>
-      <p>Before restoring:</p>
-      <ol type="1">
-      <li>make sure you understand which backup you want</li>
-      <li>make sure the team knows a restore is happening if the
-      database is shared</li>
-      <li>stop making other changes until the restore is complete</li>
-      </ol>
-      <p>The restore flow creates a safety backup before replacing the
-      current state.</p>
-      <h2 id="local-sync-and-missing-files">Local Sync and Missing
-      Files</h2>
-      <p>If you are using Local Sync and attachments look incomplete,
-      also check:</p>
-      <p><code>Settings -&gt; Local Sync -&gt; Recover Files</code></p>
-      <p>That is separate from full backup restore. It is the targeted
-      recovery tool for known attachment files and Local Sync
-      export.</p>
-      <h2 id="minimum-club-policy">Minimum Club Policy</h2>
-      <p>If you only adopt three rules, use these:</p>
-      <ol type="1">
-      <li>Keep automatic backups on.</li>
-      <li>Create a manual backup before major structural changes.</li>
-      <li>Do not wait for corruption or loss before learning where the
-      backup controls live.</li>
-      </ol>
-    </article>
+        <h2 id="restoring-a-backup">Restoring a Backup</h2>
+        <p>When you restore a backup, treat it as an operational event,
+        not a casual undo.</p>
+        <p>Before restoring:</p>
+        <ol type="1">
+        <li>make sure you understand which backup you want</li>
+        <li>make sure the team knows a restore is happening if the
+        database is shared</li>
+        <li>stop making other changes until the restore is complete</li>
+        </ol>
+        <p>The restore flow creates a safety backup before replacing the
+        current state.</p>
+        <h2 id="local-sync-and-missing-files">Local Sync and Missing
+        Files</h2>
+        <p>If you are using Local Sync and attachments look incomplete,
+        also check:</p>
+        <p><code>Settings -&gt; Local Sync -&gt; Recover Files</code></p>
+        <p>That is separate from full backup restore. It is the targeted
+        recovery tool for known attachment files and Local Sync
+        export.</p>
+        <h2 id="minimum-club-policy">Minimum Club Policy</h2>
+        <p>If you only adopt three rules, use these:</p>
+        <ol type="1">
+        <li>Keep automatic backups on.</li>
+        <li>Create a manual backup before major structural changes.</li>
+        <li>Do not wait for corruption or loss before learning where the
+        backup controls live.</li>
+        </ol>
+      </article>
+
+      <nav class="doc-pagination" aria-label="Page navigation" data-doc-pagination></nav>
+    </section>
   </main>
 
-  <script>
-    document.addEventListener('DOMContentLoaded', function () {
-      const anchors = document.querySelectorAll('a[href]');
-      for (const anchor of anchors) {
-        const raw = anchor.getAttribute('href');
-        if (!raw) continue;
-        if (raw.startsWith('http://') || raw.startsWith('https://') || raw.startsWith('#') || raw.startsWith('mailto:')) continue;
-        const hashIndex = raw.indexOf('#');
-        const base = hashIndex >= 0 ? raw.slice(0, hashIndex) : raw;
-        const hash = hashIndex >= 0 ? raw.slice(hashIndex) : '';
-        let next = base;
-        if (base.includes('gh-pages/')) {
-          next = '../../gh-pages/' + base.split('gh-pages/').pop();
-        } else if (base.endsWith('README.md')) {
-          next = base.slice(0, -9) + 'index.html';
-        } else if (base.endsWith('.md')) {
-          next = base.slice(0, -3) + '.html';
-        }
-        anchor.setAttribute('href', next + hash);
-      }
-    });
-  </script>
+  <script src="../shell.js" defer></script>
 </body>
 </html>

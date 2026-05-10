@@ -4,133 +4,156 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Files and Storage</title>
+  <meta name="theme-color" content="#f5f5f7">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="../styles.css">
   </head>
-<body>
+<body class="docs-page" data-docs-root="../" data-site-root="../../" data-doc-path="setup/files-and-storage.html">
   <header class="topbar">
     <div class="topbar-inner">
       <a class="brand" href="../index.html">
         <img src="../../logo-header.svg" alt="Fidra">
         <span>Fidra Docs</span>
       </a>
-      <nav class="toplinks" aria-label="Secondary">
-        <a href="../../index.html">Website</a>
-        <a href="../../local-sync.html">Local Sync Guide</a>
-        <a href="../../cloud-connect.html">Cloud Connect Guide</a>
-      </nav>
+      <div class="topbar-actions">
+        <nav class="toplinks" aria-label="Secondary">
+          <a href="../../index.html">Website</a>
+          <a href="../../local-sync.html">Local Sync Guide</a>
+          <a href="../../cloud-connect.html">Cloud Connect Guide</a>
+        </nav>
+        <button class="mobile-nav-trigger topbar-trigger" type="button" data-sidebar-open aria-controls="docs-sidebar" aria-expanded="false">
+          Browse Docs
+        </button>
+      </div>
     </div>
   </header>
 
   <main class="page-shell">
-    <article class="doc-content">
-      <h1 id="files-and-storage">Files and Storage</h1>
-      <p>Back to <a href="../README.md">Docs Index</a></p>
-      <p>This page explains where Fidra stores its main database,
-      attachments, and sync-related files.</p>
-      <h2 id="the-main-database-file">The Main Database File</h2>
-      <p>Your ledger lives in a single database file, usually with a
-      <code>.fdra</code> extension.</p>
-      <p>Example:</p>
-      <pre class="text"><code>finances.fdra</code></pre>
-      <p>Fidra uses SQLite in WAL mode. That means extra SQLite files
-      can sit beside the main file while the database is in use, most
-      commonly:</p>
-      <pre class="text"><code>finances.fdra
+    <aside class="docs-sidebar" id="docs-sidebar" data-sidebar>
+      <div class="sidebar-inner">
+        <div class="sidebar-header">
+          <div>
+            <p class="sidebar-eyebrow">Documentation</p>
+            <h2 class="sidebar-title">Fidra Docs</h2>
+          </div>
+          <button class="sidebar-expand" type="button" data-expand-all>Expand all</button>
+        </div>
+
+        <label class="sidebar-filter" for="docs-filter">
+          <span class="sidebar-filter-label">Filter</span>
+          <span class="sidebar-filter-field">
+            <span class="sidebar-filter-icon" aria-hidden="true"></span>
+            <input id="docs-filter" type="search" placeholder="Filter docs" autocomplete="off" spellcheck="false" data-doc-filter>
+          </span>
+        </label>
+
+        <nav class="sidebar-nav" aria-label="Documentation" data-doc-nav></nav>
+        <p class="sidebar-empty" hidden data-doc-empty>No matching docs.</p>
+      </div>
+    </aside>
+
+    <button class="sidebar-backdrop" type="button" data-sidebar-close aria-hidden="true" tabindex="-1"></button>
+
+    <section class="docs-main">
+      <div class="docs-main-toolbar">
+        <button class="mobile-nav-trigger" type="button" data-sidebar-open aria-controls="docs-sidebar" aria-expanded="false">
+          Browse Docs
+        </button>
+      </div>
+
+      <article class="doc-content">
+        <h1 id="files-and-storage">Files and Storage</h1>
+        <p>This page explains where Fidra stores its main database,
+        attachments, and sync-related files.</p>
+        <h2 id="the-main-database-file">The Main Database File</h2>
+        <p>Your ledger lives in a single database file, usually with a
+        <code>.fdra</code> extension.</p>
+        <p>Example:</p>
+        <pre class="text"><code>finances.fdra</code></pre>
+        <p>Fidra uses SQLite in WAL mode. That means extra SQLite files
+        can sit beside the main file while the database is in use, most
+        commonly:</p>
+        <pre class="text"><code>finances.fdra
 finances.fdra-wal
 finances.fdra-shm</code></pre>
-      <p>Those sidecar files are normal. They are part of how SQLite
-      keeps the database safe and fast.</p>
-      <h2 id="recommended-folder-layout">Recommended Folder Layout</h2>
-      <p>Use a dedicated folder for each Fidra database.</p>
-      <p>Example:</p>
-      <pre class="text"><code>Club Finance/
+        <p>Those sidecar files are normal. They are part of how SQLite
+        keeps the database safe and fast.</p>
+        <h2 id="recommended-folder-layout">Recommended Folder
+        Layout</h2>
+        <p>Use a dedicated folder for each Fidra database.</p>
+        <p>Example:</p>
+        <pre class="text"><code>Club Finance/
   finances.fdra
   finances.fdra-wal
   finances.fdra-shm</code></pre>
-      <p>This matters even more if you use Local Sync, because it helps
-      keep the database file separate from the shared sync folder.</p>
-      <h2 id="recommended-setup">Recommended Setup</h2>
-      <p>For most clubs, use three separate locations:</p>
-      <ol type="1">
-      <li>A dedicated local folder for the <code>.fdra</code> file.</li>
-      <li>A separate shared folder for Local Sync, if you use it.</li>
-      <li>A backup location for backup archives.</li>
-      </ol>
-      <p>Do not treat the Local Sync folder as the same thing as the
-      database folder.</p>
-      <h2 id="where-attachments-live">Where Attachments Live</h2>
-      <p>Attachments are stored separately from the <code>.fdra</code>
-      file.</p>
-      <p>Current location:</p>
-      <pre class="text"><code>~/.fidra/attachments/&lt;databaseId&gt;/</code></pre>
-      <p>On macOS, that normally expands to something like:</p>
-      <pre class="text"><code>/Users/your-name/.fidra/attachments/&lt;databaseId&gt;/</code></pre>
-      <p>This is per database. Each database gets its own attachment
-      directory.</p>
-      <h2 id="what-this-means-in-practice">What This Means in
-      Practice</h2>
-      <ul>
-      <li>Moving the <code>.fdra</code> file does not automatically move
-      the attachment directory.</li>
-      <li>Backups matter, because attachments are not just "inside the
-      same folder" as the database.</li>
-      <li>If you are trying to find a raw file on disk, this is the
-      first place to look.</li>
-      </ul>
-      <h2 id="attachment-filenames">Attachment Filenames</h2>
-      <p>Fidra stores attachments using generated filenames based on the
-      transaction, rather than keeping the original filename as the
-      on-disk filename.</p>
-      <p>That means:</p>
-      <ul>
-      <li>the display name in Fidra may differ from the physical
-      filename on disk</li>
-      <li>the stored filename can change if the transaction's date,
-      type, amount, or party changes</li>
-      </ul>
-      <p>So if you need to manage attachments, do it through Fidra where
-      possible rather than by manually renaming files on disk.</p>
-      <h2 id="legacy-attachment-folder">Legacy Attachment Folder</h2>
-      <p>Older data may have used a sibling folder named
-      <code>fidra_attachments</code> next to the database file.</p>
-      <p>Current Fidra migrates that to the stable
-      <code>~/.fidra/attachments/&lt;databaseId&gt;/</code> location
-      when the database is opened.</p>
-      <h2 id="if-you-use-local-sync">If You Use Local Sync</h2>
-      <p>Keep these separate:</p>
-      <ul>
-      <li>your working database folder</li>
-      <li>your Local Sync shared folder</li>
-      </ul>
-      <p>That keeps the setup easier to reason about and avoids mixing
-      normal database files with sync transport data.</p>
-    </article>
+        <p>This matters even more if you use Local Sync, because it
+        helps keep the database file separate from the shared sync
+        folder.</p>
+        <h2 id="recommended-setup">Recommended Setup</h2>
+        <p>For most clubs, use three separate locations:</p>
+        <ol type="1">
+        <li>A dedicated local folder for the <code>.fdra</code>
+        file.</li>
+        <li>A separate shared folder for Local Sync, if you use it.</li>
+        <li>A backup location for backup archives.</li>
+        </ol>
+        <p>Do not treat the Local Sync folder as the same thing as the
+        database folder.</p>
+        <h2 id="where-attachments-live">Where Attachments Live</h2>
+        <p>Attachments are stored separately from the <code>.fdra</code>
+        file.</p>
+        <p>Current location:</p>
+        <pre class="text"><code>~/.fidra/attachments/&lt;databaseId&gt;/</code></pre>
+        <p>On macOS, that normally expands to something like:</p>
+        <pre class="text"><code>/Users/your-name/.fidra/attachments/&lt;databaseId&gt;/</code></pre>
+        <p>This is per database. Each database gets its own attachment
+        directory.</p>
+        <h2 id="what-this-means-in-practice">What This Means in
+        Practice</h2>
+        <ul>
+        <li>Moving the <code>.fdra</code> file does not automatically
+        move the attachment directory.</li>
+        <li>Backups matter, because attachments are not just "inside the
+        same folder" as the database.</li>
+        <li>If you are trying to find a raw file on disk, this is the
+        first place to look.</li>
+        </ul>
+        <h2 id="attachment-filenames">Attachment Filenames</h2>
+        <p>Fidra stores attachments using generated filenames based on
+        the transaction, rather than keeping the original filename as
+        the on-disk filename.</p>
+        <p>That means:</p>
+        <ul>
+        <li>the display name in Fidra may differ from the physical
+        filename on disk</li>
+        <li>the stored filename can change if the transaction's date,
+        type, amount, or party changes</li>
+        </ul>
+        <p>So if you need to manage attachments, do it through Fidra
+        where possible rather than by manually renaming files on
+        disk.</p>
+        <h2 id="legacy-attachment-folder">Legacy Attachment Folder</h2>
+        <p>Older data may have used a sibling folder named
+        <code>fidra_attachments</code> next to the database file.</p>
+        <p>Current Fidra migrates that to the stable
+        <code>~/.fidra/attachments/&lt;databaseId&gt;/</code> location
+        when the database is opened.</p>
+        <h2 id="if-you-use-local-sync">If You Use Local Sync</h2>
+        <p>Keep these separate:</p>
+        <ul>
+        <li>your working database folder</li>
+        <li>your Local Sync shared folder</li>
+        </ul>
+        <p>That keeps the setup easier to reason about and avoids mixing
+        normal database files with sync transport data.</p>
+      </article>
+
+      <nav class="doc-pagination" aria-label="Page navigation" data-doc-pagination></nav>
+    </section>
   </main>
 
-  <script>
-    document.addEventListener('DOMContentLoaded', function () {
-      const anchors = document.querySelectorAll('a[href]');
-      for (const anchor of anchors) {
-        const raw = anchor.getAttribute('href');
-        if (!raw) continue;
-        if (raw.startsWith('http://') || raw.startsWith('https://') || raw.startsWith('#') || raw.startsWith('mailto:')) continue;
-        const hashIndex = raw.indexOf('#');
-        const base = hashIndex >= 0 ? raw.slice(0, hashIndex) : raw;
-        const hash = hashIndex >= 0 ? raw.slice(hashIndex) : '';
-        let next = base;
-        if (base.includes('gh-pages/')) {
-          next = '../../' + base.split('gh-pages/').pop();
-        } else if (base.endsWith('README.md')) {
-          next = base.slice(0, -9) + 'index.html';
-        } else if (base.endsWith('.md')) {
-          next = base.slice(0, -3) + '.html';
-        }
-        anchor.setAttribute('href', next + hash);
-      }
-    });
-  </script>
+  <script src="../shell.js" defer></script>
 </body>
 </html>

@@ -8,9 +8,11 @@ PREVIEW_DIR="$ROOT_DIR/docs-preview"
 PUBLISHED_DIR="$ROOT_DIR/gh-pages/docs"
 TEMPLATE="$PREVIEW_DIR/template.html"
 STYLE_SRC="$PREVIEW_DIR/styles.css"
+SHELL_SRC="$PREVIEW_DIR/shell.js"
 
 mkdir -p "$PREVIEW_DIR" "$PUBLISHED_DIR"
 cp "$STYLE_SRC" "$PUBLISHED_DIR/styles.css"
+cp "$SHELL_SRC" "$PUBLISHED_DIR/shell.js"
 
 function path_prefix_to_root() {
   local rel="$1"
@@ -43,10 +45,13 @@ function build_tree() {
     local title
     title="$(sed -n 's/^# //p;q' "$source")"
     local target
+    local docpath
     if [[ "$rel" == "README.md" ]]; then
       target="$out_dir/index.html"
+      docpath="index.html"
     else
       target="$out_dir/${rel%.md}.html"
+      docpath="${rel%.md}.html"
       mkdir -p "$(dirname "$target")"
     fi
 
@@ -62,6 +67,7 @@ function build_tree() {
       --metadata "title=$title" \
       --metadata "docsroot=$docsroot" \
       --metadata "siteroot=$siteroot" \
+      --metadata "docpath=$docpath" \
       --metadata "brandname=$brand_name" \
       "$source" \
       -o "$target"

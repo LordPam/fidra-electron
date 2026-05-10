@@ -1,7 +1,5 @@
 # Local Sync
 
-Back to [Docs Index](../README.md)
-
 For the public click-by-click setup walkthrough, use the [Local Sync website guide](../../gh-pages/local-sync.html).
 
 This markdown page is deliberately narrower. It covers the parts that are easy to get wrong or easy to forget once the initial setup is done.

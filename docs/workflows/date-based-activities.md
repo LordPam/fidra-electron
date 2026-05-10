@@ -1,7 +1,5 @@
 # Date-Based Activities
 
-Back to [Docs Index](../README.md)
-
 Fidra can read a leading date prefix from an activity name and use that as structured activity timing.
 
 This is useful for one-off events, month buckets, year buckets, and multi-day activities.

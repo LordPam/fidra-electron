@@ -4,180 +4,201 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Install Notes</title>
+  <meta name="theme-color" content="#f5f5f7">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="../styles.css">
   </head>
-<body>
+<body class="docs-page" data-docs-root="../" data-site-root="../../gh-pages/" data-doc-path="setup/install-notes.html">
   <header class="topbar">
     <div class="topbar-inner">
       <a class="brand" href="../index.html">
         <img src="../../gh-pages/logo-header.svg" alt="Fidra">
         <span>Fidra Docs Preview</span>
       </a>
-      <nav class="toplinks" aria-label="Secondary">
-        <a href="../../gh-pages/index.html">Website</a>
-        <a href="../../gh-pages/local-sync.html">Local Sync Guide</a>
-        <a href="../../gh-pages/cloud-connect.html">Cloud Connect Guide</a>
-      </nav>
+      <div class="topbar-actions">
+        <nav class="toplinks" aria-label="Secondary">
+          <a href="../../gh-pages/index.html">Website</a>
+          <a href="../../gh-pages/local-sync.html">Local Sync Guide</a>
+          <a href="../../gh-pages/cloud-connect.html">Cloud Connect Guide</a>
+        </nav>
+        <button class="mobile-nav-trigger topbar-trigger" type="button" data-sidebar-open aria-controls="docs-sidebar" aria-expanded="false">
+          Browse Docs
+        </button>
+      </div>
     </div>
   </header>
 
   <main class="page-shell">
-    <article class="doc-content">
-      <h1 id="install-notes">Install Notes</h1>
-      <p>Back to <a href="../README.md">Docs Index</a></p>
-      <p>These notes explain what to expect when installing Fidra
-      outside an app store.</p>
-      <h2 id="what-to-expect">What to Expect</h2>
-      <p>Fidra is distributed directly rather than through the Mac App
-      Store or Microsoft Store.</p>
-      <p>That means first-run verification can be stricter than for
-      store-installed apps, especially when:</p>
-      <ul>
-      <li>the macOS build is not yet Developer ID signed and
-      notarized</li>
-      <li>the Windows build is new and has little SmartScreen reputation
-      yet</li>
-      </ul>
-      <p>This does not automatically mean the app is unsafe. It means
-      the operating system has less prior trust information to work
-      with.</p>
-      <h2 id="official-download-source">Official Download Source</h2>
-      <p>If you are installing Fidra, download it from the club's
-      official release link or the official GitHub releases page for the
-      project.</p>
-      <p>If you are not sure whether a download is official, stop there
-      and confirm before opening it.</p>
-      <h2 id="macos">macOS</h2>
-      <h3 id="what-macos-may-show">What macOS may show</h3>
-      <p>macOS can warn when an app:</p>
-      <ul>
-      <li>is from an unidentified developer</li>
-      <li>is not notarized</li>
-      <li>cannot be checked the same way as a store or fully verified
-      app</li>
-      </ul>
-      <p>For current official Apple guidance, see:</p>
-      <ul>
-      <li><a
-      href="https://support.apple.com/en-gb/guide/mac-help/-mh40616/mac">Open
-      a Mac app from an unknown developer</a></li>
-      <li><a href="https://support.apple.com/en-gb/102445">Safely open
-      apps on your Mac</a></li>
-      </ul>
-      <h3 id="what-this-means-for-fidra">What this means for Fidra</h3>
-      <p>If the current build is not yet fully Apple-verified, the
-      normal pattern is:</p>
-      <ol type="1">
-      <li>try opening the app once</li>
-      <li>macOS blocks it</li>
-      <li>go to
-      <code>System Settings -&gt; Privacy &amp; Security</code></li>
-      <li>use the option to open it anyway, if you trust the source</li>
-      </ol>
-      <p>After that first approval, macOS usually remembers the
-      exception for that app.</p>
-      <h3 id="do-not-do-this-casually">Do not do this casually</h3>
-      <p>Only override the warning if:</p>
-      <ul>
-      <li>you expected to install Fidra</li>
-      <li>you downloaded it from the official source</li>
-      <li>the file has not been modified or repackaged by someone
-      else</li>
-      </ul>
-      <p>If you are installing on a managed organisation Mac, an admin
-      policy may block this entirely.</p>
-      <h2 id="windows">Windows</h2>
-      <h3 id="what-windows-may-show">What Windows may show</h3>
-      <p>Windows may show Microsoft Defender SmartScreen warnings
-      for:</p>
-      <ul>
-      <li>unsigned downloads</li>
-      <li>unrecognized apps</li>
-      <li>newly built apps with little download history</li>
-      </ul>
-      <p>Background references:</p>
-      <ul>
-      <li><a
-      href="https://learn.microsoft.com/en-us/windows/apps/package-and-deploy/smartscreen-reputation">SmartScreen
-      reputation for Windows app developers</a></li>
-      <li><a
-      href="https://support.microsoft.com/en-us/windows/app-browser-control-in-the-windows-security-app-8f68fb65-ebb4-3cfb-4bd7-ef0f376f3dc3">App
-      &amp; browser control in the Windows Security app</a></li>
-      </ul>
-      <h3 id="what-this-means-for-fidra-1">What this means for
-      Fidra</h3>
-      <p>If a Windows build is new or not yet well established,
-      SmartScreen may warn even when the file is legitimate.</p>
-      <p>Typical user-facing outcomes are:</p>
-      <ul>
-      <li>a browser download warning</li>
-      <li>a SmartScreen "unrecognized app" prompt when launching</li>
-      </ul>
-      <p>If you trust the source, Windows often allows you to continue
-      through the warning flow.</p>
-      <p>If you are on a managed machine, your organisation may block
-      that override.</p>
-      <h2 id="if-the-app-still-will-not-open">If the App Still Will Not
-      Open</h2>
-      <p>Check these in order:</p>
-      <ol type="1">
-      <li>make sure you downloaded the correct package for your
-      platform</li>
-      <li>re-download the installer from the official release
-      source</li>
-      <li>check whether your machine is managed by school, work, or IT
-      policy</li>
-      <li>on macOS, re-check <code>Privacy &amp; Security</code></li>
-      <li>on Windows, check whether SmartScreen or another security
-      policy is blocking the run</li>
-      </ol>
-      <h2 id="current-practical-advice-for-clubs">Current Practical
-      Advice for Clubs</h2>
-      <ul>
-      <li>Do the first install on a personal or committee-controlled
-      machine, not a heavily locked-down lab or corporate device.</li>
-      <li>Keep a short internal note of the expected first-run behavior
-      for your committee.</li>
-      <li>If the club is onboarding several officers, have one person
-      test the exact installer first and document the screens they
-      saw.</li>
-      </ul>
-      <h2 id="this-page-is-about-first-run-trust-not-updates">This Page
-      Is About First-Run Trust, Not Updates</h2>
-      <p>These notes are about the first install experience.</p>
-      <p>Once Fidra has:</p>
-      <ul>
-      <li>stronger signing/notarization on macOS</li>
-      <li>stronger reputation or signing on Windows</li>
-      </ul>
-      <p>the warning experience can become less prominent.</p>
-    </article>
+    <aside class="docs-sidebar" id="docs-sidebar" data-sidebar>
+      <div class="sidebar-inner">
+        <div class="sidebar-header">
+          <div>
+            <p class="sidebar-eyebrow">Documentation</p>
+            <h2 class="sidebar-title">Fidra Docs</h2>
+          </div>
+          <button class="sidebar-expand" type="button" data-expand-all>Expand all</button>
+        </div>
+
+        <label class="sidebar-filter" for="docs-filter">
+          <span class="sidebar-filter-label">Filter</span>
+          <span class="sidebar-filter-field">
+            <span class="sidebar-filter-icon" aria-hidden="true"></span>
+            <input id="docs-filter" type="search" placeholder="Filter docs" autocomplete="off" spellcheck="false" data-doc-filter>
+          </span>
+        </label>
+
+        <nav class="sidebar-nav" aria-label="Documentation" data-doc-nav></nav>
+        <p class="sidebar-empty" hidden data-doc-empty>No matching docs.</p>
+      </div>
+    </aside>
+
+    <button class="sidebar-backdrop" type="button" data-sidebar-close aria-hidden="true" tabindex="-1"></button>
+
+    <section class="docs-main">
+      <div class="docs-main-toolbar">
+        <button class="mobile-nav-trigger" type="button" data-sidebar-open aria-controls="docs-sidebar" aria-expanded="false">
+          Browse Docs
+        </button>
+      </div>
+
+      <article class="doc-content">
+        <h1 id="install-notes">Install Notes</h1>
+        <p>These notes explain what to expect when installing Fidra
+        outside an app store.</p>
+        <h2 id="what-to-expect">What to Expect</h2>
+        <p>Fidra is distributed directly rather than through the Mac App
+        Store or Microsoft Store.</p>
+        <p>That means first-run verification can be stricter than for
+        store-installed apps, especially when:</p>
+        <ul>
+        <li>the macOS build is not yet Developer ID signed and
+        notarized</li>
+        <li>the Windows build is new and has little SmartScreen
+        reputation yet</li>
+        </ul>
+        <p>This does not automatically mean the app is unsafe. It means
+        the operating system has less prior trust information to work
+        with.</p>
+        <h2 id="official-download-source">Official Download Source</h2>
+        <p>If you are installing Fidra, download it from the club's
+        official release link or the official GitHub releases page for
+        the project.</p>
+        <p>If you are not sure whether a download is official, stop
+        there and confirm before opening it.</p>
+        <h2 id="macos">macOS</h2>
+        <h3 id="what-macos-may-show">What macOS may show</h3>
+        <p>macOS can warn when an app:</p>
+        <ul>
+        <li>is from an unidentified developer</li>
+        <li>is not notarized</li>
+        <li>cannot be checked the same way as a store or fully verified
+        app</li>
+        </ul>
+        <p>For current official Apple guidance, see:</p>
+        <ul>
+        <li><a
+        href="https://support.apple.com/en-gb/guide/mac-help/-mh40616/mac">Open
+        a Mac app from an unknown developer</a></li>
+        <li><a href="https://support.apple.com/en-gb/102445">Safely open
+        apps on your Mac</a></li>
+        </ul>
+        <h3 id="what-this-means-for-fidra">What this means for
+        Fidra</h3>
+        <p>If the current build is not yet fully Apple-verified, the
+        normal pattern is:</p>
+        <ol type="1">
+        <li>try opening the app once</li>
+        <li>macOS blocks it</li>
+        <li>go to
+        <code>System Settings -&gt; Privacy &amp; Security</code></li>
+        <li>use the option to open it anyway, if you trust the
+        source</li>
+        </ol>
+        <p>After that first approval, macOS usually remembers the
+        exception for that app.</p>
+        <h3 id="do-not-do-this-casually">Do not do this casually</h3>
+        <p>Only override the warning if:</p>
+        <ul>
+        <li>you expected to install Fidra</li>
+        <li>you downloaded it from the official source</li>
+        <li>the file has not been modified or repackaged by someone
+        else</li>
+        </ul>
+        <p>If you are installing on a managed organisation Mac, an admin
+        policy may block this entirely.</p>
+        <h2 id="windows">Windows</h2>
+        <h3 id="what-windows-may-show">What Windows may show</h3>
+        <p>Windows may show Microsoft Defender SmartScreen warnings
+        for:</p>
+        <ul>
+        <li>unsigned downloads</li>
+        <li>unrecognized apps</li>
+        <li>newly built apps with little download history</li>
+        </ul>
+        <p>Background references:</p>
+        <ul>
+        <li><a
+        href="https://learn.microsoft.com/en-us/windows/apps/package-and-deploy/smartscreen-reputation">SmartScreen
+        reputation for Windows app developers</a></li>
+        <li><a
+        href="https://support.microsoft.com/en-us/windows/app-browser-control-in-the-windows-security-app-8f68fb65-ebb4-3cfb-4bd7-ef0f376f3dc3">App
+        &amp; browser control in the Windows Security app</a></li>
+        </ul>
+        <h3 id="what-this-means-for-fidra-1">What this means for
+        Fidra</h3>
+        <p>If a Windows build is new or not yet well established,
+        SmartScreen may warn even when the file is legitimate.</p>
+        <p>Typical user-facing outcomes are:</p>
+        <ul>
+        <li>a browser download warning</li>
+        <li>a SmartScreen "unrecognized app" prompt when launching</li>
+        </ul>
+        <p>If you trust the source, Windows often allows you to continue
+        through the warning flow.</p>
+        <p>If you are on a managed machine, your organisation may block
+        that override.</p>
+        <h2 id="if-the-app-still-will-not-open">If the App Still Will
+        Not Open</h2>
+        <p>Check these in order:</p>
+        <ol type="1">
+        <li>make sure you downloaded the correct package for your
+        platform</li>
+        <li>re-download the installer from the official release
+        source</li>
+        <li>check whether your machine is managed by school, work, or IT
+        policy</li>
+        <li>on macOS, re-check <code>Privacy &amp; Security</code></li>
+        <li>on Windows, check whether SmartScreen or another security
+        policy is blocking the run</li>
+        </ol>
+        <h2 id="current-practical-advice-for-clubs">Current Practical
+        Advice for Clubs</h2>
+        <ul>
+        <li>Do the first install on a personal or committee-controlled
+        machine, not a heavily locked-down lab or corporate device.</li>
+        <li>Keep a short internal note of the expected first-run
+        behavior for your committee.</li>
+        <li>If the club is onboarding several officers, have one person
+        test the exact installer first and document the screens they
+        saw.</li>
+        </ul>
+        <h2 id="this-page-is-about-first-run-trust-not-updates">This
+        Page Is About First-Run Trust, Not Updates</h2>
+        <p>These notes are about the first install experience.</p>
+        <p>Once Fidra has:</p>
+        <ul>
+        <li>stronger signing/notarization on macOS</li>
+        <li>stronger reputation or signing on Windows</li>
+        </ul>
+        <p>the warning experience can become less prominent.</p>
+      </article>
+
+      <nav class="doc-pagination" aria-label="Page navigation" data-doc-pagination></nav>
+    </section>
   </main>
 
-  <script>
-    document.addEventListener('DOMContentLoaded', function () {
-      const anchors = document.querySelectorAll('a[href]');
-      for (const anchor of anchors) {
-        const raw = anchor.getAttribute('href');
-        if (!raw) continue;
-        if (raw.startsWith('http://') || raw.startsWith('https://') || raw.startsWith('#') || raw.startsWith('mailto:')) continue;
-        const hashIndex = raw.indexOf('#');
-        const base = hashIndex >= 0 ? raw.slice(0, hashIndex) : raw;
-        const hash = hashIndex >= 0 ? raw.slice(hashIndex) : '';
-        let next = base;
-        if (base.includes('gh-pages/')) {
-          next = '../../gh-pages/' + base.split('gh-pages/').pop();
-        } else if (base.endsWith('README.md')) {
-          next = base.slice(0, -9) + 'index.html';
-        } else if (base.endsWith('.md')) {
-          next = base.slice(0, -3) + '.html';
-        }
-        anchor.setAttribute('href', next + hash);
-      }
-    });
-  </script>
+  <script src="../shell.js" defer></script>
 </body>
 </html>

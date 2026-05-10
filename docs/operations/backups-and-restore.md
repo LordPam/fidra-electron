@@ -1,7 +1,5 @@
 # Backups and Restore
 
-Back to [Docs Index](../README.md)
-
 Backups are part of normal Fidra operation, not just disaster recovery.
 
 ## What Backups Cover

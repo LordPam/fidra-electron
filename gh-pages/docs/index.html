@@ -4,169 +4,191 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Fidra Docs</title>
+  <meta name="theme-color" content="#f5f5f7">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
   </head>
-<body>
+<body class="docs-page" data-docs-root="" data-site-root="../" data-doc-path="index.html">
   <header class="topbar">
     <div class="topbar-inner">
       <a class="brand" href="index.html">
         <img src="../logo-header.svg" alt="Fidra">
         <span>Fidra Docs</span>
       </a>
-      <nav class="toplinks" aria-label="Secondary">
-        <a href="../index.html">Website</a>
-        <a href="../local-sync.html">Local Sync Guide</a>
-        <a href="../cloud-connect.html">Cloud Connect Guide</a>
-      </nav>
+      <div class="topbar-actions">
+        <nav class="toplinks" aria-label="Secondary">
+          <a href="../index.html">Website</a>
+          <a href="../local-sync.html">Local Sync Guide</a>
+          <a href="../cloud-connect.html">Cloud Connect Guide</a>
+        </nav>
+        <button class="mobile-nav-trigger topbar-trigger" type="button" data-sidebar-open aria-controls="docs-sidebar" aria-expanded="false">
+          Browse Docs
+        </button>
+      </div>
     </div>
   </header>
 
   <main class="page-shell">
-    <article class="doc-content">
-      <h1 id="fidra-docs">Fidra Docs</h1>
-      <p>This is the first markdown-first pass of Fidra's
-      documentation.</p>
-      <p>The goal is not to describe every feature. The goal is to cover
-      the things a real treasurer or committee member needs in order to
-      set Fidra up safely, understand where data lives, and avoid the
-      less obvious mistakes.</p>
-      <p>The website already contains marketing-style setup guides for
-      the sync options. These docs should not duplicate those
-      walkthroughs.</p>
-      <h2 id="principles">Principles</h2>
-      <ul>
-      <li>Write for operators, not developers.</li>
-      <li>Prefer task-based pages over feature tours.</li>
-      <li>Explain the mechanism only as far as it helps someone use
-      Fidra correctly.</li>
-      <li>Keep setup and recovery guidance explicit.</li>
-      <li>Do not maintain a second copy of the public setup guides in
-      markdown.</li>
-      </ul>
-      <h2 id="use-the-website-guides-for-setup-walkthroughs">Use the
-      Website Guides For Setup Walkthroughs</h2>
-      <p>These are the primary click-by-click setup guides:</p>
-      <ul>
-      <li><a href="../gh-pages/local-sync.html">Local Sync website
-      guide</a></li>
-      <li><a href="../gh-pages/cloud-connect.html">Cloud Connect website
-      guide</a></li>
-      </ul>
-      <p>The markdown docs should complement those pages with:</p>
-      <ul>
-      <li>file layout and storage rules</li>
-      <li>recovery and backup guidance</li>
-      <li>role and approval behavior</li>
-      <li>keyboard shortcuts</li>
-      <li>less intuitive conventions like date-based activities</li>
-      </ul>
-      <h2 id="suggested-reading-order">Suggested Reading Order</h2>
-      <ol type="1">
-      <li><a href="setup/files-and-storage.md">Files and
-      Storage</a></li>
-      <li><a href="setup/install-notes.md">Install Notes</a></li>
-      <li><a href="setup/shared-folders.md">Shared Folders in OneDrive
-      and SharePoint</a></li>
-      <li><a href="setup/local-sync.md">Local Sync Notes</a></li>
-      <li><a href="setup/cloud-connect.md">Cloud Connect Notes</a></li>
-      <li><a href="workflows/date-based-activities.md">Date-Based
-      Activities</a></li>
-      <li><a href="workflows/personnel-and-approvals.md">Personnel and
-      Approvals</a></li>
-      <li><a href="workflows/planned-transactions.md">Planned
-      Transactions</a></li>
-      <li><a href="workflows/reports-and-invoices.md">Reports and
-      Invoices</a></li>
-      <li><a href="reference/keyboard-shortcuts.md">Keyboard
-      Shortcuts</a></li>
-      <li><a href="operations/backups-and-restore.md">Backups and
-      Restore</a></li>
-      <li><a href="workflows/treasurer-handover.md">Treasurer
-      Handover</a></li>
-      <li><a
-      href="operations/troubleshooting-and-recovery.md">Troubleshooting
-      and Recovery</a></li>
-      </ol>
-      <h2 id="current-docs">Current Docs</h2>
-      <h3 id="setup">Setup</h3>
-      <ul>
-      <li><a href="setup/files-and-storage.md">Files and
-      Storage</a></li>
-      <li><a href="setup/install-notes.md">Install Notes</a></li>
-      <li><a href="setup/shared-folders.md">Shared Folders in OneDrive
-      and SharePoint</a></li>
-      <li><a href="setup/local-sync.md">Local Sync Notes</a></li>
-      <li><a href="setup/cloud-connect.md">Cloud Connect Notes</a></li>
-      </ul>
-      <h3 id="workflows">Workflows</h3>
-      <ul>
-      <li><a href="workflows/date-based-activities.md">Date-Based
-      Activities</a></li>
-      <li><a href="workflows/personnel-and-approvals.md">Personnel and
-      Approvals</a></li>
-      <li><a href="workflows/planned-transactions.md">Planned
-      Transactions</a></li>
-      <li><a href="workflows/reports-and-invoices.md">Reports and
-      Invoices</a></li>
-      <li><a href="workflows/treasurer-handover.md">Treasurer
-      Handover</a></li>
-      </ul>
-      <h3 id="reference">Reference</h3>
-      <ul>
-      <li><a href="reference/keyboard-shortcuts.md">Keyboard
-      Shortcuts</a></li>
-      </ul>
-      <h3 id="operations">Operations</h3>
-      <ul>
-      <li><a href="operations/backups-and-restore.md">Backups and
-      Restore</a></li>
-      <li><a
-      href="operations/troubleshooting-and-recovery.md">Troubleshooting
-      and Recovery</a></li>
-      </ul>
-      <h2 id="planned-next-pages">Planned Next Pages</h2>
-      <ul>
-      <li>Sync conflict review</li>
-      <li>Audit log usage</li>
-      </ul>
-      <h2 id="notes-for-later">Notes for Later</h2>
-      <p>If these docs move onto the website later, the structure above
-      is already suitable for a docs sidebar:</p>
-      <ul>
-      <li>Setup</li>
-      <li>Workflows</li>
-      <li>Reference</li>
-      <li>Operations</li>
-      </ul>
-      <p>That is the right shape for Fidra. It separates one-time setup
-      from day-to-day usage and from recovery/admin tasks.</p>
-    </article>
+    <aside class="docs-sidebar" id="docs-sidebar" data-sidebar>
+      <div class="sidebar-inner">
+        <div class="sidebar-header">
+          <div>
+            <p class="sidebar-eyebrow">Documentation</p>
+            <h2 class="sidebar-title">Fidra Docs</h2>
+          </div>
+          <button class="sidebar-expand" type="button" data-expand-all>Expand all</button>
+        </div>
+
+        <label class="sidebar-filter" for="docs-filter">
+          <span class="sidebar-filter-label">Filter</span>
+          <span class="sidebar-filter-field">
+            <span class="sidebar-filter-icon" aria-hidden="true"></span>
+            <input id="docs-filter" type="search" placeholder="Filter docs" autocomplete="off" spellcheck="false" data-doc-filter>
+          </span>
+        </label>
+
+        <nav class="sidebar-nav" aria-label="Documentation" data-doc-nav></nav>
+        <p class="sidebar-empty" hidden data-doc-empty>No matching docs.</p>
+      </div>
+    </aside>
+
+    <button class="sidebar-backdrop" type="button" data-sidebar-close aria-hidden="true" tabindex="-1"></button>
+
+    <section class="docs-main">
+      <div class="docs-main-toolbar">
+        <button class="mobile-nav-trigger" type="button" data-sidebar-open aria-controls="docs-sidebar" aria-expanded="false">
+          Browse Docs
+        </button>
+      </div>
+
+      <article class="doc-content">
+        <h1 id="fidra-docs">Fidra Docs</h1>
+        <p>This is the first markdown-first pass of Fidra's
+        documentation.</p>
+        <p>The goal is not to describe every feature. The goal is to
+        cover the things a real treasurer or committee member needs in
+        order to set Fidra up safely, understand where data lives, and
+        avoid the less obvious mistakes.</p>
+        <p>The website already contains marketing-style setup guides for
+        the sync options. These docs should not duplicate those
+        walkthroughs.</p>
+        <h2 id="principles">Principles</h2>
+        <ul>
+        <li>Write for operators, not developers.</li>
+        <li>Prefer task-based pages over feature tours.</li>
+        <li>Explain the mechanism only as far as it helps someone use
+        Fidra correctly.</li>
+        <li>Keep setup and recovery guidance explicit.</li>
+        <li>Do not maintain a second copy of the public setup guides in
+        markdown.</li>
+        </ul>
+        <h2 id="use-the-website-guides-for-setup-walkthroughs">Use the
+        Website Guides For Setup Walkthroughs</h2>
+        <p>These are the primary click-by-click setup guides:</p>
+        <ul>
+        <li><a href="../gh-pages/local-sync.html">Local Sync website
+        guide</a></li>
+        <li><a href="../gh-pages/cloud-connect.html">Cloud Connect
+        website guide</a></li>
+        </ul>
+        <p>The markdown docs should complement those pages with:</p>
+        <ul>
+        <li>file layout and storage rules</li>
+        <li>recovery and backup guidance</li>
+        <li>role and approval behavior</li>
+        <li>keyboard shortcuts</li>
+        <li>less intuitive conventions like date-based activities</li>
+        </ul>
+        <h2 id="suggested-reading-order">Suggested Reading Order</h2>
+        <ol type="1">
+        <li><a href="setup/files-and-storage.md">Files and
+        Storage</a></li>
+        <li><a href="setup/install-notes.md">Install Notes</a></li>
+        <li><a href="setup/shared-folders.md">Shared Folders in OneDrive
+        and SharePoint</a></li>
+        <li><a href="setup/local-sync.md">Local Sync Notes</a></li>
+        <li><a href="setup/cloud-connect.md">Cloud Connect
+        Notes</a></li>
+        <li><a href="workflows/date-based-activities.md">Date-Based
+        Activities</a></li>
+        <li><a href="workflows/personnel-and-approvals.md">Personnel and
+        Approvals</a></li>
+        <li><a href="workflows/planned-transactions.md">Planned
+        Transactions</a></li>
+        <li><a href="workflows/reports-and-invoices.md">Reports and
+        Invoices</a></li>
+        <li><a href="reference/keyboard-shortcuts.md">Keyboard
+        Shortcuts</a></li>
+        <li><a href="operations/backups-and-restore.md">Backups and
+        Restore</a></li>
+        <li><a href="workflows/treasurer-handover.md">Treasurer
+        Handover</a></li>
+        <li><a
+        href="operations/troubleshooting-and-recovery.md">Troubleshooting
+        and Recovery</a></li>
+        </ol>
+        <h2 id="current-docs">Current Docs</h2>
+        <h3 id="setup">Setup</h3>
+        <ul>
+        <li><a href="setup/files-and-storage.md">Files and
+        Storage</a></li>
+        <li><a href="setup/install-notes.md">Install Notes</a></li>
+        <li><a href="setup/shared-folders.md">Shared Folders in OneDrive
+        and SharePoint</a></li>
+        <li><a href="setup/local-sync.md">Local Sync Notes</a></li>
+        <li><a href="setup/cloud-connect.md">Cloud Connect
+        Notes</a></li>
+        </ul>
+        <h3 id="workflows">Workflows</h3>
+        <ul>
+        <li><a href="workflows/date-based-activities.md">Date-Based
+        Activities</a></li>
+        <li><a href="workflows/personnel-and-approvals.md">Personnel and
+        Approvals</a></li>
+        <li><a href="workflows/planned-transactions.md">Planned
+        Transactions</a></li>
+        <li><a href="workflows/reports-and-invoices.md">Reports and
+        Invoices</a></li>
+        <li><a href="workflows/treasurer-handover.md">Treasurer
+        Handover</a></li>
+        </ul>
+        <h3 id="reference">Reference</h3>
+        <ul>
+        <li><a href="reference/keyboard-shortcuts.md">Keyboard
+        Shortcuts</a></li>
+        </ul>
+        <h3 id="operations">Operations</h3>
+        <ul>
+        <li><a href="operations/backups-and-restore.md">Backups and
+        Restore</a></li>
+        <li><a
+        href="operations/troubleshooting-and-recovery.md">Troubleshooting
+        and Recovery</a></li>
+        </ul>
+        <h2 id="planned-next-pages">Planned Next Pages</h2>
+        <ul>
+        <li>Sync conflict review</li>
+        <li>Audit log usage</li>
+        </ul>
+        <h2 id="notes-for-later">Notes for Later</h2>
+        <p>If these docs move onto the website later, the structure
+        above is already suitable for a docs sidebar:</p>
+        <ul>
+        <li>Setup</li>
+        <li>Workflows</li>
+        <li>Reference</li>
+        <li>Operations</li>
+        </ul>
+        <p>That is the right shape for Fidra. It separates one-time
+        setup from day-to-day usage and from recovery/admin tasks.</p>
+      </article>
+
+      <nav class="doc-pagination" aria-label="Page navigation" data-doc-pagination></nav>
+    </section>
   </main>
 
-  <script>
-    document.addEventListener('DOMContentLoaded', function () {
-      const anchors = document.querySelectorAll('a[href]');
-      for (const anchor of anchors) {
-        const raw = anchor.getAttribute('href');
-        if (!raw) continue;
-        if (raw.startsWith('http://') || raw.startsWith('https://') || raw.startsWith('#') || raw.startsWith('mailto:')) continue;
-        const hashIndex = raw.indexOf('#');
-        const base = hashIndex >= 0 ? raw.slice(0, hashIndex) : raw;
-        const hash = hashIndex >= 0 ? raw.slice(hashIndex) : '';
-        let next = base;
-        if (base.includes('gh-pages/')) {
-          next = '../' + base.split('gh-pages/').pop();
-        } else if (base.endsWith('README.md')) {
-          next = base.slice(0, -9) + 'index.html';
-        } else if (base.endsWith('.md')) {
-          next = base.slice(0, -3) + '.html';
-        }
-        anchor.setAttribute('href', next + hash);
-      }
-    });
-  </script>
+  <script src="shell.js" defer></script>
 </body>
 </html>

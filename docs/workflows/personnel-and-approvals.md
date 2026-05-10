@@ -1,7 +1,5 @@
 # Personnel and Approvals
 
-Back to [Docs Index](../README.md)
-
 This page covers two separate ideas that clubs often mix together:
 
 1. who has access to the database

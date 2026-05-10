@@ -1,7 +1,5 @@
 # Shared Folders in OneDrive and SharePoint
 
-Back to [Docs Index](../README.md)
-
 This page exists because Local Sync needs a real folder on your computer, not just a folder you can see in a browser tab.
 
 That distinction is easy to miss.

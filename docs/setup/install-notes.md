@@ -1,7 +1,5 @@
 # Install Notes
 
-Back to [Docs Index](../README.md)
-
 These notes explain what to expect when installing Fidra outside an app store.
 
 ## What to Expect

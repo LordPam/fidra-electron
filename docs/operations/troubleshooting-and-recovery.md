@@ -1,7 +1,5 @@
 # Troubleshooting and Recovery
 
-Back to [Docs Index](../README.md)
-
 This page is for common operational problems: missing files, sync confusion, access issues, and knowing which recovery path to try first.
 
 ## First Principle
