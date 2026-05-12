@@ -125,17 +125,12 @@ export function registerUpdateHandlers(): void {
 
   ipcMain.handle('app:quitAndInstall', async () => {
     console.log('[updater] Quit and install requested by user');
-    try {
-      autoUpdater.quitAndInstall();
-    } catch (err) {
-      // Squirrel.Mac rejects ad-hoc or unsigned apps — fall back to
-      // opening the release page so the user can install manually.
-      console.error('[updater] quitAndInstall failed (likely code signing):', err instanceof Error ? err.message : String(err));
-      // Direct download link for the DMG (name matches postMake rename in forge.config.ts)
-      const url = latestVersion
-        ? `https://github.com/LordPam/fidra-electron/releases/download/v${latestVersion}/Fidra-macOS.dmg`
-        : RELEASES_URL;
-      sendToAllWindows('update:installFailed', url);
-    }
+    // App is ad-hoc signed — autoUpdater.quitAndInstall() silently fails
+    // on unsigned/ad-hoc apps (no throw, just does nothing). Skip it
+    // entirely and go straight to the manual download fallback.
+    const url = latestVersion
+      ? `https://github.com/LordPam/fidra-electron/releases/download/v${latestVersion}/Fidra-macOS.dmg`
+      : RELEASES_URL;
+    sendToAllWindows('update:installFailed', url);
   });
 }
