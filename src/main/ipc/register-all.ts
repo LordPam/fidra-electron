@@ -13,6 +13,7 @@ import { registerLocalSyncHandlers } from './local-sync';
 import { registerLocalAuthHandlers } from './local-auth';
 import { registerBackupHandlers } from './backup';
 import { registerUpdateHandlers } from '../services/update-checker';
+import { registerCsvImportHandlers } from './csv-import';
 
 export function registerAllHandlers(): void {
   registerAppHandlers();
@@ -30,4 +31,5 @@ export function registerAllHandlers(): void {
   registerLocalAuthHandlers();
   registerBackupHandlers();
   registerUpdateHandlers();
+  registerCsvImportHandlers();
 }

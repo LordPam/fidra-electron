@@ -508,6 +508,7 @@ export class WindowManager {
         databaseId: ctx.databaseId,
         personName: ctx.localAuthPersonnel?.name ?? undefined,
         onDataChanged: (tables) => {
+          ctx.checkPersonnelSurvival(tables);
           ctx.sendToRenderer('localSync:dataChanged', { tables });
         },
         onConflictsDetected: (count) => {

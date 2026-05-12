@@ -198,8 +198,7 @@ Consult `memory/architecture-audit.md` for detailed analysis with file:line refe
 - ~~**Drag-drop attachments are fragile**~~: Fixed — uses `webUtils.getPathForFile()` via preload; pulse animation on drag-over; success flash on attach
 - **Undo coverage is incomplete**: Settings changes, invoice builder edits have no undo; AttachmentPanel and ActivitiesView bypass `execute()` and push directly to undo store state
 - **Settings/identity ownership is uneven**: Profile is per-db but semantically per-user in cloud mode; FY month exists in three places (SQLite, global JSON, Postgres); invoice builder state in localStorage
-- **Invoices are global but depend on sheet-scoped operations**: InvoicesView doesn't filter by sheet, but mark-as-paid creates sheet-scoped transactions with sheet-derived defaults
-- **silentRefresh / cloud sync race**: After undo-delete, `refreshFromCloud` can re-write the transaction to local SQLite before the cloud delete syncs upstream. `recentlyDeleted` TTL map mitigates for 5 seconds but doesn't fully prevent resurrection.
+- **silentRefresh / cloud sync race**: After undo-delete, `refreshFromCloud` can re-insert the transaction before the cloud delete propagates. `RecentDeletes` TTL (5 min, re-marked after cloud delete = 10 min total) covers realistic replication lag. Permanent tombstone table would eliminate the edge case entirely but is low priority given Cloud Connect usage patterns.
 
 ## Backlog
 
@@ -214,7 +213,7 @@ Both sync backends are functional. Remaining work is hardening, auth, and the fi
 - [x] Local Sync auth session persistence — encrypted via safeStorage + sign-out mechanism in sidebar and settings
 
 **Cloud Connect**
-- [ ] silentRefresh zombie resurrection edge cases beyond RecentDeletes TTL
+- [x] silentRefresh zombie resurrection — TTL bumped to 5 min (10 min with re-mark). Optional: permanent tombstone table for full elimination.
 - [ ] Member mode connection state improvements
 
 **Cross-backend**
@@ -248,6 +247,10 @@ Both sync backends are functional. Remaining work is hardening, auth, and the fi
 - [x] Improve local sync UI (buttons are significant and can cause issues if hit accidentally)
 - [x] Fix personnel status badge (Local Sync users showed "Invited" instead of "Active")
 - [x] Local Sync change notifications (toasts, OS notifications, "while you were away" dialog)
+
+### Features — priority
+- [ ] Bank reconciliation — import bank CSV (flexible column detection), auto-match against existing transactions by date+amount+description with confidence scoring, support many-to-one matching (one bank row = multiple Fidra rows), UI to review matched/ambiguous/unmatched rows
+- [x] CSV import with learnable patterns — import bare bank CSV as new transactions, pattern table learns from user history (bank description → Fidra category/party/description), unknown merchants start uncategorized and are remembered once assigned, reconcile against existing to avoid duplicates
 
 ## Future Considerations
 

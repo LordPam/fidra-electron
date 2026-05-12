@@ -20,6 +20,7 @@ import { ComboboxInput } from '@/components/ComboboxInput';
 import { DropZone } from '@/components/DropZone';
 import { EntityHistory } from '@/components/EntityHistory';
 import type { TransactionRow, AttachmentRow } from '../../shared/ipc-types';
+import { resolveStatus } from '../../shared/transaction-rules';
 import { Paperclip, File, FileText, FileImage, FileSpreadsheet, Trash2 } from 'lucide-react';
 import { useUndoStore } from '@/stores/undo-store';
 import { useAttachmentSignal } from '@/stores/attachment-signal';
@@ -176,7 +177,7 @@ export function EditTransactionDialog({
       activity: activity || null,
       notes: notes || null,
       sheet,
-      status: type === 'income' ? '--' : (status as TransactionRow['status']),
+      status: resolveStatus(type, status),
       version: isConversion ? transaction.version : transaction.version + 1,
       modified_at: isConversion ? null : new Date().toISOString(),
       modified_by: isConversion ? null : 'local',

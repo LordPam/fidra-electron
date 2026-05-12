@@ -29,4 +29,6 @@ export interface GlobalSettings {
   uiPreferences: UiPreferences;
   /** Per-machine display name for Local Sync (informational). Device ID is per-database in sync_meta. */
   localSyncDeviceName?: string;
+  /** Saved CSV import profiles (cross-database, per-machine). */
+  csvImportProfiles?: import('./csv-import-types').CsvImportProfile[];
 }

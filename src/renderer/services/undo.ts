@@ -306,6 +306,20 @@ export function createDeleteSheetWithDataCommand(
   };
 }
 
+// CSV Import commands
+
+export function createCsvImportCommand(importedTransactions: TransactionRow[]): UndoCommand {
+  return {
+    description: `Import ${importedTransactions.length} transaction${importedTransactions.length !== 1 ? 's' : ''} from CSV`,
+    execute: async () => {
+      await useTransactionStore.getState().bulkRestore(importedTransactions);
+    },
+    undo: async () => {
+      await useTransactionStore.getState().bulkRemove(importedTransactions.map((t) => t.id));
+    },
+  };
+}
+
 // Category commands
 
 export function createSetCategoriesCommand(

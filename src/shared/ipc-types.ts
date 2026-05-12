@@ -818,6 +818,36 @@ export interface IpcChannels {
     result: MigrationResult;
   };
 
+  // CSV Import
+  'csvImport:parse': {
+    args: [request: import('./csv-import-types').CsvParseRequest];
+    result: import('./csv-import-types').CsvParseResponse;
+  };
+  'csvImport:analyze': {
+    args: [request: import('./csv-import-types').CsvAnalyzeRequest];
+    result: import('./csv-import-types').CsvAnalyzeResponse;
+  };
+  'csvImport:commit': {
+    args: [request: import('./csv-import-types').CsvCommitRequest];
+    result: import('./csv-import-types').CsvImportResult;
+  };
+  'csvImport:getProfiles': {
+    args: [];
+    result: import('./csv-import-types').CsvImportProfile[];
+  };
+  'csvImport:saveProfile': {
+    args: [profile: import('./csv-import-types').CsvImportProfile];
+    result: void;
+  };
+  'csvImport:deleteProfile': {
+    args: [profileId: string];
+    result: void;
+  };
+  'csvImport:trainModel': {
+    args: [];
+    result: void;
+  };
+
   // Update
   'app:installUpdate': {
     args: [];

@@ -339,6 +339,34 @@ export class WindowContext {
       && this.settingsRepo.getSetting('localSync.syncFolder') != null;
   }
 
+  /**
+   * After a sync import that touches the `personnel` table, verify the
+   * signed-in user's record still exists. If the admin deleted this user,
+   * force sign-out so the member doesn't remain in a ghost state.
+   */
+  checkPersonnelSurvival(changedTables: string[]): void {
+    if (!this.localAuthPersonnel) return;
+    if (!changedTables.includes('personnel')) return;
+
+    const person = this.personnelRepo.getByEmail(this.localAuthPersonnel.email);
+    if (person && person.password_hash) return; // still valid
+
+    console.log(`[WINDOW ${this.dbName}] Signed-in personnel deleted by sync — forcing sign-out`);
+    this.stopLocalSyncServices();
+    this.authMode = null;
+    this.authSession = null;
+
+    // Delete persisted session so restart also shows sign-in
+    try {
+      // Inline import to avoid circular dependency
+      const { SessionStore, dbPathToSessionId } = require('../cloud/auth/session-store');
+      const store = new SessionStore();
+      store.deleteSession(dbPathToSessionId(this.dbPath));
+    } catch { /* non-fatal */ }
+
+    this.sendToRenderer('localSync:forceSignOut', {});
+  }
+
   stopLocalSyncServices(): void {
     if (this.localSyncOrchestrator) {
       this.localSyncOrchestrator.stop();

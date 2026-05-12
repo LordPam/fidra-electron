@@ -10,6 +10,8 @@ interface AuthState {
   error: string | null;
   isHydrated: boolean;
   authMode: AuthMode | null;
+  /** True when sign-in succeeded but the sync folder setting was lost (e.g. after disconnect). */
+  needsSyncFolder: boolean;
 
   // Personnel management
   personnel: PersonnelRecord[];
@@ -34,6 +36,7 @@ interface AuthState {
   localCreateFirstAdmin: (name: string, email: string, password: string, syncPassphrase: string) => Promise<{ success: boolean; error?: string }>;
   localInviteMember: (name: string, email: string, role: PersonnelRole) => Promise<{ success: boolean; inviteCode?: string; error?: string }>;
   localChangePassword: (oldPassword: string, newPassword: string) => Promise<{ success: boolean; error?: string }>;
+  localReconnect: (syncFolder: string) => Promise<{ success: boolean; error?: string }>;
   localSignOut: () => Promise<void>;
 
   // Cloud-store delegates to these instead of direct setState
@@ -53,6 +56,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   error: null,
   isHydrated: false,
   authMode: null,
+  needsSyncFolder: false,
   personnel: [],
 
   initialize: async () => {
@@ -285,19 +289,32 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     try {
       const result = await window.api.localAuthSignIn({ email, password });
       if (result.success) {
-        set({
-          loading: false,
-          isAuthenticated: true,
-          isAdmin: result.isAdmin ?? false,
-          authMode: 'localSync' as AuthMode,
-        });
-        await get().loadPersonnel();
-        // Belt-and-suspenders: reload sync status so LocalSyncIndicator picks up running orchestrator
-        try {
-          const { useLocalSyncStore } = await import('./local-sync-store');
-          const { loadStatus, loadConfig } = useLocalSyncStore.getState();
-          await Promise.all([loadStatus(), loadConfig()]);
-        } catch { /* non-fatal */ }
+        if (result.needsSyncFolder) {
+          // Signed in but sync folder is missing (e.g. after disconnect).
+          // Keep auth gate open — it will show the folder picker step.
+          set({
+            loading: false,
+            isAuthenticated: false,
+            isAdmin: result.isAdmin ?? false,
+            authMode: 'localSync' as AuthMode,
+            needsSyncFolder: true,
+          });
+        } else {
+          set({
+            loading: false,
+            isAuthenticated: true,
+            isAdmin: result.isAdmin ?? false,
+            authMode: 'localSync' as AuthMode,
+            needsSyncFolder: false,
+          });
+          await get().loadPersonnel();
+          // Belt-and-suspenders: reload sync status so LocalSyncIndicator picks up running orchestrator
+          try {
+            const { useLocalSyncStore } = await import('./local-sync-store');
+            const { loadStatus, loadConfig } = useLocalSyncStore.getState();
+            await Promise.all([loadStatus(), loadConfig()]);
+          } catch { /* non-fatal */ }
+        }
         return true;
       }
       set({ loading: false, error: result.error ?? 'Sign-in failed' });
@@ -350,6 +367,32 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
   },
 
+  localReconnect: async (syncFolder: string) => {
+    set({ loading: true, error: null });
+    try {
+      const result = await window.api.localSyncReconnect({ syncFolder });
+      if (result.success) {
+        set({
+          loading: false,
+          isAuthenticated: true,
+          needsSyncFolder: false,
+        });
+        await get().loadPersonnel();
+        try {
+          const { useLocalSyncStore } = await import('./local-sync-store');
+          const { loadStatus, loadConfig } = useLocalSyncStore.getState();
+          await Promise.all([loadStatus(), loadConfig()]);
+        } catch { /* non-fatal */ }
+      } else {
+        set({ loading: false, error: result.error ?? 'Reconnect failed' });
+      }
+      return result;
+    } catch (e) {
+      set({ loading: false, error: String(e) });
+      return { success: false, error: String(e) };
+    }
+  },
+
   localSignOut: async () => {
     await window.api.localAuthSignOut();
     set({
@@ -357,6 +400,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       isAdmin: false,
       currentPersonnel: null,
       personnel: [],
+      needsSyncFolder: false,
       // Keep authMode so the auth gate shows on next render
       authMode: 'localSync' as AuthMode,
     });
@@ -424,10 +468,24 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       get().loadPersonnel();
     });
 
+    // Local Sync: admin deleted this user's personnel record via sync
+    const unsub4 = window.api.onLocalSyncForceSignOut?.(() => {
+      set({
+        isAuthenticated: false,
+        isAdmin: false,
+        currentPersonnel: null,
+        personnel: [],
+        needsSyncFolder: false,
+        authMode: 'localSync' as AuthMode,
+        error: 'Your account has been removed by an administrator.',
+      });
+    });
+
     return () => {
       unsub1?.();
       unsub2?.();
       unsub3?.();
+      unsub4?.();
     };
   },
 }));

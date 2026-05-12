@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import type { PlannedTemplateRow, TransactionRow, InvoiceRow } from '../../shared/ipc-types';
+import { defaultStatusForType } from '../../shared/transaction-rules';
 
 import { usePlannedStore } from '@/stores/planned-store';
 import { useTransactionStore } from '@/stores/transaction-store';
@@ -254,7 +255,7 @@ export default function PlannedView() {
       ...instance.transaction,
       id: crypto.randomUUID(),
       date: txSettings.dateOnPlannedConversion ? now.slice(0, 10) : instance.instanceDate,
-      status: instance.transaction.type === 'income' ? '--' : 'pending',
+      status: defaultStatusForType(instance.transaction.type),
       version: 1,
       created_at: now,
       modified_at: null,

@@ -87,6 +87,7 @@ export function registerLocalSyncHandlers(): void {
         databaseId: ctx.databaseId,
         personName: ctx.localAuthPersonnel?.name ?? undefined,
         onDataChanged: (tables) => {
+          ctx.checkPersonnelSurvival(tables);
           ctx.sendToRenderer('localSync:dataChanged', { tables });
         },
         onConflictsDetected: (count) => {
@@ -142,6 +143,85 @@ export function registerLocalSyncHandlers(): void {
       deviceId: identity.deviceId,
       deviceName: identity.deviceName,
     };
+  });
+
+  // ─── localSync:reconnect ─────────────────────────────────────────
+  // Reconnects an existing Local Sync database to a sync folder after
+  // the user signed in (so the passphrase is already in memory from the
+  // personnel record). Only requires the folder path — no passphrase.
+  ipcMain.handle('localSync:reconnect', (event, rawData: unknown) => {
+    const { syncFolder } = z.object({ syncFolder: z.string().min(1) }).parse(rawData);
+    const ctx = resolveContext(event);
+
+    if (!ctx.localSyncPassphrase) {
+      return { success: false, error: 'Not authenticated — sign in first' };
+    }
+
+    try {
+      fs.accessSync(syncFolder, fs.constants.R_OK | fs.constants.W_OK);
+    } catch {
+      return { success: false, error: 'Cannot access the selected folder. Check permissions.' };
+    }
+
+    try {
+      // Initialize CRR tables (idempotent)
+      initializeCrr(ctx.sqlite);
+      const identity = initializeDeviceIdentity(ctx.sqlite, os.hostname());
+
+      // Save the sync folder setting (passphrase stays key-wrapped in personnel)
+      ctx.settingsRepo.setSetting(SETTING_SYNC_FOLDER, syncFolder, 'device');
+
+      // Stop any existing orchestrator
+      if (ctx.localSyncOrchestrator) {
+        ctx.localSyncOrchestrator.stop();
+      }
+
+      const orchestrator = new SyncOrchestrator({
+        db: ctx.sqlite,
+        syncFolder,
+        passphrase: ctx.localSyncPassphrase,
+        deviceId: identity.deviceId,
+        dbPath: ctx.dbPath,
+        databaseId: ctx.databaseId,
+        personName: ctx.localAuthPersonnel?.name ?? undefined,
+        onDataChanged: (tables) => {
+          ctx.checkPersonnelSurvival(tables);
+          ctx.sendToRenderer('localSync:dataChanged', { tables });
+        },
+        onConflictsDetected: (count) => {
+          ctx.sendToRenderer('localSync:conflictsDetected', { count });
+        },
+        onStatusChanged: (status) => {
+          const fullStatus: LocalSyncStatus = {
+            enabled: true,
+            state: status.state,
+            lastExportAt: status.lastExportAt,
+            lastImportAt: status.lastImportAt,
+            pendingConflicts: status.pendingConflicts,
+            lastError: status.lastError,
+            syncFolder,
+          };
+          ctx.sendToRenderer('localSync:statusChanged', fullStatus);
+        },
+        onError: (message) => {
+          ctx.sendToRenderer('localSync:error', { message });
+        },
+        onImportSummary: (notification: ImportNotification) => {
+          if (notification.isStartupCatchup && notification.summaries.length > 0) {
+            ctx.pendingStartupSummary = notification;
+          }
+          ctx.sendToRenderer('localSync:importSummary', notification);
+        },
+      });
+
+      ctx.localSyncOrchestrator = orchestrator;
+      orchestrator.start();
+
+      return { success: true };
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e);
+      return { success: false, error: message };
+    }
   });
 
   // ─── localSync:disconnect ─────────────────────────────────────────

@@ -29,8 +29,10 @@ import {
   createMergeSheetCommand,
   createDeleteSheetWithDataCommand,
   createSetCategoriesCommand,
+  createCsvImportCommand,
 } from '@/services/undo';
 import type { PlannedTemplateRow } from '../../shared/ipc-types';
+import { defaultStatusForType } from '../../shared/transaction-rules';
 import { getUniqueValues } from '@/lib/autocomplete';
 import { cn } from '@/lib/utils';
 
@@ -43,12 +45,13 @@ import { EditTransactionDialog } from '@/dialogs/EditTransactionDialog';
 import { BulkEditDialog } from '@/dialogs/BulkEditDialog';
 import { ManageSheetsDialog } from '@/dialogs/ManageSheetsDialog';
 import { ManageCategoriesDialog } from '@/dialogs/ManageCategoriesDialog';
+import { CsvImportDialog } from '@/dialogs/CsvImportDialog';
 
 import { AttachmentPanel } from '@/components/AttachmentPanel';
 
 import { UndoRedoButtons } from '@/components/UndoRedoButtons';
 import { Button } from '@/components/ui/button';
-import { Layers, Tags, PanelLeftClose, PanelLeft, RotateCcw, CalendarDays } from 'lucide-react';
+import { Layers, Tags, PanelLeftClose, PanelLeft, RotateCcw, CalendarDays, Import } from 'lucide-react';
 import { ZoomControls } from '@/components/ZoomControls';
 import { useUndoRedoShortcuts } from '@/hooks/useUndoRedoShortcuts';
 
@@ -77,6 +80,7 @@ export default function TransactionsView() {
   const [showBulkEditDialog, setShowBulkEditDialog] = useState(false);
   const [showSheetsDialog, setShowSheetsDialog] = useState(false);
   const [showCategoriesDialog, setShowCategoriesDialog] = useState(false);
+  const [showCsvImportDialog, setShowCsvImportDialog] = useState(false);
   const [selectedIds, setSelectedIds] = useState<RowSelectionState>({});
   const [attachmentCounts, setAttachmentCounts] = useState<Record<string, number>>({});
   const attachmentRevision = useAttachmentSignal((s) => s.revision);
@@ -396,7 +400,7 @@ export default function TransactionsView() {
       const newTx: TransactionRow = {
         ...transaction,
         id: crypto.randomUUID(),
-        status: transaction.type === 'income' ? '--' : 'pending',
+        status: defaultStatusForType(transaction.type),
         version: 1,
         created_at: now,
         modified_at: null,
@@ -687,6 +691,21 @@ export default function TransactionsView() {
     [execute, incomeCategories, expenseCategories],
   );
 
+  // CSV import handler
+  const handleCsvImported = useCallback(
+    async (importedTransactions: TransactionRow[]) => {
+      if (importedTransactions.length > 0) {
+        await execute(createCsvImportCommand(importedTransactions));
+      }
+    },
+    [execute],
+  );
+
+  // Menu: Import CSV
+  useEffect(() => {
+    return window.api.onMenuImportCsv(() => setShowCsvImportDialog(true));
+  }, []);
+
   return (
     <div className="flex flex-col h-full bg-surface-base">
       {/* Header */}
@@ -703,6 +722,9 @@ export default function TransactionsView() {
             title={showAddForm ? 'Hide form' : 'Show form'}
           >
             {showAddForm ? <PanelLeftClose className="h-4 w-4" /> : <PanelLeft className="h-4 w-4" />}
+          </Button>
+          <Button variant="ghost" size="sm" onClick={() => setShowCsvImportDialog(true)} title="Import CSV">
+            <Import className="h-4 w-4" />
           </Button>
           <Button variant="ghost" size="sm" onClick={() => setShowSheetsDialog(true)} title="Manage Sheets">
             <Layers className="h-4 w-4" />
@@ -911,6 +933,17 @@ export default function TransactionsView() {
         incomeCategories={incomeCategories}
         expenseCategories={expenseCategories}
         onSave={handleSaveCategories}
+      />
+
+      <CsvImportDialog
+        open={showCsvImportDialog}
+        onOpenChange={setShowCsvImportDialog}
+        sheets={sheets.filter((s) => !s.is_virtual && !s.is_planned).map((s) => s.name)}
+        currentSheet={currentSheet === 'All Sheets' ? (sheets.find((s) => !s.is_virtual && !s.is_planned)?.name ?? '') : currentSheet}
+        categories={{ income: incomeCategories, expense: expenseCategories }}
+        descriptionSuggestions={descriptionSuggestions}
+        partySuggestions={partySuggestions}
+        onImported={handleCsvImported}
       />
     </div>
   );

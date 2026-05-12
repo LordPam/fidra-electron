@@ -49,12 +49,16 @@ export function registerLocalAuthHandlers(): void {
     // Map this device to the signed-in person
     writeDeviceIdForPerson(ctx, result.personnel.id);
 
-    // Start Local Sync orchestrator
-    startLocalSyncAfterAuth(ctx);
+    // Start Local Sync orchestrator (if sync folder is configured)
+    const syncFolder = ctx.settingsRepo.getSetting('localSync.syncFolder');
+    if (syncFolder) {
+      startLocalSyncAfterAuth(ctx);
+    }
 
     return {
       success: true,
       isAdmin: result.personnel.role === 'admin',
+      needsSyncFolder: !syncFolder,
     };
   });
 
@@ -243,6 +247,7 @@ function startLocalSyncAfterAuth(ctx: import('../window/window-context').WindowC
       databaseId: ctx.databaseId,
       personName: ctx.localAuthPersonnel?.name ?? undefined,
       onDataChanged: (tables) => {
+        ctx.checkPersonnelSurvival(tables);
         ctx.sendToRenderer('localSync:dataChanged', { tables });
       },
       onConflictsDetected: (count) => {

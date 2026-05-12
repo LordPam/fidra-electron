@@ -25,6 +25,15 @@ import type {
   UpdateDownloadProgress,
 } from '../shared/ipc-types';
 import type { AuthSession, PersonnelRecord, PersonnelRole, LocalAuthStatus } from '../shared/auth-types';
+import type {
+  CsvParseRequest,
+  CsvParseResponse,
+  CsvAnalyzeRequest,
+  CsvAnalyzeResponse,
+  CsvCommitRequest,
+  CsvImportResult,
+  CsvImportProfile,
+} from '../shared/csv-import-types';
 
 const api = {
   getDbPath: (): Promise<string> => ipcRenderer.invoke('app:getDbPath'),
@@ -282,6 +291,8 @@ const api = {
     ipcRenderer.invoke('localSync:configure', config),
   localSyncGetConfig: (): Promise<LocalSyncConfig | null> =>
     ipcRenderer.invoke('localSync:getConfig'),
+  localSyncReconnect: (data: { syncFolder: string }): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke('localSync:reconnect', data),
   localSyncDisconnect: (): Promise<void> =>
     ipcRenderer.invoke('localSync:disconnect'),
   localSyncGetStatus: (): Promise<LocalSyncStatus> =>
@@ -312,7 +323,7 @@ const api = {
     ipcRenderer.invoke('localSync:getStartupSummary'),
 
   // Local Auth
-  localAuthSignIn: (data: { email: string; password: string }): Promise<{ success: boolean; isAdmin?: boolean; error?: string }> =>
+  localAuthSignIn: (data: { email: string; password: string }): Promise<{ success: boolean; isAdmin?: boolean; needsSyncFolder?: boolean; error?: string }> =>
     ipcRenderer.invoke('localAuth:signIn', data),
   localAuthCreateFirstAdmin: (data: { name: string; email: string; password: string; syncPassphrase: string }): Promise<{ success: boolean; error?: string }> =>
     ipcRenderer.invoke('localAuth:createFirstAdmin', data),
@@ -338,6 +349,22 @@ const api = {
     ipcRenderer.invoke('backup:getSettings'),
   backupSaveSettings: (settings: BackupSettings): Promise<void> =>
     ipcRenderer.invoke('backup:saveSettings', settings),
+
+  // CSV Import
+  csvImportParse: (request: CsvParseRequest): Promise<CsvParseResponse> =>
+    ipcRenderer.invoke('csvImport:parse', request),
+  csvImportAnalyze: (request: CsvAnalyzeRequest): Promise<CsvAnalyzeResponse> =>
+    ipcRenderer.invoke('csvImport:analyze', request),
+  csvImportCommit: (request: CsvCommitRequest): Promise<CsvImportResult> =>
+    ipcRenderer.invoke('csvImport:commit', request),
+  csvImportGetProfiles: (): Promise<CsvImportProfile[]> =>
+    ipcRenderer.invoke('csvImport:getProfiles'),
+  csvImportSaveProfile: (profile: CsvImportProfile): Promise<void> =>
+    ipcRenderer.invoke('csvImport:saveProfile', profile),
+  csvImportDeleteProfile: (profileId: string): Promise<void> =>
+    ipcRenderer.invoke('csvImport:deleteProfile', profileId),
+  csvImportTrainModel: (): Promise<void> =>
+    ipcRenderer.invoke('csvImport:trainModel'),
 
   // Event listeners (main → renderer push)
   onSyncStatusChanged: (callback: (data: { isSyncing: boolean; pendingCount: number }) => void): (() => void) => {
@@ -402,6 +429,11 @@ const api = {
     ipcRenderer.on('localSync:dataChanged', handler);
     return () => ipcRenderer.removeListener('localSync:dataChanged', handler);
   },
+  onLocalSyncForceSignOut: (callback: () => void): (() => void) => {
+    const handler = () => callback();
+    ipcRenderer.on('localSync:forceSignOut', handler);
+    return () => ipcRenderer.removeListener('localSync:forceSignOut', handler);
+  },
   onLocalSyncConflictsDetected: (callback: (data: { count: number }) => void): (() => void) => {
     const handler = (_event: unknown, data: { count: number }) => callback(data);
     ipcRenderer.on('localSync:conflictsDetected', handler);
@@ -416,6 +448,13 @@ const api = {
     const handler = (_event: unknown, notification: ImportNotification) => callback(notification);
     ipcRenderer.on('localSync:importSummary', handler);
     return () => ipcRenderer.removeListener('localSync:importSummary', handler);
+  },
+
+  // Menu events
+  onMenuImportCsv: (callback: () => void): (() => void) => {
+    const handler = () => callback();
+    ipcRenderer.on('menu:importCsv', handler);
+    return () => ipcRenderer.removeListener('menu:importCsv', handler);
   },
 
   // Update

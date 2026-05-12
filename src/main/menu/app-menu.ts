@@ -188,6 +188,17 @@ export function buildMenu(): void {
         submenu: buildCloudServersSubmenu(),
       },
       { type: 'separator' },
+      {
+        label: 'Import CSV...',
+        accelerator: 'CmdOrCtrl+Shift+I',
+        click: () => {
+          const win = BrowserWindow.getFocusedWindow();
+          if (win) {
+            win.webContents.send('menu:importCsv');
+          }
+        },
+      },
+      { type: 'separator' },
       isMac ? { role: 'close' } : { role: 'quit' },
     ],
   });

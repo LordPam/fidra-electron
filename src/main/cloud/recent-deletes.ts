@@ -19,7 +19,7 @@ export type TombstoneEntityType =
   | 'attachment'
   | 'invoice';
 
-const DEFAULT_TTL_MS = 60_000;
+const DEFAULT_TTL_MS = 300_000; // 5 minutes
 
 export class RecentDeletes {
   private readonly tombstones = new Map<string, number>();

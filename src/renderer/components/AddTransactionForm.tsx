@@ -13,6 +13,7 @@ import { ComboboxInput } from '@/components/ComboboxInput';
 import { DropZone } from '@/components/DropZone';
 import { ChevronRight, ChevronDown, X } from 'lucide-react';
 import type { TransactionRow } from '../../shared/ipc-types';
+import { defaultStatusForType } from '../../shared/transaction-rules';
 
 export interface PendingFile {
   path: string;
@@ -136,7 +137,7 @@ export function AddTransactionForm({
       description: description.trim(),
       amount: parseFloat(amount).toFixed(2),
       type,
-      status: type === 'income' ? '--' : 'pending',
+      status: defaultStatusForType(type),
       sheet: targetSheet,
       category: category || null,
       party: party || null,

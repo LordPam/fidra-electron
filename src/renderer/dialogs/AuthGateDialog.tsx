@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
-import { Loader2 } from 'lucide-react';
+import { Loader2, FolderOpen } from 'lucide-react';
 import { useAuthStore } from '@/stores/auth-store';
 import { useCloudStore } from '@/stores/cloud-store';
 import logoLight from '@/assets/logo-light.svg';
@@ -21,8 +21,9 @@ type Tab = 'signin' | 'signup' | 'create';
 export function AuthGateDialog({ open, personnelEmpty, authMode, onDisconnected }: AuthGateDialogProps) {
   const {
     signIn, signUp, startOAuth, adminFirstSetup,
-    localSignIn, localCreateFirstAdmin,
+    localSignIn, localCreateFirstAdmin, localReconnect,
     loading, error, clearError,
+    needsSyncFolder,
   } = useAuthStore();
   const disconnect = useCloudStore((s) => s.disconnect);
 
@@ -41,6 +42,7 @@ export function AuthGateDialog({ open, personnelEmpty, authMode, onDisconnected 
   const [localError, setLocalError] = useState('');
   const [emailConfirmationSent, setEmailConfirmationSent] = useState(false);
   const [accountCreated, setAccountCreated] = useState(false);
+  const [selectedFolder, setSelectedFolder] = useState('');
 
   const displayError = localError || error;
   // Once an admin account is created, never show the first-setup form again
@@ -170,7 +172,8 @@ export function AuthGateDialog({ open, personnelEmpty, authMode, onDisconnected 
 
   const handleDisconnect = async () => {
     if (isLocalSyncMode) {
-      await window.api.localSyncDisconnect();
+      // Don't call localSync:disconnect — that destroys sync config (folder + passphrase).
+      // Just navigate back to the file chooser so the user can reopen or pick another file.
       onDisconnected?.();
     } else {
       await disconnect();
@@ -178,7 +181,90 @@ export function AuthGateDialog({ open, personnelEmpty, authMode, onDisconnected 
     }
   };
 
+  const handleSelectFolder = async () => {
+    const result = await window.api.showOpenDialog({
+      title: 'Select Sync Folder',
+      properties: ['openDirectory'],
+    });
+    if (result.canceled || result.filePaths.length === 0) return;
+    setSelectedFolder(result.filePaths[0]);
+  };
+
+  const handleReconnect = async () => {
+    if (!selectedFolder) return;
+    setLocalError('');
+    const result = await localReconnect(selectedFolder);
+    if (!result.success) {
+      setLocalError(result.error ?? 'Reconnect failed');
+    }
+    // Gate will close when isAuthenticated becomes true
+  };
+
   if (!open) return null;
+
+  // ─── Reconnect: folder picker step (after sign-in with missing sync folder) ───
+  if (needsSyncFolder) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-surface">
+        <div className="absolute top-8 left-1/2 -translate-x-1/2">
+          <img src={logoLight} alt="Fidra" className="h-10 w-10 object-contain dark:hidden" />
+          <img src={logoDark} alt="Fidra" className="hidden h-10 w-10 object-contain dark:block" />
+        </div>
+
+        <div className="w-full max-w-sm space-y-4 rounded-lg border border-border-subtle bg-surface-raised p-6 shadow-lg">
+          <div className="space-y-1.5">
+            <h2 className="text-lg font-semibold">Reconnect Sync Folder</h2>
+            <p className="text-sm text-muted-foreground">
+              Your account was found, but the sync folder needs to be reconnected. Select the shared folder used by your sync group.
+            </p>
+          </div>
+
+          {displayError && (
+            <p className="text-sm text-destructive">{displayError}</p>
+          )}
+
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <Label className="text-sm">Sync Folder</Label>
+              <div className="flex gap-2">
+                <Input
+                  value={selectedFolder}
+                  readOnly
+                  placeholder="No folder selected"
+                  className="flex-1 text-xs"
+                />
+                <Button variant="outline" size="sm" onClick={handleSelectFolder}>
+                  <FolderOpen className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+
+            <Button
+              className="w-full"
+              onClick={handleReconnect}
+              disabled={loading || !selectedFolder}
+            >
+              {loading && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
+              Reconnect
+            </Button>
+          </div>
+
+          <Separator />
+
+          <Button
+            variant="ghost"
+            size="sm"
+            className="w-full text-muted-foreground"
+            onClick={onDisconnected}
+          >
+            Cancel
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  // ─── Normal auth gate ─────────────────────────────────────────────
 
   // Determine header and subtitle
   let header: string;
@@ -476,7 +562,7 @@ export function AuthGateDialog({ open, personnelEmpty, authMode, onDisconnected 
           className="w-full text-muted-foreground"
           onClick={handleDisconnect}
         >
-          Disconnect
+          {isLocalSyncMode ? 'Cancel' : 'Disconnect'}
         </Button>
       </div>
     </div>
