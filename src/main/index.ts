@@ -153,14 +153,16 @@ app.on('ready', async () => {
     const dbPath = settings.lastFile ?? getDefaultDbPath();
     diag(`Creating window for: ${dbPath}`);
     try {
-      await getWindowManager().createWindow(dbPath);
+      const ctx = await getWindowManager().createWindow(dbPath);
+      getWindowManager().markStartupComplete(ctx.window.webContents.id);
     } catch (e) {
       // If the saved lastFile can't be opened (e.g. iCloud not materialised,
       // file moved/deleted), fall back to the default database path.
       const fallback = getDefaultDbPath();
       if (dbPath !== fallback) {
         diag(`Failed to open ${dbPath}, falling back to ${fallback}: ${e instanceof Error ? e.message : String(e)}`);
-        await getWindowManager().createWindow(fallback);
+        const ctx = await getWindowManager().createWindow(fallback);
+        getWindowManager().markStartupComplete(ctx.window.webContents.id);
       } else {
         throw e;
       }
@@ -188,12 +190,14 @@ app.on('activate', async () => {
       const settings = loadGlobalSettings();
       const dbPath = settings.lastFile ?? getDefaultDbPath();
       try {
-        await getWindowManager().createWindow(dbPath);
+        const ctx = await getWindowManager().createWindow(dbPath);
+        getWindowManager().markStartupComplete(ctx.window.webContents.id);
       } catch (e) {
         const fallback = getDefaultDbPath();
         if (dbPath !== fallback) {
           diag(`activate: fallback to ${fallback}: ${e instanceof Error ? e.message : String(e)}`);
-          await getWindowManager().createWindow(fallback);
+          const ctx = await getWindowManager().createWindow(fallback);
+          getWindowManager().markStartupComplete(ctx.window.webContents.id);
         } else {
           throw e;
         }
