@@ -249,7 +249,7 @@ Both sync backends are functional. Remaining work is hardening, auth, and the fi
 - [x] Local Sync change notifications (toasts, OS notifications, "while you were away" dialog)
 
 ### Features — priority
-- [ ] Bank reconciliation — import bank CSV (flexible column detection), auto-match against existing transactions by date+amount+description with confidence scoring, support many-to-one matching (one bank row = multiple Fidra rows), UI to review matched/ambiguous/unmatched rows
+- [x] Bank reconciliation — import bank CSV (flexible column detection), auto-match against existing transactions by date+amount+description with confidence scoring, support many-to-one matching (one bank row = multiple Fidra rows), UI to review matched/ambiguous/unmatched rows. Implemented as part of CSV import (duplicate detector with exact/content/fuzzy matching layers).
 - [x] CSV import with learnable patterns — import bare bank CSV as new transactions, pattern table learns from user history (bank description → Fidra category/party/description), unknown merchants start uncategorized and are remembered once assigned, reconcile against existing to avoid duplicates
 
 ## Future Considerations

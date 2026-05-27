@@ -146,7 +146,7 @@ export interface LocalSyncConfig {
   deviceName: string;
 }
 
-export type LocalSyncState = 'idle' | 'exporting' | 'importing' | 'error' | 'stopped';
+export type LocalSyncState = 'idle' | 'exporting' | 'importing' | 'error' | 'stopped' | 'stale';
 
 export interface LocalSyncStatus {
   enabled: boolean;

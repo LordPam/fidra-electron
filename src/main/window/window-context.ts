@@ -55,6 +55,7 @@ import type { SupabaseAuth } from '../cloud/auth/supabase-auth';
 import type { SessionManager } from '../cloud/auth/session-manager';
 import type { SyncOrchestrator } from '../sync/sync-orchestrator';
 import { createBackup, getBackupSettings } from '../services/backup-service';
+import { releaseDbLock } from '../database/db-lock';
 
 export class WindowContext {
   readonly dbPath: string;
@@ -423,6 +424,8 @@ export class WindowContext {
       await this.cloudConnection.close();
       this.cloudConnection = null;
     }
+    // Release advisory lock before closing the database
+    releaseDbLock(this.dbPath);
     // Auto-backup before closing the database
     try {
       const backupSettings = getBackupSettings(this.settingsRepo);

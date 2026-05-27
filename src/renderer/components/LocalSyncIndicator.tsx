@@ -41,6 +41,9 @@ export function LocalSyncIndicator() {
   } else if (state === 'exporting' || state === 'importing') {
     dotColor = 'bg-yellow-500';
     tooltipText = 'Local Sync: syncing...';
+  } else if (state === 'stale') {
+    dotColor = 'bg-amber-500';
+    tooltipText = 'Local Sync: no peer activity \u2014 check OneDrive';
   } else if (pendingConflicts > 0) {
     dotColor = 'bg-orange-500';
     tooltipText = `Local Sync: ${pendingConflicts} conflict${pendingConflicts !== 1 ? 's' : ''}`;

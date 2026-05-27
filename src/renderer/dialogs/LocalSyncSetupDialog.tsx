@@ -363,6 +363,15 @@ export function LocalSyncSetupDialog({ open, onOpenChange }: LocalSyncSetupDialo
               </div>
             )}
 
+            {state === 'stale' && !lastError && (
+              <div className="flex items-start gap-2 rounded-md bg-amber-500/10 p-3 text-sm text-amber-700 dark:text-amber-400">
+                <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+                <span>
+                  No activity from other devices for over 10 minutes. This may indicate OneDrive has stopped syncing. Check your OneDrive status and internet connection.
+                </span>
+              </div>
+            )}
+
             {error && (
               <div className="flex items-start gap-2 rounded-md bg-destructive/10 p-3 text-sm text-destructive">
                 <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />

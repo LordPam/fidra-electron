@@ -1,7 +1,8 @@
 import os from 'node:os';
 import path from 'node:path';
-import { BrowserWindow } from 'electron';
+import { BrowserWindow, dialog } from 'electron';
 import { openDatabase } from '../database/connection';
+import { acquireDbLock, releaseDbLock } from '../database/db-lock';
 import { WindowContext } from './window-context';
 import { CloudConnection } from '../cloud/cloud-connection';
 import { runMigrations } from '../cloud/migration-runner';
@@ -10,7 +11,8 @@ import { SupabaseAuth } from '../cloud/auth/supabase-auth';
 import { SessionStore, dbPathToSessionId } from '../cloud/auth/session-store';
 import { SessionManager } from '../cloud/auth/session-manager';
 import { createClient } from '@supabase/supabase-js';
-import { addRecentFile, getCloudServer, getCloudCachePath, ensureCloudCacheDir } from './global-settings';
+import { addRecentFile, getCloudServer, getCloudCachePath, ensureCloudCacheDir, loadGlobalSettings, saveGlobalSettings } from './global-settings';
+import { isCloudSyncedPath } from '../../shared/cloud-folder-detect';
 import { Notification } from 'electron';
 import { initializeCrr } from '../sync/crr-schema';
 import { initializeDeviceIdentity } from '../sync/device-identity';
@@ -67,7 +69,7 @@ export class WindowManager {
     return true;
   }
 
-  async createWindow(dbPath: string): Promise<WindowContext> {
+  async createWindow(dbPath: string): Promise<WindowContext | null> {
     const normalized = path.resolve(dbPath);
 
     // If already open, focus and return existing context
@@ -77,6 +79,33 @@ export class WindowManager {
     }
 
     const { db: sqlite, databaseId } = openDatabase(normalized);
+
+    // Advisory lock: warn if another device may have this file open
+    const lockConflict = acquireDbLock(normalized);
+    if (lockConflict) {
+      const openedAt = new Date(lockConflict.openedAt);
+      const timeStr = isNaN(openedAt.getTime()) ? lockConflict.openedAt : openedAt.toLocaleString();
+      const response = dialog.showMessageBoxSync({
+        type: 'warning',
+        title: 'Database may be open elsewhere',
+        message: 'This database appears to be open on another device.',
+        detail:
+          `According to the lock file, it was opened on ${lockConflict.deviceName} (${lockConflict.hostname}) at ${timeStr}. ` +
+          'Opening it here simultaneously could corrupt the database.\n\n' +
+          'If the other device has since closed Fidra, this is a stale lock and you can safely continue.',
+        buttons: ['Cancel', 'Open Anyway'],
+        defaultId: 0,
+        cancelId: 0,
+      });
+      if (response === 0) {
+        releaseDbLock(normalized);
+        sqlite.close();
+        return null;
+      }
+    }
+
+    // Warn if the database is in a cloud-synced folder (OneDrive, iCloud, Dropbox, etc.)
+    warnIfCloudSyncedPath(normalized);
 
     const win = new BrowserWindow({
       width: 1280,
@@ -684,6 +713,7 @@ export class WindowManager {
     const oldServerId = ctx.serverId;
 
     // Tear down old context (but NOT the window)
+    releaseDbLock(oldDbPath);
     ctx.stopLocalSyncServices();
     await ctx.stopCloudServices();
     ctx.deactivateCachingLayer();
@@ -700,6 +730,34 @@ export class WindowManager {
 
     // Create new context for the same window
     const { db: sqlite, databaseId } = openDatabase(normalized);
+
+    // Advisory lock: warn if another device may have this file open
+    const lockConflict = acquireDbLock(normalized);
+    if (lockConflict) {
+      const openedAt = new Date(lockConflict.openedAt);
+      const timeStr = isNaN(openedAt.getTime()) ? lockConflict.openedAt : openedAt.toLocaleString();
+      const response = dialog.showMessageBoxSync(win, {
+        type: 'warning',
+        title: 'Database may be open elsewhere',
+        message: 'This database appears to be open on another device.',
+        detail:
+          `According to the lock file, it was opened on ${lockConflict.deviceName} (${lockConflict.hostname}) at ${timeStr}. ` +
+          'Opening it here simultaneously could corrupt the database.\n\n' +
+          'If the other device has since closed Fidra, this is a stale lock and you can safely continue.',
+        buttons: ['Cancel', 'Open Anyway'],
+        defaultId: 0,
+        cancelId: 0,
+      });
+      if (response === 0) {
+        releaseDbLock(normalized);
+        sqlite.close();
+        return false;
+      }
+    }
+
+    // Warn if the database is in a cloud-synced folder
+    warnIfCloudSyncedPath(normalized, win);
+
     const newCtx = new WindowContext(win, normalized, databaseId, sqlite);
 
     this.contexts.set(webContentsId, newCtx);
@@ -906,4 +964,32 @@ export function getWindowManager(): WindowManager {
 
 export function setWindowManager(wm: WindowManager): void {
   _windowManager = wm;
+}
+
+/**
+ * Show a native info dialog if the database file is in a cloud-synced folder.
+ * Sequential access from different devices is fine — only simultaneous access is dangerous.
+ * Suppressed if the user previously chose "Don't show again".
+ */
+function warnIfCloudSyncedPath(dbPath: string, parentWindow?: BrowserWindow): void {
+  if (!isCloudSyncedPath(dbPath)) return;
+
+  const settings = loadGlobalSettings();
+  if (settings.suppressCloudFolderWarning) return;
+
+  const buttonIndex = dialog.showMessageBoxSync(parentWindow ?? BrowserWindow.getFocusedWindow()!, {
+    type: 'info',
+    title: 'Database in cloud-synced folder',
+    message: 'This database is stored in a cloud-synced folder (OneDrive, iCloud, etc.).',
+    detail:
+      'This is fine for accessing your database from different devices — just make sure ' +
+      'it is not open on two devices at the same time. Simultaneous access can corrupt the database.\n\n' +
+      'Wait for cloud sync to finish before opening the file on another device.',
+    buttons: ['OK', "Don't show again"],
+    defaultId: 0,
+  });
+
+  if (buttonIndex === 1) {
+    saveGlobalSettings({ ...settings, suppressCloudFolderWarning: true });
+  }
 }

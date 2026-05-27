@@ -53,6 +53,7 @@ function buildRecentFilesSubmenu(): MenuItemConstructorOptions[] {
           if (!reloaded) win.webContents.reload();
         } else {
           const ctx = await wm.createWindow(entry.path);
+          if (!ctx) return; // User cancelled lock warning
           wm.markStartupComplete(ctx.window.webContents.id);
         }
         markFirstRunComplete();
@@ -129,6 +130,7 @@ export function buildMenu(): void {
                 if (!reloaded) target.webContents.reload();
               } else {
                 const ctx = await wm.createWindow(result.filePath);
+                if (!ctx) return; // User cancelled lock warning
                 wm.markStartupComplete(ctx.window.webContents.id);
               }
               markFirstRunComplete();
@@ -168,6 +170,7 @@ export function buildMenu(): void {
                 if (!reloaded) target.webContents.reload();
               } else {
                 const ctx = await wm.createWindow(result.filePaths[0]);
+                if (!ctx) return; // User cancelled lock warning
                 wm.markStartupComplete(ctx.window.webContents.id);
               }
               markFirstRunComplete();

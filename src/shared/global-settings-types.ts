@@ -31,4 +31,6 @@ export interface GlobalSettings {
   localSyncDeviceName?: string;
   /** Saved CSV import profiles (cross-database, per-machine). */
   csvImportProfiles?: import('./csv-import-types').CsvImportProfile[];
+  /** Suppress the warning shown when opening a database from a cloud-synced folder. */
+  suppressCloudFolderWarning?: boolean;
 }

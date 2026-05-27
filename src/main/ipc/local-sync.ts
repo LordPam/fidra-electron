@@ -10,7 +10,7 @@ import { SyncOrchestrator } from '../sync/sync-orchestrator';
 import { ConflictQueue } from '../sync/conflict-queue';
 import { deserializeChangesetRow } from '../sync/bundle-format';
 import type { SerializedChangesetRow } from '../sync/bundle-format';
-import { syncFolderHasExistingPeers, validateSyncFolder } from '../sync/bundle-io';
+import { syncFolderHasExistingPeers, syncFolderHasInvites, validateSyncFolder } from '../sync/bundle-io';
 import { readInviteToken, deleteInviteToken } from '../sync/invite-token';
 import { openDatabase, getAttachmentStoragePath } from '../database/connection';
 import { PersonnelRepo } from '../repositories/personnel-repo';
@@ -473,14 +473,30 @@ export function registerLocalSyncHandlers(): void {
       }
 
       if (!passphrase) {
-        return {
-          success: false,
-          error: 'No invite found for this email address. Ask your admin to invite you, or use the passphrase to join directly.',
-        };
+        // Probe the sync folder to differentiate "not invited" from "OneDrive hasn't synced yet"
+        const hasInvites = syncFolderHasInvites(syncFolder);
+        const hasPeers = syncFolderHasExistingPeers(syncFolder);
+
+        let error = 'No invite found for this email address. Ask your admin to invite you, or use the passphrase to join directly.';
+        if (!hasInvites && !hasPeers) {
+          error += '\n\nThe sync folder appears empty — OneDrive may not have finished syncing. Wait for OneDrive to sync, then try again.';
+        }
+        return { success: false, error };
       }
 
       // Join using the recovered passphrase
       const result = joinLocalSync({ syncFolder, passphrase, newDbPath });
+
+      // If join failed (e.g. no snapshot), probe folder to differentiate genuine vs OneDrive lag
+      if (!result.success && result.error) {
+        const hasPeers = syncFolderHasExistingPeers(syncFolder);
+        if (!hasPeers) {
+          result.error += '\n\nThe sync folder appears empty — OneDrive may not have finished syncing. Wait for OneDrive to sync, then try again.';
+        } else if (result.error.includes('No snapshot found')) {
+          result.error += '\n\nBundles exist but no snapshot is available yet. OneDrive may still be syncing — wait and try again, or ask a team member to create a snapshot.';
+        }
+        return result;
+      }
 
       if (result.success && result.newDbPath) {
         // Open the newly created DB to set the joiner's password

@@ -79,6 +79,7 @@ export function registerWindowHandlers(): void {
       const wm = getWindowManager();
       if (validPath) {
         const ctx = await wm.createWindow(validPath);
+        if (!ctx) return { success: false, error: 'Cancelled — database may be open elsewhere' };
         wm.markStartupComplete(ctx.window.webContents.id);
       }
       return { success: true };
@@ -99,6 +100,7 @@ export function registerWindowHandlers(): void {
           try {
             const wm2 = getWindowManager();
             const ctx2 = await wm2.createWindow(result.filePaths[0]);
+            if (!ctx2) return { success: false, error: 'Cancelled — database may be open elsewhere' };
             wm2.markStartupComplete(ctx2.window.webContents.id);
             return { success: true };
           } catch (e2) {
@@ -183,6 +185,7 @@ export function registerWindowHandlers(): void {
     try {
       const wm = getWindowManager();
       const ctx = await wm.createWindow(validPath);
+      if (!ctx) return { success: false, error: 'Cancelled — database may be open elsewhere' };
       wm.markStartupComplete(ctx.window.webContents.id);
       return { success: true };
     } catch (e) {
@@ -204,6 +207,7 @@ export function registerWindowHandlers(): void {
           try {
             const wm2 = getWindowManager();
             const ctx2 = await wm2.createWindow(result.filePaths[0]);
+            if (!ctx2) return { success: false, error: 'Cancelled — database may be open elsewhere' };
             wm2.markStartupComplete(ctx2.window.webContents.id);
             return { success: true };
           } catch (e2) {

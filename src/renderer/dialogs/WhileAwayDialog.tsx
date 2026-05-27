@@ -44,6 +44,18 @@ interface WhileAwayDialogProps {
 }
 
 export function WhileAwayDialog({ open, onDismiss, summaries }: WhileAwayDialogProps) {
+  // Filter to only summaries with visible changes
+  const visibleSummaries = summaries.filter((s) =>
+    Object.values(s.changes).some((c) => c.created + c.updated + c.deleted > 0),
+  );
+
+  // Don't show the dialog at all if nothing meaningful changed
+  if (open && visibleSummaries.length === 0) {
+    // Auto-dismiss — nothing to show
+    onDismiss();
+    return null;
+  }
+
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) onDismiss(); }}>
       <DialogContent>
@@ -53,11 +65,10 @@ export function WhileAwayDialog({ open, onDismiss, summaries }: WhileAwayDialogP
         </DialogHeader>
 
         <div className="max-h-64 overflow-y-auto space-y-3">
-          {summaries.map((summary) => {
+          {visibleSummaries.map((summary) => {
             const tables = Object.entries(summary.changes).filter(
               ([, c]) => c.created + c.updated + c.deleted > 0,
             );
-            if (tables.length === 0) return null;
             return (
               <div key={summary.deviceId} className="space-y-1">
                 <p className="text-sm font-medium">{summary.personName}</p>

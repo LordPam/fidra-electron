@@ -44,6 +44,7 @@ import {
 import { BundleIntegrityError, BundleCryptoError } from './bundle-crypto';
 import { BundleFormatError } from './bundle-format';
 import { syncLog, errorMessage } from './sync-log';
+import { writeHeartbeat, checkStaleness } from './heartbeat';
 import { findLatestSnapshot } from './bundle-io';
 import { getAttachmentStoragePath } from '../database/connection';
 import type { ImportChangeDetail } from '../../shared/ipc-types';
@@ -76,7 +77,7 @@ export interface SyncOrchestratorOptions {
   versionPollMs?: number;
 }
 
-export type SyncStatusState = 'idle' | 'exporting' | 'importing' | 'error' | 'stopped';
+export type SyncStatusState = 'idle' | 'exporting' | 'importing' | 'error' | 'stopped' | 'stale';
 
 export interface SyncStatus {
   state: SyncStatusState;
@@ -107,6 +108,12 @@ const SETTING_SEQUENCE_NUMBER = 'sync.sequenceNumber';
 
 /** Max entities per table to include detail labels for (keeps toasts compact). */
 const DETAIL_THRESHOLD = 8;
+
+/** Heartbeat write interval (ms). Each device writes a small file this often. */
+const HEARTBEAT_INTERVAL_MS = 2 * 60 * 1000; // 2 minutes
+
+/** Peer heartbeat age (ms) beyond which all peers are considered stale. */
+const STALENESS_THRESHOLD_MS = 10 * 60 * 1000; // 10 minutes
 
 /**
  * Format a currency amount as a simple £X.XX string.
@@ -239,6 +246,7 @@ export class SyncOrchestrator {
   // Timers
   private versionPollTimer: ReturnType<typeof setInterval> | null = null;
   private exportDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+  private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
 
   // Serialization (D5)
   private busy = false;
@@ -334,6 +342,10 @@ export class SyncOrchestrator {
       },
     });
     this.watcher.start();
+
+    // Start heartbeat timer — write our heartbeat and check peer staleness
+    this.onHeartbeatTick();
+    this.heartbeatTimer = setInterval(() => this.onHeartbeatTick(), HEARTBEAT_INTERVAL_MS);
   }
 
   stop(): void {
@@ -348,6 +360,11 @@ export class SyncOrchestrator {
     if (this.exportDebounceTimer) {
       clearTimeout(this.exportDebounceTimer);
       this.exportDebounceTimer = null;
+    }
+
+    if (this.heartbeatTimer) {
+      clearInterval(this.heartbeatTimer);
+      this.heartbeatTimer = null;
     }
 
     if (this.watcher) {
@@ -691,9 +708,17 @@ export class SyncOrchestrator {
               ...(details.length > 0 ? { details } : {}),
             };
           }
-          summaries.push({ personName, deviceId: devId, changes });
+          // Only include this device if it has any visible changes
+          const hasVisibleChanges = Object.values(changes).some(
+            (c) => c.created + c.updated + c.deleted > 0,
+          );
+          if (hasVisibleChanges) {
+            summaries.push({ personName, deviceId: devId, changes });
+          }
         }
-        this.onImportSummary({ summaries, isStartupCatchup: this.isStartupImport });
+        if (summaries.length > 0) {
+          this.onImportSummary({ summaries, isStartupCatchup: this.isStartupImport });
+        }
       }
 
       // After first import, clear startup flag
@@ -1002,6 +1027,38 @@ export class SyncOrchestrator {
     return count;
   }
 
+  // ─── Heartbeat / staleness ─────────────────────────────────────
+
+  private onHeartbeatTick(): void {
+    if (!this.running) return;
+    try {
+      writeHeartbeat(this.syncFolder, this.deviceId);
+      this.evaluateStaleness();
+    } catch (e) {
+      syncLog('warn', 'Heartbeat tick failed', { error: errorMessage(e) });
+    }
+  }
+
+  /**
+   * Check peer heartbeats and transition to/from 'stale' as appropriate.
+   * Only enters 'stale' when currently 'idle' and all peers are stale.
+   * Exits 'stale' back to 'idle' when any peer becomes fresh.
+   */
+  private evaluateStaleness(): void {
+    const result = checkStaleness(this.syncFolder, this.deviceId, STALENESS_THRESHOLD_MS);
+
+    if (result.hasPeers && result.allPeersStale) {
+      if (this.statusState === 'idle' || this.statusState === 'stale') {
+        this.statusState = 'stale';
+        this.onStatusChanged?.(this.getStatus());
+      }
+    } else if (this.statusState === 'stale') {
+      // Peers are fresh again — clear stale
+      this.statusState = 'idle';
+      this.onStatusChanged?.(this.getStatus());
+    }
+  }
+
   // ─── Helpers ───────────────────────────────────────────────────
 
   private getSiteId(): Buffer {
@@ -1033,6 +1090,17 @@ export class SyncOrchestrator {
   }
 
   private setStatus(state: SyncStatusState): void {
+    if (state === 'idle') {
+      // Before confirming idle, check if we should be stale instead
+      try {
+        const result = checkStaleness(this.syncFolder, this.deviceId, STALENESS_THRESHOLD_MS);
+        if (result.hasPeers && result.allPeersStale) {
+          state = 'stale';
+        }
+      } catch {
+        // Non-fatal — default to idle
+      }
+    }
     this.statusState = state;
     this.onStatusChanged?.(this.getStatus());
   }

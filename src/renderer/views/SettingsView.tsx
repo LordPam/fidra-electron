@@ -19,21 +19,9 @@ import { MigrateToLocalSyncDialog } from '@/dialogs/MigrateToLocalSyncDialog';
 import { BackupRestoreDialog } from '@/dialogs/BackupRestoreDialog';
 import { cn } from '@/lib/utils';
 import { useWindowStore } from '@/stores/window-store';
+import { isCloudSyncedPath } from '../../shared/cloud-folder-detect';
 import logoLight from '@/assets/logo-light.svg';
 import logoDark from '@/assets/logo-dark.svg';
-
-/** Cloud-synced folder path fragments (macOS iCloud, OneDrive, Dropbox, Google Drive). */
-const CLOUD_FOLDER_MARKERS = [
-  'Library/Mobile Documents/com~apple~CloudDocs',
-  '/OneDrive',
-  '/Dropbox',
-  '/Google Drive',
-  '/My Drive',
-];
-
-function isCloudSyncedPath(p: string): boolean {
-  return CLOUD_FOLDER_MARKERS.some((m) => p.includes(m));
-}
 
 const MONTH_NAMES = [
   'January', 'February', 'March', 'April', 'May', 'June',

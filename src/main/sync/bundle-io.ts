@@ -190,6 +190,16 @@ export function findLatestSnapshot(
 
 // ─── Sync folder validation ──────────────────────────────────────────
 
+/** Check if a sync folder has any .invite files in the invites/ subdirectory. */
+export function syncFolderHasInvites(syncFolder: string): boolean {
+  const invitesDir = path.join(syncFolder, INVITES_SUBDIR);
+  try {
+    return fs.readdirSync(invitesDir).some((f) => f.endsWith('.invite'));
+  } catch {
+    return false;
+  }
+}
+
 /** Check if a sync folder already has bundles or snapshots from other devices. */
 export function syncFolderHasExistingPeers(syncFolder: string): boolean {
   for (const sub of [SYNC_SUBDIR, SNAPSHOTS_SUBDIR]) {

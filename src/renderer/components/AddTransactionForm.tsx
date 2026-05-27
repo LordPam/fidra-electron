@@ -11,7 +11,7 @@ import {
 } from '@/components/ui/select';
 import { ComboboxInput } from '@/components/ComboboxInput';
 import { DropZone } from '@/components/DropZone';
-import { ChevronRight, ChevronDown, X } from 'lucide-react';
+import { ChevronRight, ChevronDown, X, FileUp } from 'lucide-react';
 import type { TransactionRow } from '../../shared/ipc-types';
 import { defaultStatusForType } from '../../shared/transaction-rules';
 
@@ -29,6 +29,7 @@ interface AddTransactionFormProps {
   partySuggestions: string[];
   activitySuggestions: string[];
   onSubmit: (transaction: TransactionRow, pendingFiles: PendingFile[]) => void;
+  onImportCsv?: () => void;
 }
 
 function generateId(): string {
@@ -49,6 +50,7 @@ export function AddTransactionForm({
   partySuggestions,
   activitySuggestions,
   onSubmit,
+  onImportCsv,
 }: AddTransactionFormProps) {
   const [type, setType] = useState<'income' | 'expense'>('expense');
   const [amount, setAmount] = useState('');
@@ -346,6 +348,20 @@ export function AddTransactionForm({
           Add {type === 'income' ? 'Income' : 'Expense'}
         </Button>
       </form>
+
+      {onImportCsv && (
+        <div className="mt-3 pt-3 border-t border-border-subtle">
+          <Button
+            variant="outline"
+            size="sm"
+            className="w-full gap-2 text-muted-foreground"
+            onClick={onImportCsv}
+          >
+            <FileUp className="h-4 w-4" />
+            Import from CSV
+          </Button>
+        </div>
+      )}
     </div>
   );
 }
