@@ -462,6 +462,8 @@ const api = {
     ipcRenderer.invoke('app:installUpdate'),
   quitAndInstall: (): Promise<void> =>
     ipcRenderer.invoke('app:quitAndInstall'),
+  openReleaseUrl: (): Promise<void> =>
+    ipcRenderer.invoke('app:openReleaseUrl'),
   onUpdateAvailable: (callback: (info: UpdateInfo) => void): (() => void) => {
     const handler = (_event: unknown, info: UpdateInfo) => callback(info);
     ipcRenderer.on('update:available', handler);

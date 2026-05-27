@@ -175,15 +175,13 @@ export function UpdateToast() {
               >
                 Dismiss
               </button>
-              <a
-                href={state.releaseUrl}
-                target="_blank"
-                rel="noopener noreferrer"
+              <button
+                onClick={() => window.api.openReleaseUrl()}
                 className="px-3 py-1.5 text-xs rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors inline-flex items-center gap-1.5"
               >
                 <Download className="h-3 w-3" />
                 Download DMG
-              </a>
+              </button>
             </div>
           </>
         )}

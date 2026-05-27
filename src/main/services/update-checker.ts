@@ -133,4 +133,12 @@ export function registerUpdateHandlers(): void {
       : RELEASES_URL;
     sendToAllWindows('update:installFailed', url);
   });
+
+  ipcMain.handle('app:openReleaseUrl', async () => {
+    const url = latestVersion
+      ? `https://github.com/LordPam/fidra-electron/releases/download/v${latestVersion}/Fidra-macOS.dmg`
+      : RELEASES_URL;
+    console.log('[updater] Opening release URL in browser:', url);
+    await shell.openExternal(url);
+  });
 }
