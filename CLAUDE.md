@@ -247,6 +247,8 @@ Both sync backends are functional. Remaining work is hardening, auth, and the fi
 - [x] Improve local sync UI (buttons are significant and can cause issues if hit accidentally)
 - [x] Fix personnel status badge (Local Sync users showed "Invited" instead of "Active")
 - [x] Local Sync change notifications (toasts, OS notifications, "while you were away" dialog)
+- [x] Reports page UX rework — fix empty-comparison bug (everything marked "New"), make comparison optional (default: none), add plain-English insights panel, consistent table styling with sortable columns and alternating rows, breakdowns start collapsed
+- [x] Reports page redesign — Financial Health card (current/available balance, period net, health status), What Changed + Key Facts two-column panel, Activity Performance always-visible table, Explore section with collapsible Category/Description/Party breakdowns. Removed avgTransactionSize. Transfer-aware reporting (linked_id excluded from totals).
 
 ### Features — priority
 - [x] Bank reconciliation — import bank CSV (flexible column detection), auto-match against existing transactions by date+amount+description with confidence scoring, support many-to-one matching (one bank row = multiple Fidra rows), UI to review matched/ambiguous/unmatched rows. Implemented as part of CSV import (duplicate detector with exact/content/fuzzy matching layers).

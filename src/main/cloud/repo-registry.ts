@@ -5,6 +5,7 @@ import type { TransactionRow, PlannedTemplateRow, SheetRow, AttachmentRow, Invoi
 export interface TransactionOps {
   getAll(sheet?: string): TransactionRow[];
   getById(id: string): TransactionRow | null;
+  getByLinkedId(linkedId: string): TransactionRow[];
   save(data: TransactionRow): TransactionRow;
   remove(id: string): boolean;
   bulkSave(transactions: TransactionRow[]): TransactionRow[];

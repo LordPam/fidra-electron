@@ -13,6 +13,7 @@ export const transactions = sqliteTable('transactions', {
   reference: text('reference'),
   activity: text('activity'),
   notes: text('notes'),
+  linked_id: text('linked_id'),
   version: integer('version').default(1),
   created_at: text('created_at').notNull(),
   modified_at: text('modified_at'),
@@ -22,6 +23,7 @@ export const transactions = sqliteTable('transactions', {
   index('idx_transactions_sheet').on(table.sheet),
   index('idx_transactions_type').on(table.type),
   index('idx_transactions_status').on(table.status),
+  index('idx_transactions_linked').on(table.linked_id),
 ]);
 
 export const plannedTemplates = sqliteTable('planned_templates', {
@@ -36,6 +38,7 @@ export const plannedTemplates = sqliteTable('planned_templates', {
   party: text('party'),
   activity: text('activity'),
   notes: text('notes'),
+  transfer_target_sheet: text('transfer_target_sheet'),
   end_date: text('end_date'),
   occurrence_count: integer('occurrence_count'),
   skipped_dates: text('skipped_dates').default('[]'),

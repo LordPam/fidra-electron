@@ -20,6 +20,7 @@ import {
   ContextMenuTrigger,
 } from '@/components/ui/context-menu';
 import { ArrowUpDown, ArrowUp, ArrowDown, Paperclip, Check, X } from 'lucide-react';
+import { isTransfer, getCounterpart } from '@/services/transfer';
 
 export interface TransactionTableHandle {
   setFocusedRow: (id: string | null) => void;
@@ -28,6 +29,8 @@ export interface TransactionTableHandle {
 
 interface TransactionTableProps {
   transactions: TransactionRow[];
+  /** Full unfiltered transaction list for counterpart lookups (defaults to transactions) */
+  allTransactions?: TransactionRow[];
   runningBalances: Map<string, number>;
   showSheetColumn: boolean;
   showPlanned?: boolean;
@@ -76,6 +79,7 @@ export const TransactionTable = forwardRef<TransactionTableHandle, TransactionTa
   function TransactionTable(
     {
       transactions,
+      allTransactions,
       runningBalances,
       showSheetColumn,
       showPlanned = false,
@@ -161,6 +165,10 @@ export const TransactionTable = forwardRef<TransactionTableHandle, TransactionTa
       setFocusedRow: applyFocusRing,
       setSelectedRows: applySelectedRows,
     }), [applyFocusRing, applySelectedRows]);
+
+    // Use ref for full transaction list (for counterpart lookups across sheets)
+    const allTxnsRef = useRef(allTransactions ?? transactions);
+    allTxnsRef.current = allTransactions ?? transactions;
 
     // Use refs for attachment data so column defs stay stable
     const attachmentCountsRef = useRef(attachmentCounts);
@@ -398,8 +406,13 @@ export const TransactionTable = forwardRef<TransactionTableHandle, TransactionTa
         {
           accessorKey: 'type',
           header: 'Type',
-          cell: ({ getValue }) => <span className="capitalize">{getValue<string>()}</span>,
-          size: 80,
+          cell: ({ row }) => {
+            if (isTransfer(row.original)) {
+              return <span className="capitalize text-muted-foreground">Transfer</span>;
+            }
+            return <span className="capitalize">{row.original.type}</span>;
+          },
+          size: 100,
         },
         {
           accessorKey: 'category',
@@ -408,7 +421,16 @@ export const TransactionTable = forwardRef<TransactionTableHandle, TransactionTa
               Category<SortIcon isSorted={column.getIsSorted()} />
             </button>
           ),
-          cell: ({ getValue }) => {
+          cell: ({ row, getValue }) => {
+            if (isTransfer(row.original)) {
+              const cp = getCounterpart(row.original, allTxnsRef.current);
+              const arrow = row.original.type === 'expense' ? '→' : '←';
+              return (
+                <span className="text-muted-foreground">
+                  {arrow} {cp?.sheet ?? '?'}
+                </span>
+              );
+            }
             const val = getValue<string | null>();
             return val ? <span>{val}</span> : <span className="text-fidra-slate/40">&mdash;</span>;
           },
@@ -751,6 +773,14 @@ export const TransactionTable = forwardRef<TransactionTableHandle, TransactionTa
                             View Activity
                           </ContextMenuItem>
                         )}
+                        {isTransfer(row.original) && (() => {
+                          const cp = getCounterpart(row.original, allTxnsRef.current);
+                          return cp ? (
+                            <ContextMenuItem onClick={() => onEdit(cp)}>
+                              View Counterpart ({cp.sheet})
+                            </ContextMenuItem>
+                          ) : null;
+                        })()}
                         {selectedRows.length > 1 && onBulkEdit && (
                           <>
                             <ContextMenuSeparator />

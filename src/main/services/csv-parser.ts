@@ -179,7 +179,8 @@ function stripTime(v: string): string {
 function looksLikeDate(v: string): boolean {
   const s = stripTime(v);
   return /^\d{1,4}[\-\/\.]\d{1,2}[\-\/\.]\d{1,4}$/.test(s) ||
-    /^\d{1,2}[\-\s][A-Za-z]{3}[\-\s]\d{2,4}$/.test(s);
+    /^\d{1,2}[\-\s][A-Za-z]{3}[\-\s]\d{2,4}$/.test(s) ||
+    /^[A-Za-z]{3,9}\s+\d{1,2},?\s+\d{4}$/.test(s);
 }
 
 function looksLikeNumber(v: string): boolean {
@@ -189,43 +190,42 @@ function looksLikeNumber(v: string): boolean {
 
 // ─── Date Detection ──────────────────────────────────────────────────
 
-const DATE_FORMATS = [
-  { pattern: /^(\d{4})-(\d{2})-(\d{2})$/, format: 'YYYY-MM-DD', yIdx: 1, mIdx: 2, dIdx: 3 },
-  { pattern: /^(\d{2})\/(\d{2})\/(\d{4})$/, format: null, yIdx: 3, mIdx: null, dIdx: null },   // DD/MM or MM/DD
-  { pattern: /^(\d{2})-(\d{2})-(\d{4})$/, format: null, yIdx: 3, mIdx: null, dIdx: null },     // DD-MM or MM-DD
-  { pattern: /^(\d{2})\/(\d{2})\/(\d{2})$/, format: null, yIdx: 3, mIdx: null, dIdx: null },   // DD/MM/YY or MM/DD/YY
-  { pattern: /^(\d{2})-([A-Za-z]{3})-(\d{4})$/, format: 'DD-Mon-YYYY', yIdx: 3, mIdx: 2, dIdx: 1 },
-  { pattern: /^(\d{2})\s([A-Za-z]{3})\s(\d{4})$/, format: 'DD Mon YYYY', yIdx: 3, mIdx: 2, dIdx: 1 },
-];
-
 export function detectDateFormat(values: string[]): string | null {
   if (values.length === 0) return null;
 
   const trimmed = values.map((v) => stripTime(v)).filter(Boolean);
+  if (trimmed.length === 0) return null;
 
-  // Check for YYYY-MM-DD
-  if (trimmed.every((v) => /^\d{4}-\d{2}-\d{2}$/.test(v))) return 'YYYY-MM-DD';
+  // Check for YYYY-MM-DD (ISO)
+  if (trimmed.every((v) => /^\d{4}-\d{1,2}-\d{1,2}$/.test(v))) return 'YYYY-MM-DD';
 
-  // Check for DD-Mon-YYYY or DD Mon YYYY
-  if (trimmed.every((v) => /^\d{2}-[A-Za-z]{3}-\d{4}$/.test(v))) return 'DD-Mon-YYYY';
-  if (trimmed.every((v) => /^\d{2}\s[A-Za-z]{3}\s\d{4}$/.test(v))) return 'DD Mon YYYY';
+  // Check for Mon DD, YYYY or Month DD, YYYY (US text format)
+  if (trimmed.every((v) => /^[A-Za-z]{3,9}\s+\d{1,2},?\s+\d{4}$/.test(v))) return 'Mon DD, YYYY';
 
-  // Ambiguous DD/MM vs MM/DD — check if any first group > 12
-  const slashMatch = trimmed.every((v) => /^\d{2}[\/-]\d{2}[\/-]\d{2,4}$/.test(v));
-  if (slashMatch) {
-    const sep = trimmed[0].includes('/') ? '/' : '-';
+  // Check for D-Mon-YYYY/YY or D Mon YYYY/YY (month name formats, allowing single-digit day)
+  if (trimmed.every((v) => /^\d{1,2}-[A-Za-z]{3}-\d{4}$/.test(v))) return 'DD-Mon-YYYY';
+  if (trimmed.every((v) => /^\d{1,2}\s[A-Za-z]{3}\s\d{4}$/.test(v))) return 'DD Mon YYYY';
+  if (trimmed.every((v) => /^\d{1,2}-[A-Za-z]{3}-\d{2}$/.test(v))) return 'DD-Mon-YY';
+  if (trimmed.every((v) => /^\d{1,2}\s[A-Za-z]{3}\s\d{2}$/.test(v))) return 'DD Mon YY';
+
+  // Numeric formats: D/M/YYYY, D-M-YYYY, D.M.YYYY (allow single-digit day/month, dot separator)
+  const numericMatch = trimmed.every((v) => /^\d{1,2}[\/.\\-]\d{1,2}[\/.\\-]\d{2,4}$/.test(v));
+  if (numericMatch) {
+    // Determine separator (use first value)
+    const sep = trimmed[0].match(/[\/.\-]/)?.[0] ?? '/';
+
     let hasFirstOver12 = false;
     let hasSecondOver12 = false;
     for (const v of trimmed) {
-      const parts = v.split(/[\/-]/);
+      const parts = v.split(/[\/.\-]/);
       const a = parseInt(parts[0], 10);
       const b = parseInt(parts[1], 10);
       if (a > 12) hasFirstOver12 = true;
       if (b > 12) hasSecondOver12 = true;
     }
 
-    const yearPart = trimmed[0].split(/[\/-]/)[2];
-    const yearSuffix = yearPart.length === 2 ? 'YY' : 'YYYY';
+    const yearPart = trimmed[0].split(/[\/.\-]/)[2];
+    const yearSuffix = yearPart.length <= 2 ? 'YY' : 'YYYY';
 
     if (hasFirstOver12 && !hasSecondOver12) {
       return `DD${sep}MM${sep}${yearSuffix}`;
@@ -258,28 +258,50 @@ const MONTH_NAMES: Record<string, number> = {
   jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12,
 };
 
+/** Full month names for US text format parsing */
+const FULL_MONTH_NAMES: Record<string, number> = {
+  january: 1, february: 2, march: 3, april: 4, may: 5, june: 6,
+  july: 7, august: 8, september: 9, october: 10, november: 11, december: 12,
+};
+
 export function parseDate(value: string, format: string | null): string | null {
   const v = stripTime(value);
   if (!v) return null;
 
   if (!format) {
     // Try ISO
-    const iso = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v);
-    if (iso) return v;
+    const iso = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(v);
+    if (iso) {
+      const y = parseInt(iso[1], 10);
+      const m = parseInt(iso[2], 10);
+      const d = parseInt(iso[3], 10);
+      if (m >= 1 && m <= 12 && d >= 1 && d <= 31) {
+        return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      }
+    }
     return null;
   }
 
   if (format === 'YYYY-MM-DD') {
-    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v);
-    if (m) return v;
+    const m = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(v);
+    if (m) {
+      const y = parseInt(m[1], 10);
+      const mo = parseInt(m[2], 10);
+      const d = parseInt(m[3], 10);
+      if (mo >= 1 && mo <= 12 && d >= 1 && d <= 31) {
+        return `${y}-${String(mo).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      }
+    }
     return null;
   }
 
-  if (format === 'DD-Mon-YYYY' || format === 'DD Mon YYYY') {
-    const m = /^(\d{2})[\s-]([A-Za-z]{3})[\s-](\d{4})$/.exec(v);
+  // US text format: "Jul 01, 2024" or "July 1, 2024" or "Jul 1 2024"
+  if (format === 'Mon DD, YYYY') {
+    const m = /^([A-Za-z]{3,9})\s+(\d{1,2}),?\s+(\d{4})$/.exec(v);
     if (m) {
-      const day = parseInt(m[1], 10);
-      const mon = MONTH_NAMES[m[2].toLowerCase()];
+      const monStr = m[1].toLowerCase();
+      const mon = MONTH_NAMES[monStr.slice(0, 3)] ?? FULL_MONTH_NAMES[monStr];
+      const day = parseInt(m[2], 10);
       const year = parseInt(m[3], 10);
       if (mon && day >= 1 && day <= 31) {
         return `${year}-${String(mon).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
@@ -288,28 +310,47 @@ export function parseDate(value: string, format: string | null): string | null {
     return null;
   }
 
-  // Handle DD/MM/YYYY, MM/DD/YYYY, DD-MM-YYYY, etc.
-  const sep = format.includes('/') ? '/' : '-';
-  const parts = v.split(sep);
+  // Month name formats: DD-Mon-YYYY, DD Mon YYYY, DD-Mon-YY, DD Mon YY (single-digit day allowed)
+  if (format === 'DD-Mon-YYYY' || format === 'DD Mon YYYY' ||
+      format === 'DD-Mon-YY' || format === 'DD Mon YY') {
+    const m = /^(\d{1,2})[\s-]([A-Za-z]{3})[\s-](\d{2,4})$/.exec(v);
+    if (m) {
+      const day = parseInt(m[1], 10);
+      const mon = MONTH_NAMES[m[2].toLowerCase()];
+      let year = parseInt(m[3], 10);
+      if (m[3].length <= 2) year = year < 50 ? 2000 + year : 1900 + year;
+      if (mon && day >= 1 && day <= 31) {
+        return `${year}-${String(mon).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+      }
+    }
+    return null;
+  }
+
+  // Numeric formats: DD/MM/YYYY, MM/DD/YYYY, DD.MM.YYYY, DD-MM-YYYY, etc.
+  // Find the separator used in the format string
+  const sepMatch = format.match(/[\/.\-]/);
+  const sep = sepMatch ? sepMatch[0] : '/';
+  // Split value on any of the common separators (in case format sep differs slightly)
+  const parts = v.split(/[\/.\-]/);
   if (parts.length !== 3) return null;
 
-  const formatParts = format.split(sep);
-  const values: Record<string, number> = {};
+  const formatParts = format.split(/[\/.\-]/);
+  const vals: Record<string, number> = {};
   for (let i = 0; i < 3; i++) {
     const fp = formatParts[i];
     const num = parseInt(parts[i], 10);
     if (isNaN(num)) return null;
-    if (fp === 'DD') values.day = num;
-    else if (fp === 'MM') values.month = num;
-    else if (fp === 'YYYY') values.year = num;
-    else if (fp === 'YY') values.year = num < 50 ? 2000 + num : 1900 + num;
+    if (fp === 'DD') vals.day = num;
+    else if (fp === 'MM') vals.month = num;
+    else if (fp === 'YYYY') vals.year = num;
+    else if (fp === 'YY') vals.year = num < 50 ? 2000 + num : 1900 + num;
   }
 
-  if (!values.year || !values.month || !values.day) return null;
-  if (values.month < 1 || values.month > 12) return null;
-  if (values.day < 1 || values.day > 31) return null;
+  if (!vals.year || !vals.month || !vals.day) return null;
+  if (vals.month < 1 || vals.month > 12) return null;
+  if (vals.day < 1 || vals.day > 31) return null;
 
-  return `${values.year}-${String(values.month).padStart(2, '0')}-${String(values.day).padStart(2, '0')}`;
+  return `${vals.year}-${String(vals.month).padStart(2, '0')}-${String(vals.day).padStart(2, '0')}`;
 }
 
 export function parseAmount(value: string, decimalSeparator: '.' | ','): number | null {

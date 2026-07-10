@@ -54,13 +54,13 @@ export class PgTransactionRepo implements CloudTransactionRepo {
             date = $2, description = $3, amount = $4, type = $5,
             status = $6, sheet = $7, category = $8, party = $9,
             reference = $10, activity = $11, notes = $12,
-            version = $13, modified_at = $14, modified_by = $15
-          WHERE id = $1 AND version = $16`,
+            linked_id = $13, version = $14, modified_at = $15, modified_by = $16
+          WHERE id = $1 AND version = $17`,
           [
             data.id, data.date, data.description, data.amount,
             data.type, data.status, data.sheet, data.category,
             data.party, data.reference, data.activity, data.notes,
-            data.version, data.modified_at, data.modified_by,
+            data.linked_id, data.version, data.modified_at, data.modified_by,
             dbVersion,
           ],
         );
@@ -77,21 +77,22 @@ export class PgTransactionRepo implements CloudTransactionRepo {
           `INSERT INTO transactions
           (id, date, description, amount, type, status, sheet,
            category, party, reference, activity, notes,
-           version, created_at, modified_at, modified_by)
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+           linked_id, version, created_at, modified_at, modified_by)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
           ON CONFLICT (id) DO UPDATE SET
             date = EXCLUDED.date, description = EXCLUDED.description,
             amount = EXCLUDED.amount, type = EXCLUDED.type,
             status = EXCLUDED.status, sheet = EXCLUDED.sheet,
             category = EXCLUDED.category, party = EXCLUDED.party,
             reference = EXCLUDED.reference, activity = EXCLUDED.activity,
-            notes = EXCLUDED.notes, version = EXCLUDED.version,
+            notes = EXCLUDED.notes, linked_id = EXCLUDED.linked_id,
+            version = EXCLUDED.version,
             modified_at = EXCLUDED.modified_at, modified_by = EXCLUDED.modified_by`,
           [
             data.id, data.date, data.description, data.amount,
             data.type, data.status, data.sheet, data.category,
             data.party, data.reference, data.activity, data.notes,
-            data.version, data.created_at, data.modified_at, data.modified_by,
+            data.linked_id, data.version, data.created_at, data.modified_at, data.modified_by,
           ],
         );
       }
@@ -164,6 +165,7 @@ function rowToTransaction(row: Record<string, unknown>): TransactionRow {
     reference: row.reference != null ? String(row.reference) : null,
     activity: row.activity != null ? String(row.activity) : null,
     notes: row.notes != null ? String(row.notes) : null,
+    linked_id: row.linked_id != null ? String(row.linked_id) : null,
     version: Number(row.version),
     created_at: toISOString(row.created_at),
     modified_at: row.modified_at != null ? toISOString(row.modified_at) : null,

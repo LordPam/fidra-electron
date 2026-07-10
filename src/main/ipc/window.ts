@@ -375,6 +375,25 @@ export function registerWindowHandlers(): void {
     }
   });
 
+  // Organisation name (per-database, org-scoped — syncs via Local Sync + Cloud Connect)
+  ipcMain.handle('settings:getOrgName', (event) => {
+    const ctx = resolveContext(event);
+    return ctx.settingsRepo.getSetting('report.orgName') ?? '';
+  });
+
+  ipcMain.handle('settings:saveOrgName', async (event, name: unknown) => {
+    const validName = z.string().max(200).parse(name);
+    const ctx = resolveContext(event);
+    ctx.settingsRepo.setSetting('report.orgName', validName);
+    // Sync to cloud if connected
+    const cloudRepo = ctx.pgSettingsRepo ?? ctx.supabaseSettingsRepo;
+    if (cloudRepo) {
+      await cloudRepo.setSetting('report.orgName', validName).catch((e: unknown) => {
+        console.error('[CLOUD] Failed to sync report.orgName:', e instanceof Error ? e.message : String(e));
+      });
+    }
+  });
+
   // Current sheet selection (per-database, UI-only — not synced to cloud)
   ipcMain.handle('settings:getCurrentSheet', (event) => {
     const ctx = resolveContext(event);

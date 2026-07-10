@@ -113,6 +113,7 @@ export function createInstance(template: PlannedTemplateRow, occurrenceDate: str
     reference: null,
     activity: template.activity,
     notes: template.notes,
+    linked_id: null,
     version: 1,
     created_at: template.created_at,
     modified_at: null,

@@ -32,8 +32,31 @@ function signedAmount(t: TransactionRow): number {
   return t.type === 'income' ? amt : -amt;
 }
 
-function renderSheetSection(sheetName: string, transactions: TransactionRow[]): string {
+/**
+ * Estimate description column width based on content.
+ * Returns a CSS width string. Maximum is 280px (landscape A4 budget),
+ * minimum is 100px. Uses approximate character-width heuristic at 9px font.
+ */
+function estimateDescWidth(transactions: TransactionRow[]): string {
+  const MAX_PX = 280;
+  const MIN_PX = 100;
+  const CHAR_WIDTH = 4.8; // approximate px per char at 9px DM Sans
+  const PADDING = 12;
+
+  let longest = 0;
+  for (const t of transactions) {
+    const len = (t.description || '').length;
+    if (len > longest) longest = len;
+  }
+
+  const estimated = Math.round(longest * CHAR_WIDTH + PADDING);
+  const clamped = Math.max(MIN_PX, Math.min(MAX_PX, estimated));
+  return `${clamped}px`;
+}
+
+function renderSheetSection(sheetName: string, transactions: TransactionRow[], sheetIndex: number): string {
   const sorted = sortByDate(transactions);
+  const descWidth = estimateDescWidth(sorted);
 
   let income = 0;
   let expenses = 0;
@@ -62,9 +85,19 @@ function renderSheetSection(sheetName: string, transactions: TransactionRow[]): 
   const net = income - expenses;
 
   return `
-    <div class="sheet-section">
+    <div class="sheet-section${sheetIndex > 0 ? ' page-break' : ''}">
       <h2 class="sheet-name">${esc(sheetName)}</h2>
       <table class="tx-table">
+        <colgroup>
+          <col style="width:70px">
+          <col style="width:${descWidth}">
+          <col style="width:80px">
+          <col style="width:52px">
+          <col style="width:58px">
+          <col style="width:80px">
+          <col style="width:80px">
+          <col style="width:80px">
+        </colgroup>
         <thead>
           <tr>
             <th class="date">Date</th>
@@ -106,9 +139,31 @@ export function renderTransactionsPDFHTML(data: TransactionPDFData): string {
   }
   const grandNet = grandIncome - grandExpenses;
 
+  // Table of contents entries
+  const tocEntries = Array.from(data.sheetData.entries())
+    .map(([name, txns]) => {
+      let sheetIncome = 0;
+      let sheetExpenses = 0;
+      for (const t of txns) {
+        const amt = parseFloat(t.amount) || 0;
+        if (t.type === 'income') sheetIncome += amt;
+        else sheetExpenses += amt;
+      }
+      const sheetNet = sheetIncome - sheetExpenses;
+      return `<tr>
+        <td class="toc-name">${esc(name)}</td>
+        <td class="toc-count">${txns.length}</td>
+        <td class="toc-amount positive">\u00a3${fmtNum(sheetIncome)}</td>
+        <td class="toc-amount negative">-\u00a3${fmtNum(sheetExpenses)}</td>
+        <td class="toc-amount" style="color:var(--accent);font-weight:600">${sheetNet >= 0 ? '' : '-'}\u00a3${fmtNum(Math.abs(sheetNet))}</td>
+      </tr>`;
+    }).join('');
+
   const sections = Array.from(data.sheetData.entries())
-    .map(([name, txns]) => renderSheetSection(name, txns))
+    .map(([name, txns], i) => renderSheetSection(name, txns, i))
     .join('');
+
+  const orgName = data.orgName || 'Fidra';
 
   return `<!DOCTYPE html>
 <html>
@@ -139,85 +194,148 @@ body {
   print-color-adjust: exact;
 }
 
-.report-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  border-top: 4px solid var(--accent);
-  padding-top: 16px;
-  margin-bottom: 20px;
-}
+.positive { color: #16a34a; }
+.negative { color: #dc2626; }
 
-.report-brand {
+/* ── Cover page ─────────────────────────────────────────── */
+
+.cover {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 12px;
+  justify-content: center;
+  min-height: 80vh;
+  text-align: center;
+  page-break-after: always;
 }
 
-.report-logo {
-  max-height: 40px;
-  max-width: 120px;
+.cover-rule {
+  width: 80px;
+  height: 4px;
+  background: var(--accent);
+  border: none;
+  border-radius: 2px;
+  margin: 24px auto;
+}
+
+.cover-logo {
+  max-height: 96px;
+  max-width: 280px;
   object-fit: contain;
+  margin-bottom: 8px;
 }
 
-.report-title {
-  font-size: 22px;
+.cover-org {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  margin-top: 8px;
+}
+
+.cover-title {
+  font-size: 32px;
   font-weight: 700;
   letter-spacing: -0.02em;
-  color: var(--accent);
-  text-transform: uppercase;
+  color: var(--text-primary);
+  margin-top: 4px;
 }
 
-.report-subtitle {
-  font-size: 11px;
+.cover-date {
+  font-size: 12px;
   color: var(--text-secondary);
-  margin-top: 2px;
+  margin-top: 12px;
 }
 
-.report-meta {
-  text-align: right;
-  font-size: 10px;
-  color: var(--text-secondary);
-  line-height: 1.6;
-}
-
-.grand-summary {
+.cover-summary {
   display: flex;
-  gap: 24px;
-  padding: 10px 16px;
-  background: var(--row-alt);
-  border: 1px solid var(--border-light);
-  border-radius: 4px;
-  margin-bottom: 20px;
+  gap: 32px;
+  justify-content: center;
+  margin-top: 32px;
+  padding: 14px 28px;
+  border-top: 1px solid var(--border-muted);
+  border-bottom: 1px solid var(--border-muted);
 }
 
-.grand-summary .summary-item {
-  display: flex;
-  gap: 8px;
-  align-items: baseline;
+.cover-summary .stat {
+  text-align: center;
 }
 
-.grand-summary .label {
+.cover-summary .stat-value {
+  font-family: var(--font-mono);
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.cover-summary .stat-label {
   font-size: 8px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: var(--text-secondary);
+  margin-top: 2px;
 }
 
-.grand-summary .value {
+/* ── Table of contents ──────────────────────────────────── */
+
+.toc {
+  page-break-after: always;
+}
+
+.toc-heading {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-primary);
+  border-bottom: 3px solid var(--accent);
+  padding-bottom: 8px;
+  margin-bottom: 16px;
+}
+
+.toc-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.toc-table th {
+  padding: 6px 8px;
+  font-size: 8px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-secondary);
+  border-bottom: 1.5px solid var(--border-muted);
+  text-align: left;
+}
+
+.toc-table td {
+  padding: 8px;
+  font-size: 11px;
+  border-bottom: 0.5px solid var(--border-light);
+}
+
+.toc-name { font-weight: 600; }
+.toc-count { width: 80px; text-align: center; color: var(--text-secondary); }
+.toc-amount {
+  width: 100px;
+  text-align: right;
   font-family: var(--font-mono);
-  font-size: 12px;
-  font-weight: 600;
+  font-size: 10px;
+}
+.toc-table th.toc-amount,
+.toc-table th.toc-count { text-align: center; }
+
+.toc-total {
+  font-weight: 700;
+  border-top: 2px solid var(--border-muted);
 }
 
-.positive { color: #16a34a; }
-.negative { color: #dc2626; }
+/* ── Sheet sections ─────────────────────────────────────── */
 
-/* Sheet sections */
+.page-break { page-break-before: always; }
+
 .sheet-section {
   margin-bottom: 24px;
-  page-break-inside: avoid;
 }
 
 .sheet-name {
@@ -235,6 +353,7 @@ body {
   width: 100%;
   border-collapse: collapse;
   margin-bottom: 8px;
+  table-layout: fixed;
 }
 
 .tx-table th {
@@ -253,27 +372,22 @@ body {
   font-size: 9px;
   color: var(--text-primary);
   border-bottom: 0.5px solid var(--border-light);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .tx-table tr.alt {
   background: var(--row-alt);
 }
 
-.tx-table .date { width: 70px; }
-.tx-table .desc { }
 .tx-table .amount {
-  width: 80px;
   text-align: right;
   font-family: var(--font-mono);
   font-size: 9px;
 }
 .tx-table th.amount { text-align: right; }
-.tx-table .type { width: 52px; }
-.tx-table .status { width: 58px; }
-.tx-table .cat { width: 80px; }
-.tx-table .party { width: 80px; }
 .tx-table .balance {
-  width: 80px;
   text-align: right;
   font-family: var(--font-mono);
   font-size: 9px;
@@ -317,25 +431,62 @@ body {
 </style>
 </head>
 <body>
-  <div class="report-header">
-    <div class="report-brand">
-      ${data.logoDataUri ? `<img class="report-logo" src="${data.logoDataUri}" />` : ''}
-      <div>
-        <div class="report-title">Transaction Report</div>
-        <div class="report-subtitle">${esc(data.orgName || 'Fidra')}</div>
+
+  <!-- Cover page -->
+  <div class="cover">
+    ${data.logoDataUri ? `<img class="cover-logo" src="${data.logoDataUri}" />` : ''}
+    <div class="cover-org">${esc(orgName)}</div>
+    <hr class="cover-rule">
+    <div class="cover-title">Transaction Report</div>
+    <div class="cover-date">${esc(dateStr)}</div>
+    <div class="cover-summary">
+      <div class="stat">
+        <div class="stat-value">${data.sheetData.size}</div>
+        <div class="stat-label">Sheet${data.sheetData.size !== 1 ? 's' : ''}</div>
       </div>
-    </div>
-    <div class="report-meta">
-      <strong>Generated:</strong> ${esc(dateStr)}<br>
-      <strong>Sheets:</strong> ${data.sheetData.size}<br>
-      <strong>Transactions:</strong> ${grandCount}
+      <div class="stat">
+        <div class="stat-value">${grandCount}</div>
+        <div class="stat-label">Transaction${grandCount !== 1 ? 's' : ''}</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value positive">\u00a3${fmtNum(grandIncome)}</div>
+        <div class="stat-label">Income</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value negative">-\u00a3${fmtNum(grandExpenses)}</div>
+        <div class="stat-label">Expenses</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value" style="color:var(--accent)">${grandNet >= 0 ? '' : '-'}\u00a3${fmtNum(Math.abs(grandNet))}</div>
+        <div class="stat-label">Net</div>
+      </div>
     </div>
   </div>
 
-  <div class="grand-summary">
-    <div class="summary-item"><span class="label">Total Income</span><span class="value positive">\u00a3${fmtNum(grandIncome)}</span></div>
-    <div class="summary-item"><span class="label">Total Expenses</span><span class="value negative">-\u00a3${fmtNum(grandExpenses)}</span></div>
-    <div class="summary-item"><span class="label">Net</span><span class="value" style="color:var(--accent);font-size:13px">${grandNet >= 0 ? '' : '-'}\u00a3${fmtNum(Math.abs(grandNet))}</span></div>
+  <!-- Table of Contents -->
+  <div class="toc">
+    <h2 class="toc-heading">Contents</h2>
+    <table class="toc-table">
+      <thead>
+        <tr>
+          <th>Sheet</th>
+          <th class="toc-count">Transactions</th>
+          <th class="toc-amount">Income</th>
+          <th class="toc-amount">Expenses</th>
+          <th class="toc-amount">Net</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${tocEntries}
+        <tr class="toc-total">
+          <td class="toc-name">Total</td>
+          <td class="toc-count">${grandCount}</td>
+          <td class="toc-amount positive">\u00a3${fmtNum(grandIncome)}</td>
+          <td class="toc-amount negative">-\u00a3${fmtNum(grandExpenses)}</td>
+          <td class="toc-amount" style="color:var(--accent);font-weight:700">${grandNet >= 0 ? '' : '-'}\u00a3${fmtNum(Math.abs(grandNet))}</td>
+        </tr>
+      </tbody>
+    </table>
   </div>
 
   ${sections}

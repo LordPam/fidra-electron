@@ -13,6 +13,7 @@ export function LocalSyncIndicator() {
   const state = useLocalSyncStore((s) => s.state);
   const pendingConflicts = useLocalSyncStore((s) => s.pendingConflicts);
   const lastError = useLocalSyncStore((s) => s.lastError);
+  const staleReason = useLocalSyncStore((s) => s.staleReason);
   const loadStatus = useLocalSyncStore((s) => s.loadStatus);
   const loadConfig = useLocalSyncStore((s) => s.loadConfig);
   const initEventListeners = useLocalSyncStore((s) => s.initEventListeners);
@@ -43,7 +44,7 @@ export function LocalSyncIndicator() {
     tooltipText = 'Local Sync: syncing...';
   } else if (state === 'stale') {
     dotColor = 'bg-amber-500';
-    tooltipText = 'Local Sync: no peer activity \u2014 check OneDrive';
+    tooltipText = `Local Sync: ${staleReason || 'sync issue detected'}`;
   } else if (pendingConflicts > 0) {
     dotColor = 'bg-orange-500';
     tooltipText = `Local Sync: ${pendingConflicts} conflict${pendingConflicts !== 1 ? 's' : ''}`;

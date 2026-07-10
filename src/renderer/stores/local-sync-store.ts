@@ -16,6 +16,7 @@ interface LocalSyncStoreState {
   pendingConflicts: number;
   lastError: string | null;
   syncFolder: string | null;
+  staleReason: string | null;
 
   // Device config
   config: LocalSyncConfig | null;
@@ -50,6 +51,7 @@ export const useLocalSyncStore = create<LocalSyncStoreState>((set, get) => ({
   pendingConflicts: 0,
   lastError: null,
   syncFolder: null,
+  staleReason: null,
   config: null,
   conflicts: [],
   configuring: false,
@@ -66,6 +68,7 @@ export const useLocalSyncStore = create<LocalSyncStoreState>((set, get) => ({
         pendingConflicts: status.pendingConflicts,
         lastError: status.lastError,
         syncFolder: status.syncFolder,
+        staleReason: status.staleReason,
       });
       // If there are pending conflicts, load them so the overlay can show them
       if (status.pendingConflicts > 0) {
@@ -183,6 +186,7 @@ export const useLocalSyncStore = create<LocalSyncStoreState>((set, get) => ({
         pendingConflicts: status.pendingConflicts,
         lastError: status.lastError,
         syncFolder: status.syncFolder,
+        staleReason: status.staleReason,
       });
     });
 

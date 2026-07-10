@@ -44,7 +44,7 @@ import {
 import { BundleIntegrityError, BundleCryptoError } from './bundle-crypto';
 import { BundleFormatError } from './bundle-format';
 import { syncLog, errorMessage } from './sync-log';
-import { writeHeartbeat, checkStaleness } from './heartbeat';
+import { writeHeartbeat, isSyncProviderRunning, isNetworkReachable } from './heartbeat';
 import { findLatestSnapshot } from './bundle-io';
 import { getAttachmentStoragePath } from '../database/connection';
 import type { ImportChangeDetail } from '../../shared/ipc-types';
@@ -85,6 +85,7 @@ export interface SyncStatus {
   lastImportAt: string | null;
   pendingConflicts: number;
   lastError: string | null;
+  staleReason: string | null;
 }
 
 export interface ExportResult {
@@ -112,8 +113,6 @@ const DETAIL_THRESHOLD = 8;
 /** Heartbeat write interval (ms). Each device writes a small file this often. */
 const HEARTBEAT_INTERVAL_MS = 2 * 60 * 1000; // 2 minutes
 
-/** Peer heartbeat age (ms) beyond which all peers are considered stale. */
-const STALENESS_THRESHOLD_MS = 10 * 60 * 1000; // 10 minutes
 
 /**
  * Format a currency amount as a simple £X.XX string.
@@ -261,6 +260,7 @@ export class SyncOrchestrator {
   private lastExportAt: string | null = null;
   private lastImportAt: string | null = null;
   private lastError: string | null = null;
+  private staleReason: string | null = null;
 
   constructor(options: SyncOrchestratorOptions) {
     this.db = options.db;
@@ -395,6 +395,7 @@ export class SyncOrchestrator {
       lastImportAt: this.lastImportAt,
       pendingConflicts,
       lastError: this.lastError,
+      staleReason: this.staleReason,
     };
   }
 
@@ -1033,27 +1034,53 @@ export class SyncOrchestrator {
     if (!this.running) return;
     try {
       writeHeartbeat(this.syncFolder, this.deviceId);
-      this.evaluateStaleness();
+      this.evaluateStaleness().catch((e) => {
+        syncLog('warn', 'Staleness evaluation failed', { error: errorMessage(e) });
+      });
     } catch (e) {
       syncLog('warn', 'Heartbeat tick failed', { error: errorMessage(e) });
     }
   }
 
   /**
-   * Check peer heartbeats and transition to/from 'stale' as appropriate.
-   * Only enters 'stale' when currently 'idle' and all peers are stale.
-   * Exits 'stale' back to 'idle' when any peer becomes fresh.
+   * Check whether this device's sync provider is running and whether
+   * the network is reachable. Transition to/from 'stale' as appropriate.
+   *
+   * Two signals trigger stale:
+   * 1. Sync provider process not running (OneDrive, Dropbox, etc.)
+   * 2. No internet connectivity (DNS lookup fails)
+   *
+   * Peer heartbeat staleness is NOT used because teammates may simply
+   * not have Fidra open, which is normal and not an indication of a
+   * sync problem.
    */
-  private evaluateStaleness(): void {
-    const result = checkStaleness(this.syncFolder, this.deviceId, STALENESS_THRESHOLD_MS);
+  private async evaluateStaleness(): Promise<void> {
+    const providerDown = !isSyncProviderRunning(this.syncFolder);
 
-    if (result.hasPeers && result.allPeersStale) {
+    if (providerDown) {
+      this.staleReason = 'sync provider not running';
       if (this.statusState === 'idle' || this.statusState === 'stale') {
         this.statusState = 'stale';
         this.onStatusChanged?.(this.getStatus());
       }
-    } else if (this.statusState === 'stale') {
-      // Peers are fresh again — clear stale
+      return;
+    }
+
+    // Provider is running — check network reachability
+    const networkUp = await isNetworkReachable();
+
+    if (!networkUp) {
+      this.staleReason = 'no internet connection';
+      if (this.statusState === 'idle' || this.statusState === 'stale') {
+        this.statusState = 'stale';
+        this.onStatusChanged?.(this.getStatus());
+      }
+      return;
+    }
+
+    // Everything healthy — clear stale if previously set
+    if (this.statusState === 'stale') {
+      this.staleReason = null;
       this.statusState = 'idle';
       this.onStatusChanged?.(this.getStatus());
     }
@@ -1093,8 +1120,7 @@ export class SyncOrchestrator {
     if (state === 'idle') {
       // Before confirming idle, check if we should be stale instead
       try {
-        const result = checkStaleness(this.syncFolder, this.deviceId, STALENESS_THRESHOLD_MS);
-        if (result.hasPeers && result.allPeersStale) {
+        if (!isSyncProviderRunning(this.syncFolder)) {
           state = 'stale';
         }
       } catch {

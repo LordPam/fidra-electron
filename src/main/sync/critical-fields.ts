@@ -9,6 +9,9 @@
  */
 
 const CRITICAL_FIELDS: Record<string, ReadonlySet<string>> = {
+  // linked_id is intentionally NOT a critical field — it's set once at creation
+  // and never edited. Concurrent changes to linked_id are not expected, so
+  // cr-sqlite last-write-wins is safe for this column.
   transactions: new Set([
     'amount',
     'date',

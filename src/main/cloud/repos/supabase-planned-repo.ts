@@ -146,6 +146,7 @@ function rowToPlanned(row: Record<string, unknown>): PlannedTemplateRow {
     party: row.party != null ? String(row.party) : null,
     activity: row.activity != null ? String(row.activity) : null,
     notes: row.notes != null ? String(row.notes) : null,
+    transfer_target_sheet: row.transfer_target_sheet != null ? String(row.transfer_target_sheet) : null,
     end_date: row.end_date != null ? toDateString(row.end_date) : null,
     occurrence_count: row.occurrence_count != null ? Number(row.occurrence_count) : null,
     skipped_dates: toJsonString(row.skipped_dates ?? []),

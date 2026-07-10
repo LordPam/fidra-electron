@@ -20,25 +20,25 @@ export class PlannedRepo {
       this.db.prepare(
         `UPDATE planned_templates SET start_date=?, description=?, amount=?, type=?,
          frequency=?, target_sheet=?, category=?, party=?, activity=?, notes=?,
-         end_date=?, occurrence_count=?, skipped_dates=?, fulfilled_dates=?, version=?
+         transfer_target_sheet=?, end_date=?, occurrence_count=?, skipped_dates=?, fulfilled_dates=?, version=?
          WHERE id=?`,
       ).run(
         data.start_date, data.description, data.amount, data.type,
         data.frequency, data.target_sheet, data.category, data.party, data.activity, data.notes,
-        data.end_date, data.occurrence_count, data.skipped_dates, data.fulfilled_dates,
+        data.transfer_target_sheet, data.end_date, data.occurrence_count, data.skipped_dates, data.fulfilled_dates,
         data.version, data.id,
       );
     } else {
       this.db.prepare(
         `INSERT INTO planned_templates
          (id, start_date, description, amount, type, frequency, target_sheet,
-          category, party, activity, notes, end_date, occurrence_count,
+          category, party, activity, notes, transfer_target_sheet, end_date, occurrence_count,
           skipped_dates, fulfilled_dates, version, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       ).run(
         data.id, data.start_date, data.description, data.amount, data.type,
         data.frequency, data.target_sheet, data.category, data.party, data.activity, data.notes,
-        data.end_date, data.occurrence_count, data.skipped_dates, data.fulfilled_dates,
+        data.transfer_target_sheet, data.end_date, data.occurrence_count, data.skipped_dates, data.fulfilled_dates,
         data.version, data.created_at,
       );
     }
@@ -51,14 +51,14 @@ export class PlannedRepo {
     const insertStmt = this.db.prepare(
       `INSERT INTO planned_templates
        (id, start_date, description, amount, type, frequency, target_sheet,
-        category, party, activity, notes, end_date, occurrence_count,
+        category, party, activity, notes, transfer_target_sheet, end_date, occurrence_count,
         skipped_dates, fulfilled_dates, version, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     );
     const updateStmt = this.db.prepare(
       `UPDATE planned_templates SET start_date=?, description=?, amount=?, type=?,
        frequency=?, target_sheet=?, category=?, party=?, activity=?, notes=?,
-       end_date=?, occurrence_count=?, skipped_dates=?, fulfilled_dates=?,
+       transfer_target_sheet=?, end_date=?, occurrence_count=?, skipped_dates=?, fulfilled_dates=?,
        version=? WHERE id=?`,
     );
     const existsStmt = this.db.prepare('SELECT 1 FROM planned_templates WHERE id = ?');
@@ -69,14 +69,14 @@ export class PlannedRepo {
           updateStmt.run(
             data.start_date, data.description, data.amount, data.type,
             data.frequency, data.target_sheet, data.category, data.party, data.activity, data.notes,
-            data.end_date, data.occurrence_count, data.skipped_dates, data.fulfilled_dates,
+            data.transfer_target_sheet, data.end_date, data.occurrence_count, data.skipped_dates, data.fulfilled_dates,
             data.version, data.id,
           );
         } else {
           insertStmt.run(
             data.id, data.start_date, data.description, data.amount, data.type,
             data.frequency, data.target_sheet, data.category, data.party, data.activity, data.notes,
-            data.end_date, data.occurrence_count, data.skipped_dates, data.fulfilled_dates,
+            data.transfer_target_sheet, data.end_date, data.occurrence_count, data.skipped_dates, data.fulfilled_dates,
             data.version, data.created_at,
           );
         }

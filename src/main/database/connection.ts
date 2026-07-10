@@ -20,6 +20,7 @@ const SCHEMA_DDL = `
     reference TEXT,
     activity TEXT,
     notes TEXT,
+    linked_id TEXT,
     version INTEGER DEFAULT 1,
     created_at TEXT NOT NULL DEFAULT '',
     modified_at TEXT,
@@ -43,6 +44,7 @@ const SCHEMA_DDL = `
     party TEXT,
     activity TEXT,
     notes TEXT,
+    transfer_target_sheet TEXT,
     end_date TEXT,
     occurrence_count INTEGER,
     skipped_dates TEXT DEFAULT '[]',
@@ -308,6 +310,70 @@ function runMigrations(sqlite: Database.Database): void {
     }
   }
 
+  // Add linked_id column to transactions if missing (inter-account transfers)
+  const txCols2 = sqlite.pragma('table_info(transactions)') as { name: string }[];
+  const txIsCrrView = !!(sqlite.prepare(
+    "SELECT 1 FROM sqlite_master WHERE type = 'view' AND name = 'transactions'",
+  ).get());
+  if (txCols2.length > 0 && !txCols2.some((c) => c.name === 'linked_id')) {
+    if (txIsCrrView) {
+      sqlite.exec('ALTER TABLE transactions__crsql_crr ADD COLUMN linked_id TEXT');
+    } else {
+      sqlite.exec('ALTER TABLE transactions ADD COLUMN linked_id TEXT');
+    }
+  }
+  // Index must be created after migration ensures the column exists (not in SCHEMA_DDL,
+  // which runs before migrations on existing databases that lack the column).
+  // For CRR databases, the index goes on the underlying table, not the view.
+  if (txIsCrrView) {
+    sqlite.exec('CREATE INDEX IF NOT EXISTS idx_transactions_linked ON transactions__crsql_crr(linked_id)');
+  } else {
+    sqlite.exec('CREATE INDEX IF NOT EXISTS idx_transactions_linked ON transactions(linked_id)');
+  }
+
+  // Add transfer_target_sheet column to planned_templates if missing (transfer templates)
+  const ptCols2 = sqlite.pragma('table_info(planned_templates)') as { name: string }[];
+  if (ptCols2.length > 0 && !ptCols2.some((c) => c.name === 'transfer_target_sheet')) {
+    const isCrrView = !!(sqlite.prepare(
+      "SELECT 1 FROM sqlite_master WHERE type = 'view' AND name = 'planned_templates'",
+    ).get());
+    if (isCrrView) {
+      sqlite.exec('ALTER TABLE planned_templates__crsql_crr ADD COLUMN transfer_target_sheet TEXT');
+    } else {
+      sqlite.exec('ALTER TABLE planned_templates ADD COLUMN transfer_target_sheet TEXT');
+    }
+  }
+
+  // After adding linked_id/transfer_target_sheet, CRR triggers become stale.
+  // Drop and re-register to rebuild them.
+  if (isCrrInitialized(sqlite)) {
+    const txCrrSentinel = sqlite.prepare("SELECT value FROM sync_meta WHERE key = '_crr_tx_linked_id'").get() as
+      | { value: string }
+      | undefined;
+    if (!txCrrSentinel) {
+      sqlite.exec('DROP TRIGGER IF EXISTS "transactions__crsql_itrig"');
+      sqlite.exec('DROP TRIGGER IF EXISTS "transactions__crsql_utrig"');
+      sqlite.exec('DROP TRIGGER IF EXISTS "transactions__crsql_dtrig"');
+      sqlite.exec("SELECT crsql_as_crr('transactions')");
+      sqlite.prepare(
+        "INSERT INTO sync_meta (key, value) VALUES ('_crr_tx_linked_id', '1') ON CONFLICT(key) DO UPDATE SET value = '1'",
+      ).run();
+    }
+
+    const ptCrrSentinel2 = sqlite.prepare("SELECT value FROM sync_meta WHERE key = '_crr_planned_transfer_sheet'").get() as
+      | { value: string }
+      | undefined;
+    if (!ptCrrSentinel2) {
+      sqlite.exec('DROP TRIGGER IF EXISTS "planned_templates__crsql_itrig"');
+      sqlite.exec('DROP TRIGGER IF EXISTS "planned_templates__crsql_utrig"');
+      sqlite.exec('DROP TRIGGER IF EXISTS "planned_templates__crsql_dtrig"');
+      sqlite.exec("SELECT crsql_as_crr('planned_templates')");
+      sqlite.prepare(
+        "INSERT INTO sync_meta (key, value) VALUES ('_crr_planned_transfer_sheet', '1') ON CONFLICT(key) DO UPDATE SET value = '1'",
+      ).run();
+    }
+  }
+
   // Migrate sync watermarks from CRR settings table to non-CRR sync_meta table.
   // Writing watermarks to a CRR table bumps db_version, causing an infinite export loop.
   migrateSyncWatermarks(sqlite);
@@ -373,6 +439,7 @@ function migrateCrrDefaults(sqlite: Database.Database): void {
         status TEXT NOT NULL DEFAULT '--' CHECK (status IN ('--', 'pending', 'approved', 'rejected', 'planned')),
         sheet TEXT NOT NULL DEFAULT '',
         category TEXT, party TEXT, reference TEXT, activity TEXT, notes TEXT,
+        linked_id TEXT,
         version INTEGER DEFAULT 1,
         created_at TEXT NOT NULL DEFAULT '',
         modified_at TEXT, modified_by TEXT
@@ -384,6 +451,7 @@ function migrateCrrDefaults(sqlite: Database.Database): void {
         'CREATE INDEX IF NOT EXISTS idx_transactions_sheet ON transactions(sheet)',
         'CREATE INDEX IF NOT EXISTS idx_transactions_type ON transactions(type)',
         'CREATE INDEX IF NOT EXISTS idx_transactions_status ON transactions(status)',
+        'CREATE INDEX IF NOT EXISTS idx_transactions_linked ON transactions(linked_id)',
       ],
     },
     {
@@ -396,7 +464,8 @@ function migrateCrrDefaults(sqlite: Database.Database): void {
         type TEXT NOT NULL DEFAULT 'expense' CHECK (type IN ('income', 'expense')),
         frequency TEXT NOT NULL DEFAULT 'once' CHECK (frequency IN ('once', 'weekly', 'biweekly', 'monthly', 'quarterly', 'yearly')),
         target_sheet TEXT NOT NULL DEFAULT '',
-        category TEXT, party TEXT, activity TEXT, notes TEXT, end_date TEXT, occurrence_count INTEGER,
+        category TEXT, party TEXT, activity TEXT, notes TEXT, transfer_target_sheet TEXT,
+        end_date TEXT, occurrence_count INTEGER,
         skipped_dates TEXT DEFAULT '[]', fulfilled_dates TEXT DEFAULT '[]',
         version INTEGER DEFAULT 1,
         created_at TEXT NOT NULL DEFAULT ''

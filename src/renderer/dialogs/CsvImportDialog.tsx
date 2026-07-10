@@ -883,21 +883,21 @@ function StepPreview({
                       {row.parsed.amount != null ? row.parsed.amount.toFixed(2) : '—'}
                     </td>
                     <td className="px-2 py-1">
-                      {(row.userOverrides.type ?? row.prediction.type ?? row.parsed.type) ? (
+                      {(row.userOverrides.type ?? row.parsed.type ?? row.prediction.type) ? (
                         <Badge
                           variant="outline"
                           className={cn(
                             'text-[10px] px-1.5 py-0 cursor-pointer select-none',
-                            (row.userOverrides.type ?? row.prediction.type ?? row.parsed.type) === 'income'
+                            (row.userOverrides.type ?? row.parsed.type ?? row.prediction.type) === 'income'
                               ? 'text-green-600 border-green-300' : 'text-red-600 border-red-300',
                           )}
                           onClick={() => {
-                            const current = row.userOverrides.type ?? row.prediction.type ?? row.parsed.type ?? 'expense';
+                            const current = row.userOverrides.type ?? row.parsed.type ?? row.prediction.type ?? 'expense';
                             const newType = current === 'income' ? 'expense' : 'income';
                             onUpdateRow(i, { type: newType, status: defaultStatusForType(newType) });
                           }}
                         >
-                          {row.userOverrides.type ?? row.prediction.type ?? row.parsed.type}
+                          {row.userOverrides.type ?? row.parsed.type ?? row.prediction.type}
                         </Badge>
                       ) : '—'}
                     </td>

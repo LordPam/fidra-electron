@@ -49,7 +49,23 @@ export function registerTransactionHandlers(): void {
     if (success && existing) {
       logTransactionDeleted(ctx, existing);
     }
-    return { success, deletedAttachments };
+
+    // Cascade delete: if this was a transfer, delete the counterpart too
+    let deletedCounterpart: import('../../shared/ipc-types').TransactionRow | null = null;
+    let counterpartAttachments: import('../../shared/ipc-types').AttachmentRow[] = [];
+    if (existing?.linked_id) {
+      const counterparts = ctx.repos.transactions.getByLinkedId(existing.linked_id)
+        .filter((t: import('../../shared/ipc-types').TransactionRow) => t.id !== validId);
+      if (counterparts.length > 0) {
+        const cp = counterparts[0];
+        deletedCounterpart = cp;
+        counterpartAttachments = await attachmentService.removeAllForTransaction(cp.id, ctx);
+        ctx.repos.transactions.remove(cp.id);
+        logTransactionDeleted(ctx, cp);
+      }
+    }
+
+    return { success, deletedAttachments, deletedCounterpart, counterpartAttachments };
   });
 
   ipcMain.handle('transactions:bulkSave', (event, items: unknown) => {
@@ -71,17 +87,55 @@ export function registerTransactionHandlers(): void {
   ipcMain.handle('transactions:bulkDelete', async (event, ids: unknown) => {
     const validIds = z.array(z.string()).parse(ids);
     const ctx = resolveContext(event);
-    const deletedAttachments: Record<string, import('../../shared/ipc-types').AttachmentRow[]> = {};
+
+    // Expand ID set to include counterparts of any transfers in the batch
+    const idSet = new Set(validIds);
     for (const id of validIds) {
+      const tx = ctx.repos.transactions.getById(id);
+      if (tx?.linked_id) {
+        const counterparts = ctx.repos.transactions.getByLinkedId(tx.linked_id);
+        for (const cp of counterparts) {
+          idSet.add(cp.id);
+        }
+      }
+    }
+    const expandedIds = [...idSet];
+
+    const deletedAttachments: Record<string, import('../../shared/ipc-types').AttachmentRow[]> = {};
+    for (const id of expandedIds) {
       const removed = await attachmentService.removeAllForTransaction(id, ctx);
       if (removed.length > 0) {
         deletedAttachments[id] = removed;
       }
     }
-    const count = ctx.repos.transactions.bulkRemove(validIds);
+    const count = ctx.repos.transactions.bulkRemove(expandedIds);
     if (count > 0) {
-      logBulkTransactionsDeleted(ctx, count, validIds);
+      logBulkTransactionsDeleted(ctx, count, expandedIds);
     }
     return { count, deletedAttachments };
+  });
+
+  ipcMain.handle('transactions:saveTransfer', (event, expense: unknown, income: unknown) => {
+    const validExpense = transactionRowSchema.parse(expense);
+    const validIncome = transactionRowSchema.parse(income);
+
+    if (!validExpense.linked_id || !validIncome.linked_id || validExpense.linked_id !== validIncome.linked_id) {
+      throw new Error('Transfer pair must share the same non-null linked_id');
+    }
+    if (validExpense.type !== 'expense' || validIncome.type !== 'income') {
+      throw new Error('Transfer must have one expense and one income');
+    }
+
+    const ctx = resolveContext(event);
+    const savedExpense = ctx.repos.transactions.save(validExpense);
+    const savedIncome = ctx.repos.transactions.save(validIncome);
+    logTransactionCreated(ctx, savedExpense);
+    logTransactionCreated(ctx, savedIncome);
+    return { expense: savedExpense, income: savedIncome };
+  });
+
+  ipcMain.handle('transactions:getByLinkedId', (event, linkedId: unknown) => {
+    const validLinkedId = z.string().parse(linkedId);
+    return resolveContext(event).repos.transactions.getByLinkedId(validLinkedId);
   });
 }

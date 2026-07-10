@@ -552,6 +552,7 @@ export class WindowManager {
             pendingConflicts: status.pendingConflicts,
             lastError: status.lastError,
             syncFolder,
+            staleReason: status.staleReason,
           };
           ctx.sendToRenderer('localSync:statusChanged', fullStatus);
         },
@@ -578,6 +579,7 @@ export class WindowManager {
         pendingConflicts: 0,
         lastError: `Auto-start failed: ${msg}`,
         syncFolder,
+        staleReason: null,
       };
       ctx.sendToRenderer('localSync:statusChanged', failedStatus);
     }

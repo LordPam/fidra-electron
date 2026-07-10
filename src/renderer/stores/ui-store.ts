@@ -36,6 +36,7 @@ interface UiState {
   setReportOrgName: (name: string) => void;
   setFYStartMonth: (month: number) => void;
   loadFYStartMonth: () => Promise<void>;
+  loadOrgName: () => Promise<void>;
   loadUiPreferences: () => Promise<void>;
 }
 
@@ -52,7 +53,6 @@ function persistPrefs(state: UiState): void {
     showPlanned: state.showPlanned,
     filteredBalanceMode: state.filteredBalanceMode,
     theme: state.theme,
-    reportOrgName: state.reportOrgName,
   });
 }
 
@@ -105,7 +105,7 @@ export const useUiStore = create<UiState>((set, get) => ({
   },
   setReportOrgName: (name: string) => {
     set({ reportOrgName: name });
-    persistPrefs(get());
+    window.api.saveOrgName(name);
   },
   setFYStartMonth: (month: number) => {
     set({ fyStartMonth: month });
@@ -119,9 +119,19 @@ export const useUiStore = create<UiState>((set, get) => ({
       // Keep default
     }
   },
+  loadOrgName: async () => {
+    try {
+      const name = await window.api.getOrgName();
+      set({ reportOrgName: name });
+    } catch {
+      // Keep default
+    }
+  },
   loadUiPreferences: async () => {
+    let legacyOrgName = '';
     try {
       const prefs = await window.api.getUiPreferences();
+      legacyOrgName = prefs.reportOrgName ?? '';
       set({
         tableZoom: prefs.tableZoom ?? DEFAULT_ZOOM,
         plannedTableZoom: prefs.plannedTableZoom ?? DEFAULT_ZOOM,
@@ -129,15 +139,26 @@ export const useUiStore = create<UiState>((set, get) => ({
         showPlanned: prefs.showPlanned ?? false,
         filteredBalanceMode: prefs.filteredBalanceMode ?? false,
         theme: prefs.theme ?? 'system',
-        reportOrgName: prefs.reportOrgName ?? '',
       });
     } catch {
       // Settings file not available yet — keep defaults
     }
-    // Load per-database FY start month
+    // Load per-database settings (FY start month + org name)
     try {
       const month = await window.api.getFYStartMonth();
       set({ fyStartMonth: month });
+    } catch {
+      // Keep default
+    }
+    try {
+      const name = await window.api.getOrgName();
+      if (name) {
+        set({ reportOrgName: name });
+      } else if (legacyOrgName) {
+        // Migrate from global JSON → per-database SQLite
+        set({ reportOrgName: legacyOrgName });
+        window.api.saveOrgName(legacyOrgName);
+      }
     } catch {
       // Keep default
     }

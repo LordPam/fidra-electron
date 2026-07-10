@@ -166,6 +166,7 @@ function rowToTransaction(row: Record<string, unknown>): TransactionRow {
     reference: row.reference != null ? String(row.reference) : null,
     activity: row.activity != null ? String(row.activity) : null,
     notes: row.notes != null ? String(row.notes) : null,
+    linked_id: row.linked_id != null ? String(row.linked_id) : null,
     version: Number(row.version),
     created_at: toISOString(row.created_at),
     modified_at: row.modified_at != null ? toISOString(row.modified_at) : null,

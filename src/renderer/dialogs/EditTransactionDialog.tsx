@@ -21,7 +21,7 @@ import { DropZone } from '@/components/DropZone';
 import { EntityHistory } from '@/components/EntityHistory';
 import type { TransactionRow, AttachmentRow } from '../../shared/ipc-types';
 import { resolveStatus } from '../../shared/transaction-rules';
-import { Paperclip, File, FileText, FileImage, FileSpreadsheet, Trash2 } from 'lucide-react';
+import { Paperclip, File, FileText, FileImage, FileSpreadsheet, Trash2, ArrowRightLeft } from 'lucide-react';
 import { useUndoStore } from '@/stores/undo-store';
 import { useAttachmentSignal } from '@/stores/attachment-signal';
 import { createAddAttachmentCommand, createRemoveAttachmentCommand } from '@/services/undo';
@@ -66,7 +66,10 @@ export function EditTransactionDialog({
   const [status, setStatus] = useState('');
   const [attachments, setAttachments] = useState<AttachmentRow[]>([]);
   const [fieldErrors, setFieldErrors] = useState<Record<string, boolean>>({});
+  const [counterpartSheet, setCounterpartSheet] = useState<string | null>(null);
   const amountRef = useRef<HTMLInputElement>(null);
+
+  const isTransfer = transaction?.linked_id != null;
 
   // Initialize form fields only when the dialog opens, not when the prop
   // reference changes mid-edit (which happens during cloud sync refreshes).
@@ -88,9 +91,17 @@ export function EditTransactionDialog({
       setSheet(transaction.sheet);
       setStatus(transaction.status);
       setFieldErrors({});
+      setCounterpartSheet(null);
       window.api.getAttachments(transaction.id).then((rows) => {
         setAttachments(rows);
       });
+      // Look up counterpart sheet for transfer display
+      if (transaction.linked_id) {
+        window.api.getTransactionsByLinkedId(transaction.linked_id).then((linked) => {
+          const counterpart = linked.find((t) => t.id !== transaction.id);
+          if (counterpart) setCounterpartSheet(counterpart.sheet);
+        });
+      }
       // Focus the amount input after the dialog finishes opening, so initial
       // focus doesn't land on the type toggle buttons (which would cause
       // Enter-key propagation to switch income→expense).
@@ -213,23 +224,42 @@ export function EditTransactionDialog({
         </DialogHeader>
 
         <div className="flex flex-col gap-3 py-2 min-w-0">
-          {/* Type toggle — branded teal */}
-          <div className="flex gap-1 rounded-md bg-surface-inset p-1">
-            <button
-              type="button"
-              className={`flex-1 rounded-md px-3 py-1.5 text-sm font-display font-medium transition-fidra ${type === 'expense' ? 'bg-fidra-teal text-fidra-navy shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
-              onClick={() => { setType('expense'); if (status === '--') setStatus('pending'); }}
-            >
-              Expense
-            </button>
-            <button
-              type="button"
-              className={`flex-1 rounded-md px-3 py-1.5 text-sm font-display font-medium transition-fidra ${type === 'income' ? 'bg-fidra-teal text-fidra-navy shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
-              onClick={() => { setType('income'); setStatus('--'); }}
-            >
-              Income
-            </button>
-          </div>
+          {/* Transfer banner */}
+          {isTransfer && (
+            <div className="flex items-center gap-2 rounded-md bg-muted/50 px-3 py-2 text-xs text-muted-foreground border border-border-subtle">
+              <ArrowRightLeft className="h-3.5 w-3.5 shrink-0" />
+              <span>
+                Transfer {type === 'expense' ? 'to' : 'from'}{' '}
+                <span className="font-medium text-foreground">{counterpartSheet || '…'}</span>
+              </span>
+            </div>
+          )}
+
+          {/* Type toggle — branded teal (locked for transfers) */}
+          {isTransfer ? (
+            <div className="flex gap-1 rounded-md bg-surface-inset p-1 opacity-50 pointer-events-none">
+              <div className="flex-1 rounded-md px-3 py-1.5 text-sm font-display font-medium bg-fidra-teal text-fidra-navy shadow-sm text-center">
+                Transfer
+              </div>
+            </div>
+          ) : (
+            <div className="flex gap-1 rounded-md bg-surface-inset p-1">
+              <button
+                type="button"
+                className={`flex-1 rounded-md px-3 py-1.5 text-sm font-display font-medium transition-fidra ${type === 'expense' ? 'bg-fidra-teal text-fidra-navy shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+                onClick={() => { setType('expense'); if (status === '--') setStatus('pending'); }}
+              >
+                Expense
+              </button>
+              <button
+                type="button"
+                className={`flex-1 rounded-md px-3 py-1.5 text-sm font-display font-medium transition-fidra ${type === 'income' ? 'bg-fidra-teal text-fidra-navy shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+                onClick={() => { setType('income'); setStatus('--'); }}
+              >
+                Income
+              </button>
+            </div>
+          )}
 
           {/* Hero amount */}
           <div className="flex items-center justify-center gap-1 py-4">
@@ -289,32 +319,34 @@ export function EditTransactionDialog({
           {/* Separator */}
           <div className="h-px bg-border-subtle" />
 
-          {/* Category + Party */}
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <Label className="text-xs">Category</Label>
-              <Select value={category || '__none__'} onValueChange={(v) => setCategory(v === '__none__' ? '' : v)}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Category" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none__">None</SelectItem>
-                  {categories.map((cat) => (
-                    <SelectItem key={cat} value={cat}>{cat}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+          {/* Category + Party (hidden for transfers) */}
+          {!isTransfer && (
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <Label className="text-xs">Category</Label>
+                <Select value={category || '__none__'} onValueChange={(v) => setCategory(v === '__none__' ? '' : v)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">None</SelectItem>
+                    {categories.map((cat) => (
+                      <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-xs">Party</Label>
+                <ComboboxInput
+                  value={party}
+                  onChange={setParty}
+                  suggestions={partySuggestions}
+                  placeholder="Party"
+                />
+              </div>
             </div>
-            <div>
-              <Label className="text-xs">Party</Label>
-              <ComboboxInput
-                value={party}
-                onChange={setParty}
-                suggestions={partySuggestions}
-                placeholder="Party"
-              />
-            </div>
-          </div>
+          )}
 
           {/* Reference + Activity */}
           <div className="grid grid-cols-2 gap-2">
@@ -333,9 +365,9 @@ export function EditTransactionDialog({
             </div>
           </div>
 
-          {/* Sheet + Notes (or just Notes if single sheet) */}
-          <div className={`grid gap-2 ${sheets.length > 1 ? 'grid-cols-2' : 'grid-cols-1'}`}>
-            {sheets.length > 1 && (
+          {/* Sheet + Notes (or just Notes if single sheet; sheet locked for transfers) */}
+          <div className={`grid gap-2 ${sheets.length > 1 && !isTransfer ? 'grid-cols-2' : 'grid-cols-1'}`}>
+            {sheets.length > 1 && !isTransfer && (
               <div>
                 <Label className="text-xs">Sheet</Label>
                 <Select value={sheet} onValueChange={setSheet}>

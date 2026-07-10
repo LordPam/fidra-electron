@@ -27,11 +27,15 @@ function isCountable(t: TransactionRow): boolean {
   return false;
 }
 
-export function groupByMonth(transactions: TransactionRow[]): MonthlyData[] {
+export function groupByMonth(
+  transactions: TransactionRow[],
+  opts?: { excludeTransfers?: boolean },
+): MonthlyData[] {
   const map = new Map<string, { income: number; expense: number }>();
 
   for (const t of transactions) {
     if (t.status === 'planned' || t.status === 'rejected') continue;
+    if (opts?.excludeTransfers && t.linked_id) continue;
     const monthKey = t.date.slice(0, 7); // 'YYYY-MM'
     let entry = map.get(monthKey);
     if (!entry) {
@@ -111,12 +115,14 @@ export function groupByCategory(
   transactions: TransactionRow[],
   type: 'income' | 'expense',
   topN = 5,
+  opts?: { excludeTransfers?: boolean },
 ): CategoryData[] {
   const map = new Map<string, number>();
 
   for (const t of transactions) {
     if (t.type !== type) continue;
     if (t.status === 'planned' || t.status === 'rejected') continue;
+    if (opts?.excludeTransfers && t.linked_id) continue;
     if (type === 'expense' && t.status !== 'approved') continue;
     if (type === 'income' && !COUNTABLE_INCOME.has(t.status)) continue;
 
@@ -166,4 +172,39 @@ export function getFYEnd(startMonth: number): string {
   // Last day of endMonth
   const lastDay = new Date(year, endMonth, 0).getDate();
   return `${year}-${String(endMonth).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+}
+
+/** Get the FY start date for any given date (not just today). */
+export function getFYStartForDate(date: Date, fyStartMonth: number): string {
+  if (fyStartMonth === 1) {
+    return `${date.getFullYear()}-01-01`;
+  }
+  const year = date.getMonth() + 1 >= fyStartMonth ? date.getFullYear() : date.getFullYear() - 1;
+  return `${year}-${String(fyStartMonth).padStart(2, '0')}-01`;
+}
+
+/** Get the FY end date for any given date (not just today). */
+export function getFYEndForDate(date: Date, fyStartMonth: number): string {
+  if (fyStartMonth === 1) {
+    return `${date.getFullYear()}-12-31`;
+  }
+  const year = date.getMonth() + 1 >= fyStartMonth ? date.getFullYear() + 1 : date.getFullYear();
+  const endMonth = fyStartMonth - 1;
+  const lastDay = new Date(year, endMonth, 0).getDate();
+  return `${year}-${String(endMonth).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+}
+
+/** Shift a date range backward (direction=-1) or forward (direction=1) by its own length. */
+export function shiftDateRange(
+  start: string,
+  end: string,
+  direction: -1 | 1,
+): { start: string; end: string } {
+  const s = new Date(start + 'T00:00:00');
+  const e = new Date(end + 'T00:00:00');
+  const durationMs = e.getTime() - s.getTime() + 86400000; // inclusive range
+  const shiftMs = durationMs * direction;
+  const newStart = new Date(s.getTime() + shiftMs);
+  const newEnd = new Date(e.getTime() + shiftMs);
+  return { start: toISODate(newStart), end: toISODate(newEnd) };
 }

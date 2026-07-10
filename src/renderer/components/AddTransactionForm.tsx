@@ -11,6 +11,7 @@ import {
 } from '@/components/ui/select';
 import { ComboboxInput } from '@/components/ComboboxInput';
 import { DropZone } from '@/components/DropZone';
+import { Checkbox } from '@/components/ui/checkbox';
 import { ChevronRight, ChevronDown, X, FileUp } from 'lucide-react';
 import type { TransactionRow } from '../../shared/ipc-types';
 import { defaultStatusForType } from '../../shared/transaction-rules';
@@ -28,7 +29,7 @@ interface AddTransactionFormProps {
   descriptionSuggestions: string[];
   partySuggestions: string[];
   activitySuggestions: string[];
-  onSubmit: (transaction: TransactionRow, pendingFiles: PendingFile[]) => void;
+  onSubmit: (transaction: TransactionRow, pendingFiles: PendingFile[], counterpart?: TransactionRow) => void;
   onImportCsv?: () => void;
 }
 
@@ -53,6 +54,7 @@ export function AddTransactionForm({
   onImportCsv,
 }: AddTransactionFormProps) {
   const [type, setType] = useState<'income' | 'expense'>('expense');
+  const [isTransfer, setIsTransfer] = useState(false);
   const [amount, setAmount] = useState('');
   const [date, setDate] = useState(todayISO());
   const [description, setDescription] = useState('');
@@ -62,6 +64,7 @@ export function AddTransactionForm({
   const [activity, setActivity] = useState('');
   const [notes, setNotes] = useState('');
   const [sheet, setSheet] = useState(currentSheet !== 'All Sheets' ? currentSheet : (sheets[0] ?? ''));
+  const [counterpartSheet, setCounterpartSheet] = useState('');
   const [pendingFiles, setPendingFiles] = useState<PendingFile[]>([]);
   const [showDetails, setShowDetails] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, boolean>>({});
@@ -92,6 +95,7 @@ export function AddTransactionForm({
     setActivity('');
     setNotes('');
     setDate(todayISO());
+    setCounterpartSheet('');
     setPendingFiles([]);
     setFieldErrors({});
     // Re-focus amount after reset
@@ -120,6 +124,11 @@ export function AddTransactionForm({
     if (!description.trim()) errors.description = true;
     if (!date) errors.date = true;
 
+    if (isTransfer) {
+      if (!counterpartSheet) errors.counterpartSheet = true;
+      if (counterpartSheet && counterpartSheet === (sheet || sheets[0])) errors.counterpartSheet = true;
+    }
+
     if (Object.keys(errors).length > 0) {
       setFieldErrors(errors);
       return;
@@ -133,26 +142,72 @@ export function AddTransactionForm({
     setFieldErrors({});
 
     const now = new Date().toISOString();
-    const transaction: TransactionRow = {
-      id: generateId(),
-      date,
-      description: description.trim(),
-      amount: parseFloat(amount).toFixed(2),
-      type,
-      status: defaultStatusForType(type),
-      sheet: targetSheet,
-      category: category || null,
-      party: party || null,
-      reference: reference || null,
-      activity: activity || null,
-      notes: notes || null,
-      version: 1,
-      created_at: now,
-      modified_at: null,
-      modified_by: null,
-    };
 
-    onSubmit(transaction, pendingFiles);
+    if (isTransfer) {
+      const linkedId = generateId();
+      // Current type determines this side; counterpart is the opposite
+      const thisSide: TransactionRow = {
+        id: generateId(),
+        date,
+        description: description.trim(),
+        amount: parseFloat(amount).toFixed(2),
+        type,
+        status: defaultStatusForType(type),
+        sheet: targetSheet,
+        category: null,
+        party: null,
+        reference: reference || null,
+        activity: activity || null,
+        notes: notes || null,
+        linked_id: linkedId,
+        version: 1,
+        created_at: now,
+        modified_at: null,
+        modified_by: null,
+      };
+      const otherType = type === 'expense' ? 'income' : 'expense';
+      const otherSide: TransactionRow = {
+        id: generateId(),
+        date,
+        description: description.trim(),
+        amount: parseFloat(amount).toFixed(2),
+        type: otherType,
+        status: defaultStatusForType(otherType),
+        sheet: counterpartSheet,
+        category: null,
+        party: null,
+        reference: reference || null,
+        activity: activity || null,
+        notes: notes || null,
+        linked_id: linkedId,
+        version: 1,
+        created_at: now,
+        modified_at: null,
+        modified_by: null,
+      };
+      onSubmit(thisSide, pendingFiles, otherSide);
+    } else {
+      const transaction: TransactionRow = {
+        id: generateId(),
+        date,
+        description: description.trim(),
+        amount: parseFloat(amount).toFixed(2),
+        type,
+        status: defaultStatusForType(type),
+        sheet: targetSheet,
+        category: category || null,
+        party: party || null,
+        reference: reference || null,
+        activity: activity || null,
+        notes: notes || null,
+        linked_id: null,
+        version: 1,
+        created_at: now,
+        modified_at: null,
+        modified_by: null,
+      };
+      onSubmit(transaction, pendingFiles);
+    }
     resetForm();
   };
 
@@ -225,6 +280,36 @@ export function AddTransactionForm({
           />
         </div>
 
+        {/* Internal transfer toggle */}
+        {sheets.length > 1 && (
+          <label className="flex items-center gap-1.5 cursor-pointer">
+            <Checkbox
+              checked={isTransfer}
+              onCheckedChange={(checked) => { setIsTransfer(!!checked); setCategory(''); setParty(''); }}
+            />
+            <span className="text-xs text-muted-foreground select-none">Internal transfer</span>
+          </label>
+        )}
+
+        {/* Transfer: counterpart account */}
+        {isTransfer && (
+          <div>
+            <Label className="text-xs">
+              {type === 'expense' ? 'Transfer to' : 'Transfer from'}
+            </Label>
+            <Select value={counterpartSheet} onValueChange={setCounterpartSheet}>
+              <SelectTrigger className={`text-xs ${fieldErrors.counterpartSheet ? 'border-destructive' : ''}`}>
+                <SelectValue placeholder={type === 'expense' ? 'Destination account' : 'Source account'} />
+              </SelectTrigger>
+              <SelectContent>
+                {sheets.filter((s) => s !== (sheet || sheets[0])).map((s) => (
+                  <SelectItem key={s} value={s}>{s}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+
         {/* More details toggle */}
         <button
           type="button"
@@ -238,31 +323,33 @@ export function AddTransactionForm({
         {/* Secondary fields */}
         {showDetails && (
           <div className="flex flex-col gap-3 animate-in fade-in slide-in-from-top-1 duration-150">
-            {/* Category + Party row */}
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <Label className="text-xs">Category</Label>
-                <Select value={category} onValueChange={setCategory}>
-                  <SelectTrigger className="text-xs">
-                    <SelectValue placeholder="Category" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {categories.map((cat) => (
-                      <SelectItem key={cat} value={cat}>{cat}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+            {/* Category + Party row (hidden in transfer mode) */}
+            {!isTransfer && (
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <Label className="text-xs">Category</Label>
+                  <Select value={category} onValueChange={setCategory}>
+                    <SelectTrigger className="text-xs">
+                      <SelectValue placeholder="Category" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {categories.map((cat) => (
+                        <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label className="text-xs">Party</Label>
+                  <ComboboxInput
+                    value={party}
+                    onChange={setParty}
+                    suggestions={partySuggestions}
+                    placeholder="Party"
+                  />
+                </div>
               </div>
-              <div>
-                <Label className="text-xs">Party</Label>
-                <ComboboxInput
-                  value={party}
-                  onChange={setParty}
-                  suggestions={partySuggestions}
-                  placeholder="Party"
-                />
-              </div>
-            </div>
+            )}
 
             {/* Reference + Activity row */}
             <div className="grid grid-cols-2 gap-2">
@@ -287,8 +374,8 @@ export function AddTransactionForm({
               </div>
             </div>
 
-            {/* Sheet (conditional) */}
-            {currentSheet === 'All Sheets' && sheets.length > 1 && (
+            {/* Sheet (conditional, hidden in transfer mode) */}
+            {!isTransfer && currentSheet === 'All Sheets' && sheets.length > 1 && (
               <div>
                 <Label className="text-xs">Sheet</Label>
                 <Select value={sheet} onValueChange={setSheet}>
@@ -345,7 +432,9 @@ export function AddTransactionForm({
 
         {/* Submit */}
         <Button type="submit" className="w-full mt-1">
-          Add {type === 'income' ? 'Income' : 'Expense'}
+          {isTransfer
+            ? `Add Transfer ${type === 'expense' ? 'Out' : 'In'}`
+            : `Add ${type === 'income' ? 'Income' : 'Expense'}`}
         </Button>
       </form>
 

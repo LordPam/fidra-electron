@@ -25,6 +25,7 @@ export const transactionRowSchema = z.object({
   reference: z.string().nullable(),
   activity: z.string().nullable(),
   notes: z.string().nullable(),
+  linked_id: z.string().nullable(),
   version: z.number().int(),
   created_at: z.string(),
   modified_at: z.string().nullable(),
@@ -47,6 +48,7 @@ export const plannedTemplateRowSchema = z.object({
   occurrence_count: z.number().int().nullable(),
   skipped_dates: z.string(),
   fulfilled_dates: z.string(),
+  transfer_target_sheet: z.string().nullable(),
   version: z.number().int(),
   created_at: z.string(),
 });
@@ -139,7 +141,7 @@ export const uiPreferencesSchema = z.object({
   showPlanned: z.boolean(),
   filteredBalanceMode: z.boolean(),
   theme: themeModeSchema,
-  reportOrgName: z.string(),
+  reportOrgName: z.string().optional(),
 });
 
 // ─── Dialog option schemas ──────────────────────────────────────────

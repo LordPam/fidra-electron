@@ -1,4 +1,4 @@
-import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 import {
   Select,
   SelectContent,
@@ -7,21 +7,37 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 
+export type ComparisonMode = 'none' | 'previous' | 'fy';
+
+type Preset = 'month' | 'lastMonth' | 'quarter' | 'ytd' | 'fy' | 'all';
+
 interface ReportFilterBarProps {
   startDate: string;
   endDate: string;
   activityFilter: string;
   activities: string[];
   transactionCount: number;
+  comparisonMode: ComparisonMode;
   onStartDateChange: (date: string) => void;
   onEndDateChange: (date: string) => void;
   onActivityFilterChange: (activity: string) => void;
+  onComparisonModeChange: (mode: ComparisonMode) => void;
   onPresetThisMonth: () => void;
   onPresetLastMonth: () => void;
+  onPresetQuarter: () => void;
   onPresetYTD: () => void;
   onPresetFinancialYear: () => void;
   onPresetAll: () => void;
 }
+
+const presets: { key: Preset; label: string }[] = [
+  { key: 'month', label: 'Month' },
+  { key: 'lastMonth', label: 'Last Month' },
+  { key: 'quarter', label: 'Quarter' },
+  { key: 'ytd', label: 'YTD' },
+  { key: 'fy', label: 'FY' },
+  { key: 'all', label: 'All' },
+];
 
 export function ReportFilterBar({
   startDate,
@@ -29,65 +45,89 @@ export function ReportFilterBar({
   activityFilter,
   activities,
   transactionCount,
+  comparisonMode,
   onStartDateChange,
   onEndDateChange,
   onActivityFilterChange,
+  onComparisonModeChange,
   onPresetThisMonth,
   onPresetLastMonth,
+  onPresetQuarter,
   onPresetYTD,
   onPresetFinancialYear,
   onPresetAll,
 }: ReportFilterBarProps) {
+  const presetHandlers: Record<Preset, () => void> = {
+    month: onPresetThisMonth,
+    lastMonth: onPresetLastMonth,
+    quarter: onPresetQuarter,
+    ytd: onPresetYTD,
+    fy: onPresetFinancialYear,
+    all: onPresetAll,
+  };
+
   return (
-    <div className="rounded-lg border border-border-subtle p-3 flex flex-wrap items-center gap-3">
-      <label className="text-xs text-muted-foreground">From</label>
+    <div className="flex flex-wrap items-center gap-3">
+      {/* Period presets */}
+      <div className="flex items-center rounded-md border border-border-subtle bg-surface-inset p-0.5 gap-0.5">
+        {presets.map((p) => (
+          <button
+            key={p.key}
+            type="button"
+            className={cn(
+              'px-2.5 py-1 text-xs font-display font-medium rounded transition-colors',
+              'text-muted-foreground hover:text-foreground',
+            )}
+            onClick={presetHandlers[p.key]}
+          >
+            {p.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Date range */}
       <input
         type="date"
-        className="h-8 px-2 text-sm bg-muted/30 border border-border-subtle rounded-md focus:outline-none focus:ring-1 focus:ring-fidra-teal"
+        className="h-7 px-2 text-xs bg-surface-inset border border-border-subtle rounded-md focus:outline-none focus:ring-1 focus:ring-fidra-teal"
         value={startDate}
         onChange={(e) => onStartDateChange(e.target.value)}
       />
-      <label className="text-xs text-muted-foreground">To</label>
+      <span className="text-xs text-muted-foreground">&ndash;</span>
       <input
         type="date"
-        className="h-8 px-2 text-sm bg-muted/30 border border-border-subtle rounded-md focus:outline-none focus:ring-1 focus:ring-fidra-teal"
+        className="h-7 px-2 text-xs bg-surface-inset border border-border-subtle rounded-md focus:outline-none focus:ring-1 focus:ring-fidra-teal"
         value={endDate}
         onChange={(e) => onEndDateChange(e.target.value)}
       />
 
-      <label className="text-xs text-muted-foreground ml-2">Activity</label>
-      <Select value={activityFilter} onValueChange={onActivityFilterChange}>
-        <SelectTrigger className="w-[140px] h-8 text-sm">
+      {/* Activity filter */}
+      {activities.length > 0 && (
+        <Select value={activityFilter} onValueChange={onActivityFilterChange}>
+          <SelectTrigger className="w-[130px] h-7 text-xs">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="__all__">All Activities</SelectItem>
+            {activities.map((a) => (
+              <SelectItem key={a} value={a}>{a}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      )}
+
+      {/* Comparison */}
+      <Select value={comparisonMode} onValueChange={(v) => onComparisonModeChange(v as ComparisonMode)}>
+        <SelectTrigger className="w-[150px] h-7 text-xs">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="__all__">All</SelectItem>
-          {activities.map((a) => (
-            <SelectItem key={a} value={a}>
-              {a}
-            </SelectItem>
-          ))}
+          <SelectItem value="none">No Comparison</SelectItem>
+          <SelectItem value="previous">vs Previous Period</SelectItem>
+          <SelectItem value="fy">vs Last FY</SelectItem>
         </SelectContent>
       </Select>
 
       <div className="flex-1" />
-
-      <span className="text-xs text-muted-foreground">Quick:</span>
-      <Button variant="link" size="sm" className="h-6 px-1 text-xs" onClick={onPresetThisMonth}>
-        This Month
-      </Button>
-      <Button variant="link" size="sm" className="h-6 px-1 text-xs" onClick={onPresetLastMonth}>
-        Last Month
-      </Button>
-      <Button variant="link" size="sm" className="h-6 px-1 text-xs" onClick={onPresetYTD}>
-        YTD
-      </Button>
-      <Button variant="link" size="sm" className="h-6 px-1 text-xs" onClick={onPresetFinancialYear}>
-        Financial Year
-      </Button>
-      <Button variant="link" size="sm" className="h-6 px-1 text-xs" onClick={onPresetAll}>
-        All
-      </Button>
 
       <span className="text-xs text-muted-foreground tabular-nums">
         {transactionCount} transactions

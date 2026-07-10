@@ -18,7 +18,10 @@ import {
 } from '@/components/ui/select';
 import { ComboboxInput } from '@/components/ComboboxInput';
 import { Checkbox } from '@/components/ui/checkbox';
+import { ArrowRightLeft } from 'lucide-react';
 import type { PlannedTemplateRow } from '../../shared/ipc-types';
+
+type PlannedMode = 'income' | 'expense' | 'transfer';
 
 interface AddPlannedDialogProps {
   open: boolean;
@@ -59,7 +62,8 @@ export function AddPlannedDialog({
   activitySuggestions,
   onSave,
 }: AddPlannedDialogProps) {
-  const [type, setType] = useState<'income' | 'expense'>('expense');
+  const [mode, setMode] = useState<PlannedMode>('expense');
+  const type = mode === 'transfer' ? 'expense' : mode;
   const [amount, setAmount] = useState('');
   const [startDate, setStartDate] = useState(todayISO());
   const [description, setDescription] = useState('');
@@ -68,6 +72,7 @@ export function AddPlannedDialog({
   const [activity, setActivity] = useState('');
   const [notes, setNotes] = useState('');
   const [sheet, setSheet] = useState(currentSheet !== 'All Sheets' ? currentSheet : (sheets[0] ?? ''));
+  const [transferToSheet, setTransferToSheet] = useState('');
   const [frequency, setFrequency] = useState<PlannedTemplateRow['frequency']>('once');
   const [hasEndDate, setHasEndDate] = useState(false);
   const [endDate, setEndDate] = useState('');
@@ -79,7 +84,7 @@ export function AddPlannedDialog({
 
   useEffect(() => {
     if (!open) return;
-    setType('expense');
+    setMode('expense');
     setAmount('');
     setStartDate(todayISO());
     setDescription('');
@@ -88,6 +93,7 @@ export function AddPlannedDialog({
     setActivity('');
     setNotes('');
     setSheet(currentSheet !== 'All Sheets' ? currentSheet : (sheets[0] ?? ''));
+    setTransferToSheet('');
     setFrequency('once');
     setHasEndDate(false);
     setEndDate('');
@@ -100,8 +106,9 @@ export function AddPlannedDialog({
     if (!amount || isNaN(parseFloat(amount)) || parseFloat(amount) <= 0) return;
     if (!startDate) return;
 
-    const targetSheet = sheet || sheets[0];
+    const targetSheet = mode === 'transfer' ? sheet || sheets[0] : sheet || sheets[0];
     if (!targetSheet) return;
+    if (mode === 'transfer' && (!transferToSheet || transferToSheet === targetSheet)) return;
 
     if (hasEndDate && endDate && endDate <= startDate) return;
 
@@ -113,10 +120,11 @@ export function AddPlannedDialog({
       type,
       frequency,
       target_sheet: targetSheet,
-      category: category || null,
-      party: party || null,
+      category: mode === 'transfer' ? null : category || null,
+      party: mode === 'transfer' ? null : party || null,
       activity: activity || null,
       notes: notes.trim() || null,
+      transfer_target_sheet: mode === 'transfer' ? transferToSheet : null,
       end_date: isRecurring && hasEndDate && endDate ? endDate : null,
       occurrence_count: isRecurring && hasOccurrenceCount && occurrenceCount ? parseInt(occurrenceCount) : null,
       skipped_dates: '[]',
@@ -153,19 +161,61 @@ export function AddPlannedDialog({
           <div className="flex gap-1 rounded-md bg-muted p-1">
             <button
               type="button"
-              className={`flex-1 rounded-sm px-3 py-1 text-sm font-medium transition-colors ${type === 'expense' ? 'bg-background shadow text-foreground' : 'text-muted-foreground'}`}
-              onClick={() => { setType('expense'); setCategory(''); }}
+              className={`flex-1 rounded-sm px-3 py-1 text-sm font-medium transition-colors ${mode === 'expense' ? 'bg-background shadow text-foreground' : 'text-muted-foreground'}`}
+              onClick={() => { setMode('expense'); setCategory(''); }}
             >
               Expense
             </button>
             <button
               type="button"
-              className={`flex-1 rounded-sm px-3 py-1 text-sm font-medium transition-colors ${type === 'income' ? 'bg-background shadow text-foreground' : 'text-muted-foreground'}`}
-              onClick={() => { setType('income'); setCategory(''); }}
+              className={`flex-1 rounded-sm px-3 py-1 text-sm font-medium transition-colors ${mode === 'income' ? 'bg-background shadow text-foreground' : 'text-muted-foreground'}`}
+              onClick={() => { setMode('income'); setCategory(''); }}
             >
               Income
             </button>
+            {sheets.length > 1 && (
+              <button
+                type="button"
+                className={`flex-1 rounded-sm px-3 py-1 text-sm font-medium transition-colors flex items-center justify-center gap-1 ${mode === 'transfer' ? 'bg-background shadow text-foreground' : 'text-muted-foreground'}`}
+                onClick={() => { setMode('transfer'); setCategory(''); }}
+              >
+                <ArrowRightLeft className="h-3.5 w-3.5" />
+                Transfer
+              </button>
+            )}
           </div>
+
+          {/* Transfer: From/To Account */}
+          {mode === 'transfer' && (
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <Label className="text-xs">From Account</Label>
+                <Select value={sheet} onValueChange={setSheet}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Source" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {sheets.map((s) => (
+                      <SelectItem key={s} value={s}>{s}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-xs">To Account</Label>
+                <Select value={transferToSheet} onValueChange={setTransferToSheet}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Destination" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {sheets.filter((s) => s !== sheet).map((s) => (
+                      <SelectItem key={s} value={s}>{s}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          )}
 
           <div className="grid grid-cols-2 gap-2">
             <div>
@@ -195,31 +245,33 @@ export function AddPlannedDialog({
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <Label className="text-xs">Category</Label>
-              <Select value={category || '__none__'} onValueChange={(v) => setCategory(v === '__none__' ? '' : v)}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Category" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none__">None</SelectItem>
-                  {categories.map((cat) => (
-                    <SelectItem key={cat} value={cat}>{cat}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+          {mode !== 'transfer' && (
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <Label className="text-xs">Category</Label>
+                <Select value={category || '__none__'} onValueChange={(v) => setCategory(v === '__none__' ? '' : v)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">None</SelectItem>
+                    {categories.map((cat) => (
+                      <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-xs">Party</Label>
+                <ComboboxInput
+                  value={party}
+                  onChange={setParty}
+                  suggestions={partySuggestions}
+                  placeholder="Party"
+                />
+              </div>
             </div>
-            <div>
-              <Label className="text-xs">Party</Label>
-              <ComboboxInput
-                value={party}
-                onChange={setParty}
-                suggestions={partySuggestions}
-                placeholder="Party"
-              />
-            </div>
-          </div>
+          )}
 
           <div>
             <Label className="text-xs">Activity</Label>
@@ -243,7 +295,7 @@ export function AddPlannedDialog({
           </div>
 
           <div className="grid grid-cols-2 gap-2">
-            {currentSheet === 'All Sheets' && sheets.length > 1 && (
+            {currentSheet === 'All Sheets' && sheets.length > 1 && mode !== 'transfer' && (
               <div>
                 <Label className="text-xs">Sheet</Label>
                 <Select value={sheet} onValueChange={setSheet}>

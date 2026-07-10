@@ -102,6 +102,7 @@ export function registerLocalSyncHandlers(): void {
             pendingConflicts: status.pendingConflicts,
             lastError: status.lastError,
             syncFolder,
+            staleReason: status.staleReason,
           };
           ctx.sendToRenderer('localSync:statusChanged', fullStatus);
         },
@@ -200,6 +201,7 @@ export function registerLocalSyncHandlers(): void {
             pendingConflicts: status.pendingConflicts,
             lastError: status.lastError,
             syncFolder,
+            staleReason: status.staleReason,
           };
           ctx.sendToRenderer('localSync:statusChanged', fullStatus);
         },
@@ -262,6 +264,7 @@ export function registerLocalSyncHandlers(): void {
         pendingConflicts: 0,
         lastError: null,
         syncFolder: syncFolder ?? null,
+        staleReason: null,
       } satisfies LocalSyncStatus;
     }
 
@@ -274,6 +277,7 @@ export function registerLocalSyncHandlers(): void {
       pendingConflicts: status.pendingConflicts,
       lastError: status.lastError,
       syncFolder: syncFolder ?? null,
+      staleReason: status.staleReason,
     } satisfies LocalSyncStatus;
   });
 

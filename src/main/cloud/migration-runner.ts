@@ -1,6 +1,6 @@
 import type pg from 'pg';
 
-const CURRENT_SCHEMA_VERSION = 14;
+const CURRENT_SCHEMA_VERSION = 15;
 
 const TABLES_SQL = `
 -- Metadata table for schema versioning
@@ -23,6 +23,7 @@ CREATE TABLE IF NOT EXISTS transactions (
   reference TEXT,
   activity TEXT,
   notes TEXT,
+  linked_id UUID,
   version INTEGER NOT NULL DEFAULT 1,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   modified_at TIMESTAMPTZ,
@@ -34,6 +35,7 @@ CREATE INDEX IF NOT EXISTS idx_transactions_sheet ON transactions(sheet);
 CREATE INDEX IF NOT EXISTS idx_transactions_type ON transactions(type);
 CREATE INDEX IF NOT EXISTS idx_transactions_status ON transactions(status);
 CREATE INDEX IF NOT EXISTS idx_transactions_modified ON transactions(modified_at);
+CREATE INDEX IF NOT EXISTS idx_transactions_linked ON transactions(linked_id);
 
 -- Planned Templates
 CREATE TABLE IF NOT EXISTS planned_templates (
@@ -48,6 +50,7 @@ CREATE TABLE IF NOT EXISTS planned_templates (
   party TEXT,
   activity TEXT,
   notes TEXT,
+  transfer_target_sheet TEXT,
   end_date DATE,
   occurrence_count INTEGER,
   skipped_dates JSONB DEFAULT '[]',
@@ -535,6 +538,25 @@ export async function runMigrations(pool: pg.Pool): Promise<void> {
       );
       if (colCheck.rows.length === 0) {
         await client.query('ALTER TABLE planned_templates ADD COLUMN notes TEXT');
+      }
+    }
+
+    if (currentVersion < 15) {
+      // Add linked_id to transactions (inter-account transfers)
+      const linkedCheck = await client.query(
+        `SELECT 1 FROM information_schema.columns WHERE table_name = 'transactions' AND column_name = 'linked_id'`,
+      );
+      if (linkedCheck.rows.length === 0) {
+        await client.query('ALTER TABLE transactions ADD COLUMN linked_id UUID');
+        await client.query('CREATE INDEX IF NOT EXISTS idx_transactions_linked ON transactions(linked_id)');
+      }
+
+      // Add transfer_target_sheet to planned_templates (transfer templates)
+      const ttsCheck = await client.query(
+        `SELECT 1 FROM information_schema.columns WHERE table_name = 'planned_templates' AND column_name = 'transfer_target_sheet'`,
+      );
+      if (ttsCheck.rows.length === 0) {
+        await client.query('ALTER TABLE planned_templates ADD COLUMN transfer_target_sheet TEXT');
       }
     }
 

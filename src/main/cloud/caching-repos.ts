@@ -40,6 +40,10 @@ export class CachingTransactionRepo {
     return this.local.getById(id);
   }
 
+  getByLinkedId(linkedId: string): TransactionRow[] {
+    return this.local.getByLinkedId(linkedId);
+  }
+
   save(data: TransactionRow): TransactionRow {
     const personnelId = this.getPersonnelId?.() ?? null;
     // Ensure version is always monotonically increasing — undo/redo may

@@ -11,6 +11,7 @@ export interface TransactionRow {
   reference: string | null;
   activity: string | null;
   notes: string | null;
+  linked_id: string | null;
   version: number;
   created_at: string;
   modified_at: string | null;
@@ -42,6 +43,7 @@ export interface PlannedTemplateRow {
   occurrence_count: number | null;
   skipped_dates: string;
   fulfilled_dates: string;
+  transfer_target_sheet: string | null;
   version: number;
   created_at: string;
 }
@@ -156,6 +158,7 @@ export interface LocalSyncStatus {
   pendingConflicts: number;
   lastError: string | null;
   syncFolder: string | null;
+  staleReason: string | null;
 }
 
 export interface LocalSyncConflict {
@@ -293,7 +296,15 @@ export interface IpcChannels {
   };
   'transactions:delete': {
     args: [id: string];
-    result: { success: boolean; deletedAttachments: AttachmentRow[] };
+    result: { success: boolean; deletedAttachments: AttachmentRow[]; deletedCounterpart: TransactionRow | null; counterpartAttachments: AttachmentRow[] };
+  };
+  'transactions:saveTransfer': {
+    args: [expense: TransactionRow, income: TransactionRow];
+    result: { expense: TransactionRow; income: TransactionRow };
+  };
+  'transactions:getByLinkedId': {
+    args: [linkedId: string];
+    result: TransactionRow[];
   };
   'transactions:bulkSave': {
     args: [transactions: TransactionRow[]];
@@ -623,6 +634,16 @@ export interface IpcChannels {
   };
   'settings:saveFYStartMonth': {
     args: [month: number];
+    result: void;
+  };
+
+  // Organisation name (per-database, org-scoped — syncs via Local Sync)
+  'settings:getOrgName': {
+    args: [];
+    result: string;
+  };
+  'settings:saveOrgName': {
+    args: [name: string];
     result: void;
   };
 

@@ -12,6 +12,24 @@ export interface UndoCommand {
   description: string;
 }
 
+export function createAddTransferCommand(expense: TransactionRow, income: TransactionRow): UndoCommand {
+  return {
+    description: `Add transfer: ${expense.description}`,
+    execute: async () => {
+      const result = await window.api.saveTransfer(expense, income);
+      // Add both sides directly to the store (IPC already saved them)
+      useTransactionStore.setState((state) => ({
+        transactions: [result.expense, result.income, ...state.transactions],
+        _generation: state._generation + 1,
+      }));
+    },
+    undo: async () => {
+      // Delete expense side — cascade will delete income side too
+      await useTransactionStore.getState().removeTransaction(expense.id);
+    },
+  };
+}
+
 export function createAddTransactionCommand(transaction: TransactionRow): UndoCommand {
   return {
     description: `Add transaction: ${transaction.description}`,
@@ -20,6 +38,25 @@ export function createAddTransactionCommand(transaction: TransactionRow): UndoCo
     },
     undo: async () => {
       await useTransactionStore.getState().removeTransaction(transaction.id);
+    },
+  };
+}
+
+export function createEditTransferCommand(
+  oldExpense: TransactionRow,
+  newExpense: TransactionRow,
+  oldIncome: TransactionRow,
+  newIncome: TransactionRow,
+): UndoCommand {
+  return {
+    description: `Edit transfer: ${newExpense.description}`,
+    execute: async () => {
+      await useTransactionStore.getState().updateTransaction(newExpense);
+      await useTransactionStore.getState().updateTransaction(newIncome);
+    },
+    undo: async () => {
+      await useTransactionStore.getState().restoreTransaction(oldExpense);
+      await useTransactionStore.getState().restoreTransaction(oldIncome);
     },
   };
 }
@@ -41,16 +78,27 @@ export function createEditTransactionCommand(
 
 export function createDeleteTransactionCommand(transaction: TransactionRow): UndoCommand {
   let capturedAttachments: AttachmentRow[] = [];
+  let capturedCounterpart: TransactionRow | null = null;
+  let capturedCounterpartAttachments: AttachmentRow[] = [];
   return {
     description: `Delete transaction: ${transaction.description}`,
     execute: async () => {
       const result = await useTransactionStore.getState().removeTransaction(transaction.id);
       capturedAttachments = result.deletedAttachments;
+      capturedCounterpart = result.deletedCounterpart;
+      capturedCounterpartAttachments = result.counterpartAttachments;
     },
     undo: async () => {
       await useTransactionStore.getState().restoreTransaction(transaction);
       if (capturedAttachments.length > 0) {
         await window.api.restoreAttachmentsForTransaction(capturedAttachments);
+      }
+      // Restore the transfer counterpart if one was cascade-deleted
+      if (capturedCounterpart) {
+        await useTransactionStore.getState().restoreTransaction(capturedCounterpart);
+        if (capturedCounterpartAttachments.length > 0) {
+          await window.api.restoreAttachmentsForTransaction(capturedCounterpartAttachments);
+        }
       }
     },
   };

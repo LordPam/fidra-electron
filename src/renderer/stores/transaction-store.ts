@@ -4,6 +4,8 @@ import type { TransactionRow, AttachmentRow } from '../../shared/ipc-types';
 interface DeleteResult {
   success: boolean;
   deletedAttachments: AttachmentRow[];
+  deletedCounterpart: TransactionRow | null;
+  counterpartAttachments: AttachmentRow[];
 }
 
 interface BulkDeleteResult {
@@ -99,8 +101,9 @@ export const useTransactionStore = create<TransactionState>((set, get) => ({
     try {
       const result = await window.api.deleteTransaction(id) as DeleteResult;
       if (result.success) {
+        const counterpartId = result.deletedCounterpart?.id;
         set((state) => ({
-          transactions: state.transactions.filter((t) => t.id !== id),
+          transactions: state.transactions.filter((t) => t.id !== id && t.id !== counterpartId),
           _generation: state._generation + 1,
         }));
       }

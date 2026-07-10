@@ -31,6 +31,7 @@ export function LocalSyncSetupDialog({ open, onOpenChange }: LocalSyncSetupDialo
   const lastImportAt = useLocalSyncStore((s) => s.lastImportAt);
   const pendingConflicts = useLocalSyncStore((s) => s.pendingConflicts);
   const lastError = useLocalSyncStore((s) => s.lastError);
+  const staleReason = useLocalSyncStore((s) => s.staleReason);
   const config = useLocalSyncStore((s) => s.config);
   const configuring = useLocalSyncStore((s) => s.configuring);
   const configure = useLocalSyncStore((s) => s.configure);
@@ -367,7 +368,9 @@ export function LocalSyncSetupDialog({ open, onOpenChange }: LocalSyncSetupDialo
               <div className="flex items-start gap-2 rounded-md bg-amber-500/10 p-3 text-sm text-amber-700 dark:text-amber-400">
                 <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
                 <span>
-                  No activity from other devices for over 10 minutes. This may indicate OneDrive has stopped syncing. Check your OneDrive status and internet connection.
+                  {staleReason === 'no internet connection'
+                    ? 'No internet connection detected. Changes won\u2019t sync until connectivity is restored.'
+                    : 'The sync provider (e.g. OneDrive) does not appear to be running. Changes won\u2019t sync until it is started.'}
                 </span>
               </div>
             )}

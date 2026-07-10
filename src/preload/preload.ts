@@ -47,8 +47,12 @@ const api = {
     ipcRenderer.invoke('transactions:getById', id),
   saveTransaction: (data: TransactionRow): Promise<TransactionRow> =>
     ipcRenderer.invoke('transactions:save', data),
-  deleteTransaction: (id: string): Promise<{ success: boolean; deletedAttachments: AttachmentRow[] }> =>
+  deleteTransaction: (id: string): Promise<{ success: boolean; deletedAttachments: AttachmentRow[]; deletedCounterpart: TransactionRow | null; counterpartAttachments: AttachmentRow[] }> =>
     ipcRenderer.invoke('transactions:delete', id),
+  saveTransfer: (expense: TransactionRow, income: TransactionRow): Promise<{ expense: TransactionRow; income: TransactionRow }> =>
+    ipcRenderer.invoke('transactions:saveTransfer', expense, income),
+  getTransactionsByLinkedId: (linkedId: string): Promise<TransactionRow[]> =>
+    ipcRenderer.invoke('transactions:getByLinkedId', linkedId),
   bulkSaveTransactions: (transactions: TransactionRow[]): Promise<TransactionRow[]> =>
     ipcRenderer.invoke('transactions:bulkSave', transactions),
   bulkDeleteTransactions: (ids: string[]): Promise<{ count: number; deletedAttachments: Record<string, AttachmentRow[]> }> =>
@@ -235,6 +239,10 @@ const api = {
     ipcRenderer.invoke('settings:getFYStartMonth'),
   saveFYStartMonth: (month: number): Promise<void> =>
     ipcRenderer.invoke('settings:saveFYStartMonth', month),
+  getOrgName: (): Promise<string> =>
+    ipcRenderer.invoke('settings:getOrgName'),
+  saveOrgName: (name: string): Promise<void> =>
+    ipcRenderer.invoke('settings:saveOrgName', name),
 
   // Current sheet selection (per-database)
   getCurrentSheet: (): Promise<string> =>

@@ -15,7 +15,8 @@ export interface UiPreferences {
   showPlanned: boolean;
   filteredBalanceMode: boolean;
   theme: ThemeMode;
-  reportOrgName: string;
+  /** @deprecated Moved to per-database SQLite settings (report.orgName, org-scoped). Kept for backwards compat with existing settings files. */
+  reportOrgName?: string;
 }
 
 export interface GlobalSettings {

@@ -30,7 +30,6 @@ function freshSettings(): GlobalSettings {
       showPlanned: false,
       filteredBalanceMode: false,
       theme: 'system',
-      reportOrgName: '',
     },
   };
 }

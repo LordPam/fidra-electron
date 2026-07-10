@@ -262,6 +262,7 @@ function startLocalSyncAfterAuth(ctx: import('../window/window-context').WindowC
           pendingConflicts: status.pendingConflicts,
           lastError: status.lastError,
           syncFolder,
+          staleReason: status.staleReason,
         };
         ctx.sendToRenderer('localSync:statusChanged', fullStatus);
       },
@@ -290,6 +291,7 @@ function startLocalSyncAfterAuth(ctx: import('../window/window-context').WindowC
       pendingConflicts: initialStatus.pendingConflicts,
       lastError: initialStatus.lastError,
       syncFolder,
+      staleReason: initialStatus.staleReason,
     } satisfies LocalSyncStatus);
 
     console.log(`[WINDOW ${ctx.dbName}] Local Sync started after auth (folder: ${syncFolder})`);

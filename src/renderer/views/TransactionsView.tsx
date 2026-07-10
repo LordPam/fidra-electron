@@ -9,6 +9,7 @@ import { useUiStore } from '@/stores/ui-store';
 import { useUndoStore } from '@/stores/undo-store';
 import { usePlannedStore } from '@/stores/planned-store';
 import { useAttachmentSignal } from '@/stores/attachment-signal';
+import { useWindowStore } from '@/stores/window-store';
 
 import { useViewData } from '@/hooks/useViewData';
 import { useViewZoom } from '@/hooks/useViewZoom';
@@ -19,7 +20,9 @@ import { expandTemplate, projectBalance, type PlannedInstance } from '@/services
 import {
   createAddTransactionCommand,
   createEditTransactionCommand,
+  createEditTransferCommand,
   createDeleteTransactionCommand,
+  createAddTransferCommand,
   createBulkDeleteCommand,
   createBulkEditCommand,
   createConvertPlannedCommand,
@@ -51,6 +54,7 @@ import { AttachmentPanel } from '@/components/AttachmentPanel';
 import { exportCSV, saveExport } from '@/services/export';
 import { exportXLSX } from '@/services/xlsx-export';
 import { renderTransactionsPDFHTML } from '@/services/transaction-pdf-html';
+import { extractDominantColor } from '@/lib/color';
 
 import { UndoRedoButtons } from '@/components/UndoRedoButtons';
 import { Button } from '@/components/ui/button';
@@ -76,11 +80,12 @@ export default function TransactionsView() {
     expenseCategories,
     loadAll: loadCategories,
   } = useCategoryStore();
-  const { searchQuery, filteredBalanceMode, setSearchQuery, toggleFilteredBalance, showAddForm, toggleAddForm, addFormWidth, setAddFormWidth, showPlanned, horizonDays, toggleShowPlanned, setHorizonDays } = useUiStore();
+  const { searchQuery, filteredBalanceMode, setSearchQuery, toggleFilteredBalance, showAddForm, toggleAddForm, addFormWidth, setAddFormWidth, showPlanned, horizonDays, toggleShowPlanned, setHorizonDays, reportOrgName } = useUiStore();
   const { execute } = useUndoStore();
   useUndoRedoShortcuts();
   const { zoom: tableZoom, zoomIn: zoomTableIn, zoomOut: zoomTableOut, resetZoom: resetTableZoom } = useViewZoom('tableZoom');
   const { templates, loadAll: loadPlanned } = usePlannedStore();
+  const { dbName } = useWindowStore();
 
   // Local state
   const [editingTransaction, setEditingTransaction] = useState<TransactionRow | null>(null);
@@ -282,8 +287,13 @@ export default function TransactionsView() {
 
   // Handlers
   const handleAddTransaction = useCallback(
-    async (transaction: TransactionRow, pendingFiles?: { path: string; name: string }[]) => {
-      await execute(createAddTransactionCommand(transaction));
+    async (transaction: TransactionRow, pendingFiles?: { path: string; name: string }[], counterpart?: TransactionRow) => {
+      if (counterpart) {
+        // Transfer: save both sides atomically
+        await execute(createAddTransferCommand(transaction, counterpart));
+      } else {
+        await execute(createAddTransactionCommand(transaction));
+      }
       if (pendingFiles && pendingFiles.length > 0) {
         for (const file of pendingFiles) {
           await window.api.addAttachment(transaction.id, file.path, file.name);
@@ -315,6 +325,38 @@ export default function TransactionsView() {
         } else {
           // Template not found — just add the transaction
           await execute(createAddTransactionCommand(updated));
+        }
+      } else if (_original.linked_id) {
+        // Transfer edit: propagate shared fields (amount, date, description) to counterpart
+        const fieldsChanged =
+          _original.amount !== updated.amount ||
+          _original.date !== updated.date ||
+          _original.description !== updated.description ||
+          _original.reference !== updated.reference ||
+          _original.activity !== updated.activity ||
+          _original.notes !== updated.notes;
+        if (fieldsChanged) {
+          const linked = await window.api.getTransactionsByLinkedId(_original.linked_id);
+          const counterpart = linked.find((t) => t.id !== _original.id);
+          if (counterpart) {
+            const now = new Date().toISOString();
+            const updatedCounterpart: TransactionRow = {
+              ...counterpart,
+              amount: updated.amount,
+              date: updated.date,
+              description: updated.description,
+              reference: updated.reference,
+              activity: updated.activity,
+              notes: updated.notes,
+              version: counterpart.version + 1,
+              modified_at: now,
+              modified_by: 'local',
+            };
+            await execute(createEditTransferCommand(_original, updated, counterpart, updatedCounterpart));
+          } else {
+            // Orphaned transfer — edit single side
+            await execute(createEditTransactionCommand(_original, updated));
+          }
         }
       } else {
         // Skip no-op edits (e.g. user only added/removed attachments without
@@ -716,7 +758,8 @@ export default function TransactionsView() {
     const csv = exportCSV(searchFiltered, true);
     const sheetLabel = currentSheet === 'All Sheets' ? 'all-sheets' : currentSheet.toLowerCase().replace(/\s+/g, '-');
     const today = new Date().toISOString().slice(0, 10);
-    await saveExport(csv, `fidra-${sheetLabel}-${today}.csv`, [{ name: 'CSV', extensions: ['csv'] }]);
+    const dbSlug = (dbName || 'fidra').replace(/\.[^.]+$/, '').replace(/\s+/g, '-');
+    await saveExport(csv, `${dbSlug}-${sheetLabel}-${today}.csv`, [{ name: 'CSV', extensions: ['csv'] }]);
   }, [searchFiltered, currentSheet]);
 
   // Load all sheets' transactions for multi-sheet export (XLSX / PDF)
@@ -739,6 +782,25 @@ export default function TransactionsView() {
     localStorage.getItem('fidra.export.includeLogo') !== 'false',
   );
 
+  // Default accent to logo's dominant color when the user hasn't manually picked one
+  useEffect(() => {
+    if (localStorage.getItem('fidra.export.accentColor')) return; // user explicitly set a color
+    let cancelled = false;
+    (async () => {
+      try {
+        const defaults = await window.api.getInvoiceDefaults();
+        const dataUri = defaults.logoData
+          || (defaults.logoPath ? await window.api.readFileBase64(defaults.logoPath) : null);
+        if (!dataUri || cancelled) return;
+        const color = await extractDominantColor(dataUri);
+        if (color && !cancelled) {
+          setExportAccentColor(color);
+        }
+      } catch { /* no logo available */ }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
   const handleExportXlsx = useCallback(async () => {
     const sheetData = await loadAllSheetData();
     if (sheetData.size === 0) return;
@@ -746,7 +808,7 @@ export default function TransactionsView() {
     const today = new Date().toISOString().slice(0, 10);
     const result = await window.api.showSaveDialog({
       title: 'Export as Excel',
-      defaultPath: `fidra-transactions-${today}.xlsx`,
+      defaultPath: `${(dbName || 'fidra').replace(/\.[^.]+$/, '').replace(/\s+/g, '-')}-transactions-${today}.xlsx`,
       filters: [{ name: 'Excel Workbook', extensions: ['xlsx'] }],
     });
     if (!result.canceled && result.filePath) {
@@ -770,15 +832,9 @@ export default function TransactionsView() {
       } catch { /* no logo available */ }
     }
 
-    let orgName: string | undefined;
-    try {
-      const profile = await window.api.getProfile();
-      orgName = profile.name || undefined;
-    } catch { /* use default */ }
-
     const html = renderTransactionsPDFHTML({
       sheetData,
-      orgName,
+      orgName: reportOrgName || undefined,
       logoDataUri,
       accentColor: exportAccentColor,
     });
@@ -788,7 +844,7 @@ export default function TransactionsView() {
 
     const result = await window.api.showSaveDialog({
       title: 'Export as PDF',
-      defaultPath: `fidra-transactions-${today}.pdf`,
+      defaultPath: `${(dbName || 'fidra').replace(/\.[^.]+$/, '').replace(/\s+/g, '-')}-transactions-${today}.pdf`,
       filters: [{ name: 'PDF', extensions: ['pdf'] }],
     });
     if (!result.canceled && result.filePath) {
@@ -985,6 +1041,7 @@ export default function TransactionsView() {
             <TransactionTable
               ref={tableRef}
               transactions={searchFiltered}
+              allTransactions={transactions}
               runningBalances={runningBalances}
               showSheetColumn={showSheetColumn}
               showPlanned={showPlanned}

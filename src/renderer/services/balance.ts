@@ -3,9 +3,13 @@ import type { TransactionRow } from '../../shared/ipc-types';
 const COUNTABLE_INCOME = new Set(['--', 'approved']);
 const COUNTABLE_EXPENSE = new Set(['approved']);
 
-export function computeTotal(transactions: TransactionRow[]): number {
+export function computeTotal(
+  transactions: TransactionRow[],
+  opts?: { excludeTransfers?: boolean },
+): number {
   let total = 0;
   for (const t of transactions) {
+    if (opts?.excludeTransfers && t.linked_id) continue;
     const amount = parseFloat(t.amount) || 0;
     if (t.type === 'income' && COUNTABLE_INCOME.has(t.status)) {
       total += amount;
@@ -47,7 +51,7 @@ export function computeRunningBalances(
 export function computePendingTotal(transactions: TransactionRow[]): number {
   let total = 0;
   for (const t of transactions) {
-    if (t.type === 'expense' && t.status === 'pending') {
+    if (t.type === 'expense' && t.status === 'pending' && !t.linked_id) {
       total += parseFloat(t.amount) || 0;
     }
   }

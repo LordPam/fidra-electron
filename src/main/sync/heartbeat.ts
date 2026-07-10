@@ -3,7 +3,13 @@
  *
  * Each device periodically writes a small heartbeat file to the shared folder.
  * Peer heartbeat staleness indicates OneDrive has stopped propagating files.
+ *
+ * Also provides process-level detection: if the cloud sync provider (OneDrive,
+ * Dropbox, etc.) isn't running at all, we can flag staleness immediately
+ * without waiting for heartbeat thresholds.
  */
+import { execSync } from 'node:child_process';
+import dns from 'node:dns';
 import fs from 'node:fs';
 import path from 'node:path';
 import { syncLog, errorMessage } from './sync-log';
@@ -131,4 +137,99 @@ export function checkStaleness(
     stalePeerCount,
     freshestPeerAgeMs: freshestAgeMs === Infinity ? null : freshestAgeMs,
   };
+}
+
+// ─── Cloud sync process detection ───────────────────────────────────
+
+/**
+ * Process names to look for per cloud provider.
+ * OneDrive on macOS runs as "OneDrive" (standalone) or "OneDrive (Personal)".
+ * Dropbox runs as "Dropbox". Google Drive runs as "Google Drive" or
+ * "Google Drive Helper".
+ */
+const PROVIDER_PROCESS_MAP: Array<{ marker: string; processName: string }> = [
+  { marker: '/OneDrive', processName: 'OneDrive' },
+  { marker: '/Dropbox', processName: 'Dropbox' },
+  { marker: '/Google Drive', processName: 'Google Drive' },
+  { marker: '/My Drive', processName: 'Google Drive' },
+];
+
+/** Cache to avoid running pgrep on every heartbeat tick. */
+let processCheckCache: { result: boolean; checkedAt: number; syncFolder: string } | null = null;
+const PROCESS_CHECK_CACHE_MS = 60_000; // Re-check at most once per minute
+
+/**
+ * Detect the cloud sync provider from the sync folder path and check
+ * whether its process is running.
+ *
+ * Returns `true` if the provider is running (or if the provider can't be
+ * identified — assume healthy). Returns `false` only when we can
+ * positively confirm the provider process is not running.
+ *
+ * macOS only (uses `pgrep`). Returns `true` on other platforms.
+ */
+export function isSyncProviderRunning(syncFolder: string): boolean {
+  if (process.platform !== 'darwin') return true;
+
+  // Use cache if fresh
+  if (
+    processCheckCache &&
+    processCheckCache.syncFolder === syncFolder &&
+    Date.now() - processCheckCache.checkedAt < PROCESS_CHECK_CACHE_MS
+  ) {
+    return processCheckCache.result;
+  }
+
+  // Identify the provider from the sync folder path
+  const match = PROVIDER_PROCESS_MAP.find((p) => syncFolder.includes(p.marker));
+  if (!match) {
+    // Can't identify provider — assume running
+    return true;
+  }
+
+  let running: boolean;
+  try {
+    // pgrep -ix: case-insensitive, exact match. Exit code 0 = found, 1 = not found.
+    execSync(`pgrep -ix "${match.processName}"`, { stdio: 'ignore' });
+    running = true;
+  } catch {
+    // pgrep exits with code 1 when no process matches
+    running = false;
+    syncLog('info', `Sync provider not running: ${match.processName}`);
+  }
+
+  processCheckCache = { result: running, checkedAt: Date.now(), syncFolder };
+  return running;
+}
+
+// ─── Network reachability ─────────────────────────────────────────────
+
+/** Cache to avoid DNS lookups on every heartbeat tick. */
+let networkCheckCache: { reachable: boolean; checkedAt: number } | null = null;
+const NETWORK_CHECK_CACHE_MS = 30_000; // Re-check at most once per 30 seconds
+
+/**
+ * Quick DNS lookup to determine if the machine has internet connectivity.
+ * Uses a cached result to avoid excessive lookups. Returns a Promise
+ * since dns.resolve is async.
+ *
+ * Returns `true` if reachable, `false` if the lookup fails (no internet).
+ */
+export async function isNetworkReachable(): Promise<boolean> {
+  if (
+    networkCheckCache &&
+    Date.now() - networkCheckCache.checkedAt < NETWORK_CHECK_CACHE_MS
+  ) {
+    return networkCheckCache.reachable;
+  }
+
+  try {
+    await dns.promises.resolve4('dns.google');
+    networkCheckCache = { reachable: true, checkedAt: Date.now() };
+    return true;
+  } catch {
+    syncLog('info', 'Network reachability check failed — no internet');
+    networkCheckCache = { reachable: false, checkedAt: Date.now() };
+    return false;
+  }
 }

@@ -81,7 +81,7 @@ function defaultSettings(): GlobalSettings {
     firstRunComplete: false,
     cloudServers: [],
     activeServerId: null,
-    uiPreferences: { tableZoom: 0.8, plannedTableZoom: 0.8, activitiesTableZoom: 0.8, showPlanned: false, filteredBalanceMode: false, theme: 'system', reportOrgName: '' },
+    uiPreferences: { tableZoom: 0.8, plannedTableZoom: 0.8, activitiesTableZoom: 0.8, showPlanned: false, filteredBalanceMode: false, theme: 'system' },
   };
 }
 

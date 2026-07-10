@@ -31,25 +31,31 @@ export class TransactionRepo {
       this.db.prepare(
         `UPDATE transactions SET date=?, description=?, amount=?, type=?, status=?,
          sheet=?, category=?, party=?, reference=?, activity=?, notes=?,
-         version=?, modified_at=?, modified_by=?
+         linked_id=?, version=?, modified_at=?, modified_by=?
          WHERE id=?`,
       ).run(
         data.date, data.description, data.amount, data.type, data.status,
         data.sheet, data.category, data.party, data.reference, data.activity, data.notes,
-        data.version, data.modified_at, data.modified_by,
+        data.linked_id, data.version, data.modified_at, data.modified_by,
         data.id,
       );
     } else {
       this.db.prepare(
-        `INSERT INTO transactions (id, date, description, amount, type, status, sheet, category, party, reference, activity, notes, version, created_at, modified_at, modified_by)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO transactions (id, date, description, amount, type, status, sheet, category, party, reference, activity, notes, linked_id, version, created_at, modified_at, modified_by)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       ).run(
         data.id, data.date, data.description, data.amount, data.type, data.status,
         data.sheet, data.category, data.party, data.reference, data.activity, data.notes,
-        data.version, data.created_at, data.modified_at, data.modified_by,
+        data.linked_id, data.version, data.created_at, data.modified_at, data.modified_by,
       );
     }
     return data;
+  }
+
+  getByLinkedId(linkedId: string): TransactionRow[] {
+    return this.db
+      .prepare('SELECT * FROM transactions WHERE linked_id = ?')
+      .all(linkedId) as TransactionRow[];
   }
 
   remove(id: string): boolean {
@@ -61,13 +67,13 @@ export class TransactionRepo {
     // Use INSERT + UPDATE (not INSERT OR REPLACE) so cr-sqlite only bumps
     // col_version for columns whose values actually changed.
     const insertStmt = this.db.prepare(
-      `INSERT INTO transactions (id, date, description, amount, type, status, sheet, category, party, reference, activity, notes, version, created_at, modified_at, modified_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO transactions (id, date, description, amount, type, status, sheet, category, party, reference, activity, notes, linked_id, version, created_at, modified_at, modified_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     );
     const updateStmt = this.db.prepare(
       `UPDATE transactions SET date=?, description=?, amount=?, type=?, status=?,
        sheet=?, category=?, party=?, reference=?, activity=?, notes=?,
-       version=?, modified_at=?, modified_by=? WHERE id=?`,
+       linked_id=?, version=?, modified_at=?, modified_by=? WHERE id=?`,
     );
     const existsStmt = this.db.prepare('SELECT 1 FROM transactions WHERE id = ?');
 
@@ -77,13 +83,13 @@ export class TransactionRepo {
           updateStmt.run(
             data.date, data.description, data.amount, data.type, data.status,
             data.sheet, data.category, data.party, data.reference, data.activity, data.notes,
-            data.version, data.modified_at, data.modified_by, data.id,
+            data.linked_id, data.version, data.modified_at, data.modified_by, data.id,
           );
         } else {
           insertStmt.run(
             data.id, data.date, data.description, data.amount, data.type, data.status,
             data.sheet, data.category, data.party, data.reference, data.activity, data.notes,
-            data.version, data.created_at, data.modified_at, data.modified_by,
+            data.linked_id, data.version, data.created_at, data.modified_at, data.modified_by,
           );
         }
       }

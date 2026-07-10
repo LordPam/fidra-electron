@@ -16,6 +16,7 @@ export const ORG_KEYS: ReadonlySet<string> = new Set([
   'invoice.counter',
   'invoice.accentMode',
   'invoice.logoData',        // base64 data URI — syncs the actual image, not a local path
+  'report.orgName',          // organisation name shown on PDF exports
 ]);
 
 export function isOrgKey(key: string): boolean {

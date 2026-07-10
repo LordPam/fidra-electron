@@ -102,7 +102,10 @@ function CloudSyncWiring() {
       if (table === 'planned_templates') plannedRefresh();
       if (table === 'categories') categoryRefresh();
       if (table === 'invoices') invoiceLoadAll();
-      if (table === 'db_settings') useUiStore.getState().loadFYStartMonth();
+      if (table === 'db_settings') {
+        useUiStore.getState().loadFYStartMonth();
+        useUiStore.getState().loadOrgName();
+      }
       if (table === 'attachments') {
         useAttachmentSignal.getState().bump();
         txRefresh();
@@ -241,7 +244,10 @@ function LocalSyncWiring() {
       if (table === 'planned_templates') plannedRefresh();
       if (table === 'categories') categoryRefresh();
       if (table === 'invoices') invoiceLoadAll();
-      if (table === 'settings') useUiStore.getState().loadFYStartMonth();
+      if (table === 'settings') {
+        useUiStore.getState().loadFYStartMonth();
+        useUiStore.getState().loadOrgName();
+      }
       if (table === 'attachments') {
         // Bump revision so open AttachmentPanel / EditTransactionDialog refetch
         useAttachmentSignal.getState().bump();

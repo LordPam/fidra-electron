@@ -17,6 +17,7 @@ function makeTx(overrides: Partial<TransactionRow> = {}): TransactionRow {
     reference: null,
     activity: null,
     notes: null,
+    linked_id: null,
     version: 1,
     created_at: '2024-01-15T00:00:00Z',
     modified_at: null,

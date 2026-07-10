@@ -18,7 +18,10 @@ import {
 } from '@/components/ui/select';
 import { ComboboxInput } from '@/components/ComboboxInput';
 import { Checkbox } from '@/components/ui/checkbox';
+import { ArrowRightLeft } from 'lucide-react';
 import type { PlannedTemplateRow } from '../../shared/ipc-types';
+
+type PlannedMode = 'income' | 'expense' | 'transfer';
 
 interface EditPlannedDialogProps {
   open: boolean;
@@ -54,7 +57,8 @@ export function EditPlannedDialog({
   activitySuggestions,
   onSave,
 }: EditPlannedDialogProps) {
-  const [type, setType] = useState<'income' | 'expense'>('expense');
+  const [mode, setMode] = useState<PlannedMode>('expense');
+  const type = mode === 'transfer' ? 'expense' : mode;
   const [amount, setAmount] = useState('');
   const [startDate, setStartDate] = useState('');
   const [description, setDescription] = useState('');
@@ -63,6 +67,7 @@ export function EditPlannedDialog({
   const [activity, setActivity] = useState('');
   const [notes, setNotes] = useState('');
   const [sheet, setSheet] = useState('');
+  const [transferToSheet, setTransferToSheet] = useState('');
   const [frequency, setFrequency] = useState<PlannedTemplateRow['frequency']>('once');
   const [hasEndDate, setHasEndDate] = useState(false);
   const [endDate, setEndDate] = useState('');
@@ -77,7 +82,8 @@ export function EditPlannedDialog({
   // Populate form when template changes
   useEffect(() => {
     if (!open || !template) return;
-    setType(template.type);
+    const isTransferTemplate = !!template.transfer_target_sheet;
+    setMode(isTransferTemplate ? 'transfer' : template.type);
     setAmount(template.amount);
     setStartDate(template.start_date);
     setDescription(template.description);
@@ -86,6 +92,7 @@ export function EditPlannedDialog({
     setActivity(template.activity ?? '');
     setNotes(template.notes ?? '');
     setSheet(template.target_sheet);
+    setTransferToSheet(template.transfer_target_sheet ?? '');
     setFrequency(template.frequency);
     setHasEndDate(!!template.end_date);
     setEndDate(template.end_date ?? '');
@@ -122,6 +129,7 @@ export function EditPlannedDialog({
     setFieldErrors({});
 
     if (hasEndDate && endDate && endDate <= startDate) return;
+    if (mode === 'transfer' && (!transferToSheet || transferToSheet === (sheet || template.target_sheet))) return;
 
     const updated: PlannedTemplateRow = {
       ...template,
@@ -131,10 +139,11 @@ export function EditPlannedDialog({
       description: description.trim(),
       frequency,
       target_sheet: sheet || template.target_sheet,
-      category: category || null,
-      party: party || null,
+      category: mode === 'transfer' ? null : category || null,
+      party: mode === 'transfer' ? null : party || null,
       activity: activity || null,
       notes: notes.trim() || null,
+      transfer_target_sheet: mode === 'transfer' ? transferToSheet : null,
       end_date: isRecurring && hasEndDate && endDate ? endDate : null,
       occurrence_count: isRecurring && hasOccurrenceCount && occurrenceCount ? parseInt(occurrenceCount) : null,
       version: template.version + 1,
@@ -170,19 +179,61 @@ export function EditPlannedDialog({
           <div className="flex gap-1 rounded-md bg-surface-inset p-1">
             <button
               type="button"
-              className={`flex-1 rounded-md px-3 py-1.5 text-sm font-display font-medium transition-fidra ${type === 'expense' ? 'bg-fidra-teal text-fidra-navy shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
-              onClick={() => { setType('expense'); setCategory(''); }}
+              className={`flex-1 rounded-md px-3 py-1.5 text-sm font-display font-medium transition-fidra ${mode === 'expense' ? 'bg-fidra-teal text-fidra-navy shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+              onClick={() => { setMode('expense'); setCategory(''); }}
             >
               Expense
             </button>
             <button
               type="button"
-              className={`flex-1 rounded-md px-3 py-1.5 text-sm font-display font-medium transition-fidra ${type === 'income' ? 'bg-fidra-teal text-fidra-navy shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
-              onClick={() => { setType('income'); setCategory(''); }}
+              className={`flex-1 rounded-md px-3 py-1.5 text-sm font-display font-medium transition-fidra ${mode === 'income' ? 'bg-fidra-teal text-fidra-navy shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+              onClick={() => { setMode('income'); setCategory(''); }}
             >
               Income
             </button>
+            {sheets.length > 1 && (
+              <button
+                type="button"
+                className={`flex-1 rounded-md px-3 py-1.5 text-sm font-display font-medium transition-fidra flex items-center justify-center gap-1 ${mode === 'transfer' ? 'bg-fidra-teal text-fidra-navy shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+                onClick={() => { setMode('transfer'); setCategory(''); }}
+              >
+                <ArrowRightLeft className="h-3.5 w-3.5" />
+                Transfer
+              </button>
+            )}
           </div>
+
+          {/* Transfer: From/To Account */}
+          {mode === 'transfer' && (
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <Label className="text-xs">From Account</Label>
+                <Select value={sheet} onValueChange={setSheet}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Source" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {sheets.map((s) => (
+                      <SelectItem key={s} value={s}>{s}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-xs">To Account</Label>
+                <Select value={transferToSheet} onValueChange={setTransferToSheet}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Destination" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {sheets.filter((s) => s !== sheet).map((s) => (
+                      <SelectItem key={s} value={s}>{s}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          )}
 
           {/* Hero amount */}
           <div className="flex items-center justify-center gap-1 py-4">
@@ -233,35 +284,37 @@ export function EditPlannedDialog({
           {/* Separator */}
           <div className="h-px bg-border-subtle" />
 
-          {/* Category + Party */}
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <Label className="text-xs">Category</Label>
-              <Select value={category || '__none__'} onValueChange={(v) => setCategory(v === '__none__' ? '' : v)}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Category" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none__">None</SelectItem>
-                  {categories.map((cat) => (
-                    <SelectItem key={cat} value={cat}>{cat}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+          {/* Category + Party (hidden for transfers) */}
+          {mode !== 'transfer' && (
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <Label className="text-xs">Category</Label>
+                <Select value={category || '__none__'} onValueChange={(v) => setCategory(v === '__none__' ? '' : v)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">None</SelectItem>
+                    {categories.map((cat) => (
+                      <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-xs">Party</Label>
+                <ComboboxInput
+                  value={party}
+                  onChange={setParty}
+                  suggestions={partySuggestions}
+                  placeholder="Party"
+                />
+              </div>
             </div>
-            <div>
-              <Label className="text-xs">Party</Label>
-              <ComboboxInput
-                value={party}
-                onChange={setParty}
-                suggestions={partySuggestions}
-                placeholder="Party"
-              />
-            </div>
-          </div>
+          )}
 
-          {/* Activity + Sheet (or just Activity if single sheet) */}
-          <div className={`grid gap-2 ${sheets.length > 1 ? 'grid-cols-2' : 'grid-cols-1'}`}>
+          {/* Activity + Sheet (sheet hidden for transfers and single-sheet) */}
+          <div className={`grid gap-2 ${sheets.length > 1 && mode !== 'transfer' ? 'grid-cols-2' : 'grid-cols-1'}`}>
             <div>
               <Label className="text-xs">Activity</Label>
               <ComboboxInput
@@ -271,7 +324,7 @@ export function EditPlannedDialog({
                 placeholder="Activity"
               />
             </div>
-            {sheets.length > 1 && (
+            {sheets.length > 1 && mode !== 'transfer' && (
               <div>
                 <Label className="text-xs">Sheet</Label>
                 <Select value={sheet} onValueChange={setSheet}>

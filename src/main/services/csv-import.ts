@@ -134,7 +134,7 @@ export function commitImport(ctx: WindowContext, request: CsvCommitRequest): Csv
 
     const p = row.parsed;
     const overrides = row.userOverrides;
-    const type = overrides.type ?? row.prediction.type ?? p.type ?? 'expense';
+    const type = overrides.type ?? p.type ?? row.prediction.type ?? 'expense';
 
     return {
       id,
@@ -149,6 +149,7 @@ export function commitImport(ctx: WindowContext, request: CsvCommitRequest): Csv
       reference: p.reference ?? null,
       activity: null,
       notes: p.notes ?? null,
+      linked_id: null,
       version: 1,
       created_at: now,
       modified_at: null,
@@ -176,7 +177,7 @@ export function commitImport(ctx: WindowContext, request: CsvCommitRequest): Csv
         overrides.description ?? bankDesc,
         overrides.party !== undefined ? overrides.party : (row.parsed.party ?? null),
         overrides.category !== undefined ? overrides.category : (row.prediction.category ?? row.parsed.category ?? null),
-        overrides.type ?? row.prediction.type ?? row.parsed.type ?? 'expense',
+        overrides.type ?? row.parsed.type ?? row.prediction.type ?? 'expense',
       );
       modelDirty = true;
     }

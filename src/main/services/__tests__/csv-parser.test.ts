@@ -63,6 +63,14 @@ describe('detectDateFormat', () => {
     expect(detectDateFormat(['15-Jan-2024', '20-Feb-2024'])).toBe('DD-Mon-YYYY');
   });
 
+  it('detects DD Mon YY (2-digit year with month name)', () => {
+    expect(detectDateFormat(['05 May 26', '12 Jun 26', '01 Jan 25'])).toBe('DD Mon YY');
+  });
+
+  it('detects DD-Mon-YY (2-digit year with month name and dash)', () => {
+    expect(detectDateFormat(['05-May-26', '12-Jun-26'])).toBe('DD-Mon-YY');
+  });
+
   it('returns null for empty array', () => {
     expect(detectDateFormat([])).toBeNull();
   });
@@ -101,6 +109,18 @@ describe('parseDate', () => {
 
   it('parses DD/MM/YY with 2-digit year', () => {
     expect(parseDate('15/01/24', 'DD/MM/YY')).toBe('2024-01-15');
+  });
+
+  it('parses DD Mon YY (2-digit year with month name)', () => {
+    expect(parseDate('05 May 26', 'DD Mon YY')).toBe('2026-05-05');
+  });
+
+  it('parses DD-Mon-YY (2-digit year with month name and dash)', () => {
+    expect(parseDate('05-May-26', 'DD-Mon-YY')).toBe('2026-05-05');
+  });
+
+  it('parses DD Mon YY with year >= 50 as 19xx', () => {
+    expect(parseDate('15 Jan 99', 'DD Mon YY')).toBe('1999-01-15');
   });
 
   it('returns null for invalid date', () => {

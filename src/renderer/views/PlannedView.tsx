@@ -20,6 +20,7 @@ import {
   createEditPlannedCommand,
   createDeletePlannedCommand,
   createConvertPlannedCommand,
+  createAddTransferCommand,
 } from '@/services/undo';
 import { cn } from '@/lib/utils';
 
@@ -286,15 +287,45 @@ export default function PlannedView() {
         };
       }
 
-      let linkedInvoice: InvoiceRow | undefined;
-      try {
-        const linkedInvoices = await window.api.getInvoicesByPlannedTemplate(template.id);
-        if (linkedInvoices.length > 0 && linkedInvoices[0].status !== 'paid') {
-          linkedInvoice = linkedInvoices[0];
-        }
-      } catch { /* Non-critical */ }
+      // Transfer template: create linked pair instead of single transaction
+      if (template.transfer_target_sheet) {
+        const linkedId = crypto.randomUUID();
+        const now = new Date().toISOString();
+        const expense: TransactionRow = {
+          ...updated,
+          type: 'expense',
+          status: 'approved',
+          linked_id: linkedId,
+          sheet: template.target_sheet,
+        };
+        const income: TransactionRow = {
+          ...updated,
+          id: crypto.randomUUID(),
+          type: 'income',
+          status: '--',
+          linked_id: linkedId,
+          sheet: template.transfer_target_sheet,
+          created_at: now,
+        };
 
-      await execute(createConvertPlannedCommand(template, updatedTemplate, updated, linkedInvoice));
+        // Mark template fulfilled then create the transfer pair
+        if (updatedTemplate) {
+          await execute(createEditPlannedCommand(template, updatedTemplate));
+        } else {
+          await execute(createDeletePlannedCommand(template));
+        }
+        await execute(createAddTransferCommand(expense, income));
+      } else {
+        let linkedInvoice: InvoiceRow | undefined;
+        try {
+          const linkedInvoices = await window.api.getInvoicesByPlannedTemplate(template.id);
+          if (linkedInvoices.length > 0 && linkedInvoices[0].status !== 'paid') {
+            linkedInvoice = linkedInvoices[0];
+          }
+        } catch { /* Non-critical */ }
+
+        await execute(createConvertPlannedCommand(template, updatedTemplate, updated, linkedInvoice));
+      }
     } else {
       await execute(createAddTransactionCommand(updated));
     }

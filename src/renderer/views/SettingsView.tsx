@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { LogOut, Monitor, Sun, Moon, Check, Users, ChevronDown, ChevronUp, FolderSync, Loader2, DatabaseBackup, Info } from 'lucide-react';
+import { LogOut, Monitor, Sun, Moon, Check, Users, ChevronDown, ChevronUp, FolderSync, Loader2, DatabaseBackup, Info, Building2 } from 'lucide-react';
 import { getFYStart, getFYEnd } from '@/lib/chart-utils';
 import { formatRelativeTime } from '@/lib/format';
 import type { ThemeMode } from '../../shared/global-settings-types';
@@ -63,6 +63,8 @@ export default function SettingsView() {
   const setTheme = useUiStore((s) => s.setTheme);
   const fyStartMonth = useUiStore((s) => s.fyStartMonth);
   const setFYStartMonth = useUiStore((s) => s.setFYStartMonth);
+  const reportOrgName = useUiStore((s) => s.reportOrgName);
+  const setReportOrgName = useUiStore((s) => s.setReportOrgName);
   const [aboutInfo, setAboutInfo] = useState<{ version: string; description: string; logPath: string } | null>(null);
 
   // Profile state
@@ -70,6 +72,11 @@ export default function SettingsView() {
   const [profileInitials, setProfileInitials] = useState('');
   const [profileSaved, setProfileSaved] = useState(false);
   const [profileLoaded, setProfileLoaded] = useState(false);
+
+  // Organisation name
+  const [orgNameInput, setOrgNameInput] = useState('');
+  const [orgNameSaved, setOrgNameSaved] = useState(false);
+  const [orgNameLoaded, setOrgNameLoaded] = useState(false);
 
   // Transaction settings
   const [dateOnApprove, setDateOnApprove] = useState(false);
@@ -125,7 +132,16 @@ export default function SettingsView() {
     return `${fmt(start)} \u2013 ${fmt(end)}`;
   }, [fyStartMonth]);
 
+  // Sync local input when store value changes (e.g. from sync import)
   useEffect(() => {
+    if (orgNameLoaded) setOrgNameInput(reportOrgName);
+  }, [reportOrgName, orgNameLoaded]);
+
+  useEffect(() => {
+    window.api.getOrgName().then((name) => {
+      setOrgNameInput(name);
+      setOrgNameLoaded(true);
+    });
     window.api.getAboutInfo().then(setAboutInfo);
     window.api.getProfile().then((p) => {
       setProfileName(p.name);
@@ -382,8 +398,59 @@ export default function SettingsView() {
           </Card>
         </div>
 
-        {/* Row 3: Financial Year + About */}
+        {/* Row 3: Organisation Name + Financial Year */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {/* Organisation Name card */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Building2 className="h-4 w-4" />
+                Organisation Name
+              </CardTitle>
+              <CardDescription>
+                Used on PDF exports and reports.{' '}
+                {(isLocalSyncAuth || isCloudWindow) && 'Shared across all team members.'}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {isAdmin || (!isLocalSyncAuth && !isCloudWindow) ? (
+                <div className="flex items-center gap-3">
+                  <Input
+                    value={orgNameInput}
+                    onChange={(e) => setOrgNameInput(e.target.value)}
+                    placeholder="e.g. SubAqua Club"
+                    className="max-w-xs"
+                    maxLength={200}
+                    onBlur={() => {
+                      const trimmed = orgNameInput.trim();
+                      if (trimmed !== reportOrgName) {
+                        setReportOrgName(trimmed);
+                        setOrgNameSaved(true);
+                        setTimeout(() => setOrgNameSaved(false), 2000);
+                      }
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        (e.target as HTMLInputElement).blur();
+                      }
+                    }}
+                  />
+                  {orgNameSaved && (
+                    <span className="flex items-center text-sm text-green-600">
+                      <Check className="h-4 w-4 mr-1" />
+                      Saved
+                    </span>
+                  )}
+                </div>
+              ) : (
+                <p className="text-sm">
+                  {reportOrgName || <span className="text-muted-foreground italic">Not set</span>}
+                  <span className="text-xs text-muted-foreground ml-2">(admin only)</span>
+                </p>
+              )}
+            </CardContent>
+          </Card>
+
           {/* Financial Year card */}
           <Card>
             <CardHeader>
@@ -413,8 +480,10 @@ export default function SettingsView() {
               </div>
             </CardContent>
           </Card>
+        </div>
 
-          {/* About card */}
+        {/* Row 3b: About */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <Card>
             <CardHeader>
               <CardTitle>About</CardTitle>
