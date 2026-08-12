@@ -1,17 +1,12 @@
+import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { BrowserWindow, dialog } from 'electron';
 import { openDatabase } from '../database/connection';
 import { acquireDbLock, releaseDbLock } from '../database/db-lock';
 import { WindowContext } from './window-context';
-import { CloudConnection } from '../cloud/cloud-connection';
-import { runMigrations } from '../cloud/migration-runner';
-import { startMemberServices, setupMemberSessionHandler } from '../cloud/member-services';
-import { SupabaseAuth } from '../cloud/auth/supabase-auth';
-import { SessionStore, dbPathToSessionId } from '../cloud/auth/session-store';
-import { SessionManager } from '../cloud/auth/session-manager';
-import { createClient } from '@supabase/supabase-js';
-import { addRecentFile, getCloudServer, getCloudCachePath, ensureCloudCacheDir, loadGlobalSettings, saveGlobalSettings } from './global-settings';
+import { SessionStore, dbPathToSessionId } from '../services/session-store';
+import { addRecentFile, loadGlobalSettings, saveGlobalSettings } from './global-settings';
 import { isCloudSyncedPath } from '../../shared/cloud-folder-detect';
 import { Notification } from 'electron';
 import { initializeCrr } from '../sync/crr-schema';
@@ -25,7 +20,6 @@ declare const MAIN_WINDOW_VITE_NAME: string;
 export class WindowManager {
   private readonly contexts = new Map<number, WindowContext>();
   private readonly dbPathIndex = new Map<string, number>();
-  private readonly serverIdIndex = new Map<string, number>();
   private readonly startupCompleted = new Set<number>();
 
   /** Mark a webContents ID as having completed startup (skip file chooser on reload). */
@@ -46,17 +40,26 @@ export class WindowManager {
     return this.dbPathIndex.has(normalized);
   }
 
-  isServerOpen(serverId: string): boolean {
-    return this.serverIdIndex.has(serverId);
-  }
-
-  focusWindowForServer(serverId: string): boolean {
-    const wcId = this.serverIdIndex.get(serverId);
-    if (wcId === undefined) return false;
-    const ctx = this.contexts.get(wcId);
-    if (!ctx || ctx.window.isDestroyed()) return false;
-    ctx.window.focus();
-    return true;
+  /**
+   * Other windows pointing at the same file on disk.
+   *
+   * `dbPathIndex` is keyed on the resolved path, which is not the same thing:
+   * on a case-insensitive volume `/x/Ledger.fdra` and `/x/ledger.fdra` are two keys
+   * for one file, as are a symlink and its target. Callers that are about to replace
+   * the file (backup restore) need the stricter answer.
+   */
+  otherWindowsWithFile(webContentsId: number, dbPath: string): WindowContext[] {
+    const realPath = (p: string): string => {
+      try {
+        return fs.realpathSync.native(p);
+      } catch {
+        return path.resolve(p);
+      }
+    };
+    const target = realPath(dbPath);
+    return [...this.contexts.entries()]
+      .filter(([wcId, ctx]) => wcId !== webContentsId && realPath(ctx.dbPath) === target)
+      .map(([, ctx]) => ctx);
   }
 
   focusWindowForFile(dbPath: string): boolean {
@@ -181,296 +184,6 @@ export class WindowManager {
     return ctx;
   }
 
-  async createCloudWindow(serverId: string): Promise<WindowContext> {
-    // If already open, focus and return existing context
-    if (this.focusWindowForServer(serverId)) {
-      const wcId = this.serverIdIndex.get(serverId)!;
-      return this.contexts.get(wcId)!;
-    }
-
-    const config = getCloudServer(serverId);
-    if (!config) {
-      throw new Error(`Cloud server not found: ${serverId}`);
-    }
-
-    ensureCloudCacheDir();
-    const cachePath = getCloudCachePath(serverId);
-    const { db: sqlite, databaseId } = openDatabase(cachePath);
-
-    const win = new BrowserWindow({
-      width: 1280,
-      height: 800,
-      minWidth: 900,
-      minHeight: 600,
-      show: false,
-      title: `Fidra — ${config.name} (Cloud)`,
-      webPreferences: {
-        preload: path.join(__dirname, 'preload.js'),
-        contextIsolation: true,
-        nodeIntegration: false,
-        zoomFactor: 1.0,
-      },
-    });
-
-    win.webContents.setZoomLevel(0);
-    win.webContents.setVisualZoomLevelLimits(1, 1);
-
-    // Show window once renderer has painted, with a fallback timeout
-    let shown = false;
-    const showOnce = () => {
-      if (shown || win.isDestroyed()) return;
-      shown = true;
-      win.show();
-      win.focus();
-    };
-    win.once('ready-to-show', showOnce);
-    const showTimeout = setTimeout(showOnce, 5000);
-
-    // Prevent Shift+Enter (or links) from opening blank windows
-    win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
-
-    const ctx = new WindowContext(win, cachePath, databaseId, sqlite, serverId);
-    const wcId = win.webContents.id;
-
-    this.contexts.set(wcId, ctx);
-    this.dbPathIndex.set(cachePath, wcId);
-    this.serverIdIndex.set(serverId, wcId);
-
-    // Clean up on close
-    win.on('closed', () => {
-      clearTimeout(showTimeout);
-      ctx.close().catch((e) => console.error('[WINDOW] Close cleanup error:', e));
-      this.contexts.delete(wcId);
-      this.dbPathIndex.delete(cachePath);
-      this.serverIdIndex.delete(serverId);
-      this.startupCompleted.delete(wcId);
-    });
-
-    // Auto-start Local Sync BEFORE loading the renderer (same reason as createWindow)
-    this.autoStartLocalSync(ctx);
-
-    try {
-      if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
-        await win.loadURL(MAIN_WINDOW_VITE_DEV_SERVER_URL);
-      } else {
-        const indexPath = path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`);
-        console.log('[WINDOW] Loading renderer from:', indexPath);
-        await win.loadFile(indexPath);
-      }
-    } catch (e) {
-      console.error('[WINDOW] Failed to load renderer:', e);
-      showOnce();
-    }
-
-    // Auto-connect to cloud after window loads
-    this.autoConnectCloud(ctx, config).catch((e) => {
-      console.error(`[CLOUD] Auto-connect failed for ${config.name}:`, e);
-    });
-
-    return ctx;
-  }
-
-  private async autoConnectCloud(
-    ctx: WindowContext,
-    config: import('../../shared/ipc-types').CloudServerConfig,
-  ): Promise<void> {
-    // Normalise: old configs stored Supabase creds under storageUrl/storageKey
-    const projectUrl = config.projectUrl ?? config.storageUrl;
-    const anonKey = config.anonKey ?? config.storageKey;
-    const isAdminMode = !!config.connectionString;
-
-    // Mutual exclusion: if Local Sync is configured, only initialize auth (for
-    // password-protected databases) but skip Cloud sync/caching layer.
-    const localSyncFolder = ctx.settingsRepo.getSetting('localSync.syncFolder');
-    if (localSyncFolder) {
-      console.log(`[CLOUD] Local Sync active — skipping Cloud Connect sync layer`);
-      if (!isAdminMode && projectUrl && anonKey) {
-        // Member mode: still need auth so user can access the database
-        await this.initMemberAuthOnly(ctx, config, projectUrl, anonKey);
-      }
-      return;
-    }
-
-    if (isAdminMode) {
-      await this.autoConnectAdmin(ctx, config, projectUrl, anonKey);
-    } else if (projectUrl && anonKey) {
-      await this.autoConnectMember(ctx, config, projectUrl, anonKey);
-    } else {
-      // No connection string and no Supabase creds — nothing we can do
-      ctx.sendToRenderer('cloud:authRequired');
-    }
-  }
-
-  /** Admin mode: connect via pg.Pool, run migrations, set up caching + auth */
-  private async autoConnectAdmin(
-    ctx: WindowContext,
-    config: import('../../shared/ipc-types').CloudServerConfig,
-    projectUrl: string | undefined,
-    anonKey: string | undefined,
-  ): Promise<void> {
-    const conn = new CloudConnection(config);
-    await conn.connect();
-    if (ctx.isClosed) { await conn.close(); return; }
-
-    await runMigrations(conn.pool);
-    if (ctx.isClosed) { await conn.close(); return; }
-
-    ctx.cloudConnection = conn;
-    ctx.activateCachingLayer(conn, config);
-
-    const repos = ctx.getCachingRepos();
-    await Promise.all([
-      repos.transactions?.refreshFromCloud(),
-      repos.planned?.refreshFromCloud(),
-      repos.sheets?.refreshFromCloud(),
-      repos.categories?.refreshFromCloud(),
-      repos.activityNotes?.refreshFromCloud(),
-      repos.attachments?.refreshFromCloud(),
-      repos.invoices?.refreshFromCloud(),
-      repos.audit?.refreshFromCloud(),
-    ]);
-    if (ctx.isClosed) return;
-
-    // Sync db_settings: push local → cloud if cloud is empty, otherwise pull cloud → local
-    if (ctx.pgSettingsRepo) {
-      const cloudSettings = await ctx.pgSettingsRepo.getAll().catch(() => ({}));
-      if (Object.keys(cloudSettings).length === 0) {
-        const localSettings = ctx.settingsRepo.getAll();
-        for (const [key, value] of Object.entries(localSettings)) {
-          await ctx.pgSettingsRepo.setSetting(key, value).catch(() => {});
-        }
-      } else {
-        for (const [key, value] of Object.entries(cloudSettings)) {
-          ctx.settingsRepo.setSetting(key, value);
-        }
-      }
-    }
-    if (ctx.isClosed) return;
-
-    await this.startCloudServices(ctx, conn, repos);
-
-    console.log(`[WINDOW ${ctx.dbName}] Cloud auto-connect (admin) complete for ${config.name}`);
-
-    // Admin mode: no auth infrastructure. Supabase credentials (if present)
-    // are used only for storage buckets — handled by the caching layer config.
-    ctx.authMode = 'admin';
-
-    // Notify renderer — connection is live, data is ready
-    ctx.sendToRenderer('connection:statusChanged', 'connected');
-    ctx.sendToRenderer('cloud:dataChanged', [
-      'transactions', 'planned_templates', 'sheets', 'categories', 'activity_notes', 'attachments', 'invoices', 'db_settings',
-    ]);
-  }
-
-  /** Member mode: authenticate first via Supabase Auth, then use PostgREST for data */
-  private async autoConnectMember(
-    ctx: WindowContext,
-    config: import('../../shared/ipc-types').CloudServerConfig,
-    projectUrl: string,
-    anonKey: string,
-  ): Promise<void> {
-    ctx.authMode = 'member';
-    ctx.supabaseAuth = new SupabaseAuth(projectUrl, anonKey);
-    const store = new SessionStore();
-    ctx.sessionManager = new SessionManager(ctx.serverId!, ctx.supabaseAuth, store);
-
-    // Try to restore a saved session BEFORE setting up the session-change handler.
-    // Otherwise restoreSession() fires onSessionChanged, which rebuilds the caching
-    // layer and starts services — duplicating the work autoConnectMember does below.
-    const session = await ctx.sessionManager.restoreSession();
-    if (ctx.isClosed) return;
-
-    // Now register the handler for future token refreshes / sign-ins
-    setupMemberSessionHandler(ctx, config);
-
-    if (!session) {
-      // No saved session — renderer must show auth gate
-      ctx.sendToRenderer('cloud:authRequired');
-      return;
-    }
-
-    ctx.authSession = session;
-
-    // Create authenticated Supabase client for data access
-    const supabaseClient = createClient(projectUrl, anonKey, {
-      global: { headers: { Authorization: `Bearer ${session.accessToken}` } },
-      auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false },
-    });
-
-    ctx.activateCachingLayerMember(supabaseClient, config);
-
-    const repos = ctx.getCachingRepos();
-    await Promise.all([
-      repos.transactions?.refreshFromCloud(),
-      repos.planned?.refreshFromCloud(),
-      repos.sheets?.refreshFromCloud(),
-      repos.categories?.refreshFromCloud(),
-      repos.activityNotes?.refreshFromCloud(),
-      repos.attachments?.refreshFromCloud(),
-      repos.invoices?.refreshFromCloud(),
-      repos.audit?.refreshFromCloud(),
-    ]);
-    if (ctx.isClosed) return;
-
-    // Sync db_settings: push local → cloud if cloud is empty, otherwise pull cloud → local
-    if (ctx.supabaseSettingsRepo) {
-      const cloudSettings = await ctx.supabaseSettingsRepo.getAll().catch(() => ({}));
-      if (Object.keys(cloudSettings).length === 0) {
-        const localSettings = ctx.settingsRepo.getAll();
-        for (const [key, value] of Object.entries(localSettings)) {
-          await ctx.supabaseSettingsRepo.setSetting(key, value).catch(() => {});
-        }
-      } else {
-        for (const [key, value] of Object.entries(cloudSettings)) {
-          ctx.settingsRepo.setSetting(key, value);
-        }
-      }
-    }
-    if (ctx.isClosed) return;
-
-    ctx.memberConnected = true;
-    startMemberServices(ctx);
-
-    console.log(`[WINDOW ${ctx.dbName}] Cloud auto-connect (member) complete for ${config.name}`);
-
-    ctx.sendToRenderer('connection:statusChanged', 'connected');
-    ctx.sendToRenderer('cloud:dataChanged', [
-      'transactions', 'planned_templates', 'sheets', 'categories', 'activity_notes', 'attachments', 'invoices', 'db_settings',
-    ]);
-    ctx.sendToRenderer('auth:sessionRestored', session);
-  }
-
-  /**
-   * Initialize auth infrastructure only (no sync/caching layer).
-   * Used when Local Sync is active on a member-mode database — the user still
-   * needs to authenticate, but Cloud data sync is skipped.
-   */
-  private async initMemberAuthOnly(
-    ctx: WindowContext,
-    config: import('../../shared/ipc-types').CloudServerConfig,
-    projectUrl: string,
-    anonKey: string,
-  ): Promise<void> {
-    ctx.authMode = 'member';
-    ctx.supabaseAuth = new SupabaseAuth(projectUrl, anonKey);
-    const store = new SessionStore();
-    ctx.sessionManager = new SessionManager(ctx.serverId!, ctx.supabaseAuth, store);
-
-    const session = await ctx.sessionManager.restoreSession();
-    if (ctx.isClosed) return;
-
-    setupMemberSessionHandler(ctx, config);
-
-    if (!session) {
-      ctx.sendToRenderer('cloud:authRequired');
-      return;
-    }
-
-    ctx.authSession = session;
-    console.log(`[WINDOW ${ctx.dbName}] Auth restored (Local Sync mode, no Cloud data sync)`);
-    ctx.sendToRenderer('auth:sessionRestored', session);
-  }
-
   /**
    * Auto-start Local Sync orchestrator if configured on this database.
    * Reads syncFolder + passphrase from per-db settings; if present, initializes
@@ -585,116 +298,6 @@ export class WindowManager {
     }
   }
 
-  /** Wire up SyncService, ConnectionStateService, ChangeListener for a pg.Pool connection */
-  private async startCloudServices(
-    ctx: WindowContext,
-    conn: CloudConnection,
-    repos: ReturnType<WindowContext['getCachingRepos']>,
-  ): Promise<void> {
-    const { SyncService } = await import('../cloud/sync-service');
-    const { ConnectionStateService } = await import('../cloud/connection-state');
-    const { ChangeListener } = await import('../cloud/change-listener');
-
-    const queue = ctx.syncQueue!;
-
-    ctx.connectionState = new ConnectionStateService(conn);
-    ctx.connectionState.onStatusChanged = (status) => {
-      ctx.sendToRenderer('connection:statusChanged', status);
-    };
-    ctx.connectionState.startMonitoring();
-
-    ctx.syncService = new SyncService(
-      queue,
-      repos.transactions!,
-      repos.planned!,
-      repos.sheets!,
-      repos.categories!,
-      ctx.connectionState,
-      repos.activityNotes ?? null,
-      repos.attachments ?? null,
-      repos.invoices ?? null,
-      repos.audit ?? null,
-      'ask_user',
-    );
-
-    ctx.syncService.onSyncStarted = () => {
-      ctx.sendToRenderer('sync:statusChanged', {
-        isSyncing: true,
-        pendingCount: ctx.syncService?.getPendingCount() ?? 0,
-      });
-    };
-    ctx.syncService.onSyncCompleted = (count) => {
-      ctx.sendToRenderer('sync:statusChanged', {
-        isSyncing: false,
-        pendingCount: ctx.syncService?.getPendingCount() ?? 0,
-        lastSyncedCount: count,
-      });
-    };
-    ctx.syncService.onSyncFailed = (error) => {
-      ctx.sendToRenderer('sync:statusChanged', {
-        isSyncing: false,
-        pendingCount: ctx.syncService?.getPendingCount() ?? 0,
-        error,
-      });
-    };
-    ctx.syncService.onPendingCountChanged = (count) => {
-      ctx.sendToRenderer('sync:statusChanged', {
-        isSyncing: ctx.syncService?.isSyncing ?? false,
-        pendingCount: count,
-      });
-    };
-    ctx.syncService.onConflictDetected = (changeId, local, server) => {
-      ctx.sendToRenderer('sync:conflictDetected', { changeId, local, server });
-    };
-
-    ctx.syncService.start();
-
-    ctx.changeListener = new ChangeListener(conn);
-    ctx.changeListener.onTablesChanged = (tables) => {
-      const refreshPromises: Promise<unknown>[] = [];
-      if (tables.has('transactions') && repos.transactions) {
-        refreshPromises.push(repos.transactions.refreshFromCloud());
-      }
-      if (tables.has('planned_templates') && repos.planned) {
-        refreshPromises.push(repos.planned.refreshFromCloud());
-      }
-      if (tables.has('sheets') && repos.sheets) {
-        refreshPromises.push(repos.sheets.refreshFromCloud());
-      }
-      if (tables.has('categories') && repos.categories) {
-        refreshPromises.push(repos.categories.refreshFromCloud());
-      }
-      if (tables.has('activity_notes') && repos.activityNotes) {
-        refreshPromises.push(repos.activityNotes.refreshFromCloud());
-      }
-      if (tables.has('attachments') && repos.attachments) {
-        refreshPromises.push(repos.attachments.refreshFromCloud());
-      }
-      if (tables.has('audit_log') && repos.audit) {
-        refreshPromises.push(repos.audit.refreshFromCloud());
-      }
-      if (tables.has('db_settings') && ctx.pgSettingsRepo) {
-        refreshPromises.push(
-          ctx.pgSettingsRepo.getAll().then((settings) => {
-            for (const [key, value] of Object.entries(settings)) {
-              ctx.settingsRepo.setSetting(key, value);
-            }
-          }),
-        );
-      }
-
-      Promise.all(refreshPromises)
-        .then(() => {
-          if (!ctx.changeListener) return; // Torn down while refreshing
-          ctx.sendToRenderer('cloud:dataChanged', [...tables]);
-        })
-        .catch((e) => console.error('[CLOUD] Refresh after remote changes failed:', e));
-    };
-    ctx.changeListener.start().catch((e) => {
-      console.error('[CLOUD] Failed to start change listener:', e);
-    });
-  }
-
   /** Returns true if the window will reload (caller's JS context will be destroyed). */
   async switchWindowToFile(webContentsId: number, dbPath: string): Promise<boolean> {
     const normalized = path.resolve(dbPath);
@@ -712,23 +315,15 @@ export class WindowManager {
 
     const win = ctx.window;
     const oldDbPath = ctx.dbPath;
-    const oldServerId = ctx.serverId;
 
     // Tear down old context (but NOT the window)
     releaseDbLock(oldDbPath);
     ctx.stopLocalSyncServices();
-    await ctx.stopCloudServices();
-    ctx.deactivateCachingLayer();
-    if (ctx.cloudConnection) {
-      await ctx.cloudConnection.close();
-      ctx.cloudConnection = null;
-    }
     ctx.sqlite.close();
 
     // Clean up indexes
     this.contexts.delete(webContentsId);
     this.dbPathIndex.delete(oldDbPath);
-    if (oldServerId) this.serverIdIndex.delete(oldServerId);
 
     // Create new context for the same window
     const { db: sqlite, databaseId } = openDatabase(normalized);
@@ -784,87 +379,41 @@ export class WindowManager {
     return true;
   }
 
-  /** Returns true if the window will reload (caller's JS context will be destroyed). */
-  async switchWindowToCloud(webContentsId: number, serverId: string): Promise<boolean> {
+  /**
+   * Rebuild a window's context around the same file after its database was replaced
+   * on disk (backup restore). The caller has already closed the old connection, so
+   * `switchWindowToFile` is no use here — it short-circuits when the path is unchanged
+   * and would leave the window holding a dead handle.
+   *
+   * The advisory db lock is deliberately kept: the file never stopped being ours.
+   */
+  reopenWindowDatabase(webContentsId: number): boolean {
     const ctx = this.contexts.get(webContentsId);
-    if (!ctx) throw new Error('No context for this window');
-
-    // Already showing this server AND still connected — no-op
-    if (ctx.serverId === serverId && ctx.cloudConnection?.isConnected) return false;
-
-    // Same server but disconnected (e.g. after sign-out) — reconnect
-    if (ctx.serverId === serverId && !ctx.cloudConnection?.isConnected) {
-      const config = getCloudServer(serverId);
-      if (!config) throw new Error(`Cloud server not found: ${serverId}`);
-
-      ctx.stopLocalSyncServices();
-      await ctx.stopCloudServices();
-      ctx.deactivateCachingLayer();
-
-      const win = ctx.window;
-      this.autoStartLocalSync(ctx);
-      win.webContents.reload();
-      this.autoConnectCloud(ctx, config).catch((e) => {
-        console.error(`[CLOUD] Auto-reconnect failed for ${config.name}:`, e);
-      });
-      return true;
-    }
-
-    // If this server is open in another window, focus it
-    if (this.isServerOpen(serverId)) {
-      this.focusWindowForServer(serverId);
-      return false;
-    }
-
-    const config = getCloudServer(serverId);
-    if (!config) throw new Error(`Cloud server not found: ${serverId}`);
+    if (!ctx) return false;
 
     const win = ctx.window;
-    const oldDbPath = ctx.dbPath;
-    const oldServerId = ctx.serverId;
-
-    // Tear down old context
-    ctx.stopLocalSyncServices();
-    await ctx.stopCloudServices();
-    ctx.deactivateCachingLayer();
-    if (ctx.cloudConnection) {
-      await ctx.cloudConnection.close();
-      ctx.cloudConnection = null;
-    }
-    ctx.sqlite.close();
+    const dbPath = ctx.dbPath;
 
     this.contexts.delete(webContentsId);
-    this.dbPathIndex.delete(oldDbPath);
-    if (oldServerId) this.serverIdIndex.delete(oldServerId);
+    this.dbPathIndex.delete(dbPath);
 
-    // Create new context for cloud
-    ensureCloudCacheDir();
-    const cachePath = getCloudCachePath(serverId);
-    const { db: sqlite, databaseId } = openDatabase(cachePath);
-    const newCtx = new WindowContext(win, cachePath, databaseId, sqlite, serverId);
+    const { db: sqlite, databaseId } = openDatabase(dbPath);
+    const newCtx = new WindowContext(win, dbPath, databaseId, sqlite);
 
     this.contexts.set(webContentsId, newCtx);
-    this.dbPathIndex.set(cachePath, webContentsId);
-    this.serverIdIndex.set(serverId, webContentsId);
-
-    win.setTitle(`Fidra — ${config.name} (Cloud)`);
+    this.dbPathIndex.set(dbPath, webContentsId);
 
     win.removeAllListeners('closed');
     win.on('closed', () => {
       newCtx.close().catch((e) => console.error('[WINDOW] Close cleanup error:', e));
       this.contexts.delete(webContentsId);
-      this.dbPathIndex.delete(cachePath);
-      this.serverIdIndex.delete(serverId);
+      this.dbPathIndex.delete(dbPath);
     });
 
-    // Auto-start Local Sync before reload so auth state is ready for renderer
     this.autoStartLocalSync(newCtx);
+
+    // Reload renderer so stores re-fetch from the restored database
     win.webContents.reload();
-
-    this.autoConnectCloud(newCtx, config).catch((e) => {
-      console.error(`[CLOUD] Auto-connect failed for ${config.name}:`, e);
-    });
-
     return true;
   }
 
@@ -876,13 +425,6 @@ export class WindowManager {
     await Promise.all(closeTasks);
     this.contexts.clear();
     this.dbPathIndex.clear();
-    this.serverIdIndex.clear();
-  }
-
-  getContextByServerId(serverId: string): WindowContext | undefined {
-    const wcId = this.serverIdIndex.get(serverId);
-    if (wcId === undefined) return undefined;
-    return this.contexts.get(wcId);
   }
 
   getAllContexts(): WindowContext[] {

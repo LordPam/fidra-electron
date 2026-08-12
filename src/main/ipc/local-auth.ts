@@ -14,7 +14,7 @@ import type { LocalSyncStatus, ImportNotification } from '../../shared/ipc-types
 import type { LocalAuthStatus } from '../../shared/auth-types';
 import { writeInviteToken, generateInviteCode } from '../sync/invite-token';
 import { syncLog, errorMessage } from '../sync/sync-log';
-import { SessionStore, dbPathToSessionId } from '../cloud/auth/session-store';
+import { SessionStore, dbPathToSessionId } from '../services/session-store';
 
 export function registerLocalAuthHandlers(): void {
   ipcMain.handle('localAuth:signIn', (event, rawData: unknown) => {

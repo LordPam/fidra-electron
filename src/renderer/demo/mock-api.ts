@@ -1,7 +1,6 @@
 import type { ElectronApi } from '../../preload/preload';
 import type {
   AttachmentRow,
-  CloudServerConfig,
   InvoiceDefaults,
   InvoiceRow,
   PlannedTemplateRow,
@@ -117,9 +116,11 @@ export function createDemoApi(): ElectronApi {
     renameSheet: async (oldName: string, newName: string) => {
       state.sheets = state.sheets.map((row) => (row.name === oldName ? { ...row, name: newName } : row));
       state.transactions = state.transactions.map((row) => (row.sheet === oldName ? { ...row, sheet: newName } : row));
-      state.plannedTemplates = state.plannedTemplates.map((row) => (
-        row.target_sheet === oldName ? { ...row, target_sheet: newName } : row
-      ));
+      state.plannedTemplates = state.plannedTemplates.map((row) => ({
+        ...row,
+        target_sheet: row.target_sheet === oldName ? newName : row.target_sheet,
+        transfer_target_sheet: row.transfer_target_sheet === oldName ? newName : row.transfer_target_sheet,
+      }));
       if (state.currentSheet === oldName) state.currentSheet = newName;
     },
 
@@ -129,12 +130,18 @@ export function createDemoApi(): ElectronApi {
         state.transactions = state.transactions.map((row) => (
           row.sheet === name ? { ...row, sheet: mergeTarget } : row
         ));
-        state.plannedTemplates = state.plannedTemplates.map((row) => (
-          row.target_sheet === name ? { ...row, target_sheet: mergeTarget } : row
-        ));
+        state.plannedTemplates = state.plannedTemplates.map((row) => ({
+          ...row,
+          target_sheet: row.target_sheet === name ? mergeTarget : row.target_sheet,
+          transfer_target_sheet: row.transfer_target_sheet === name ? mergeTarget : row.transfer_target_sheet,
+        }));
       } else {
         state.transactions = state.transactions.filter((row) => row.sheet !== name);
-        state.plannedTemplates = state.plannedTemplates.filter((row) => row.target_sheet !== name);
+        state.plannedTemplates = state.plannedTemplates
+          .filter((row) => row.target_sheet !== name)
+          .map((row) => (
+            row.transfer_target_sheet === name ? { ...row, transfer_target_sheet: null } : row
+          ));
       }
       if (state.currentSheet === name) state.currentSheet = 'All Sheets';
     },
@@ -164,7 +171,9 @@ export function createDemoApi(): ElectronApi {
       clone(state.transactions.filter((row) => row.sheet === name)),
 
     getPlannedOnSheet: async (name: string) =>
-      clone(state.plannedTemplates.filter((row) => row.target_sheet === name)),
+      clone(state.plannedTemplates.filter((row) => (
+        row.target_sheet === name || row.transfer_target_sheet === name
+      ))),
 
     getAttachmentsOnSheet: async (name: string) => {
       const ids = new Set(state.transactions.filter((row) => row.sheet === name).map((row) => row.id));
@@ -260,34 +269,6 @@ export function createDemoApi(): ElectronApi {
 
     printToPDF: async () => [],
 
-    getCloudConfig: async (): Promise<CloudServerConfig | null> => clone(state.cloudConfig),
-
-    saveCloudConfig: async (config: CloudServerConfig) => {
-      state.cloudConfig = clone(config);
-    },
-
-    deleteCloudConfig: async () => {
-      state.cloudConfig = null;
-    },
-
-    testCloudConnection: async () => ({ success: false, error: 'Cloud sync is disabled in the browser demo.' }),
-
-    connectCloud: async () => ({ success: false, error: 'Cloud sync is disabled in the browser demo.' }),
-
-    disconnectCloud: async () => undefined,
-
-    getCloudStatus: async () => clone(state.cloudStatus),
-
-    syncNow: async () => 0,
-
-    getSyncStatus: async () => ({ isSyncing: false, pendingCount: 0, conflicts: [] }),
-
-    resolveConflict: async () => undefined,
-
-    getConnectionStatus: async () => ({ status: 'offline' as const }),
-
-    reconnectCloud: async () => ({ success: false }),
-
     getStartupMode: async () => ({ mode: 'restore' as const }),
 
     markFirstRunComplete: async () => undefined,
@@ -306,19 +287,7 @@ export function createDemoApi(): ElectronApi {
 
     getDbInfo: async () => clone(state.dbInfo),
 
-    isCloudWindow: async () => false,
-
-    getCloudServers: async () => [],
-
-    saveCloudServer: async () => undefined,
-
-    removeCloudServer: async () => undefined,
-
-    openCloudServer: async () => ({ success: false, error: 'Not available in browser demo.' }),
-
     switchToFile: async () => ({ success: false, reloading: false, error: 'Not available in browser demo.' }),
-
-    switchToCloudServer: async () => ({ success: false, reloading: false, error: 'Not available in browser demo.' }),
 
     getInvoices: async () => clone(state.invoices),
 
@@ -397,17 +366,7 @@ export function createDemoApi(): ElectronApi {
       };
     },
 
-    authSignIn: async () => ({ success: false, error: 'Authentication is disabled in the browser demo.' }),
-    authSignUp: async () => ({ success: false, error: 'Authentication is disabled in the browser demo.' }),
-    authSignOut: async () => undefined,
-    authGetSession: async () => null,
-    authGetOAuthUrl: async () => ({ error: 'Authentication is disabled in the browser demo.' }),
-    authOAuthCallback: async () => ({ success: false, error: 'Authentication is disabled in the browser demo.' }),
-    authAdminFirstSetup: async () => ({ success: false, error: 'Authentication is disabled in the browser demo.' }),
     getPersonnel: async () => [],
-    invitePersonnel: async () => {
-      throw new Error('Personnel management is disabled in the browser demo.');
-    },
     removePersonnel: async () => ({ success: false, error: 'Disabled in browser demo.' }),
     updatePersonnelRole: async () => ({ success: false, error: 'Disabled in browser demo.' }),
     localAuthGetStatus: async () => ({
@@ -433,7 +392,6 @@ export function createDemoApi(): ElectronApi {
     localSyncValidateFolder: async () => ({ valid: true as const }),
     localSyncCreateSnapshot: async () => ({ success: false, error: 'Disabled in browser demo.' }),
     localSyncRecoverAttachments: async () => ({ success: false, restored: 0, error: 'Disabled in browser demo.' }),
-    localSyncMigrateFromCloud: async () => ({ success: false, error: 'Disabled in browser demo.' }),
     localSyncJoinGroup: async () => ({ success: false, error: 'Disabled in browser demo.' }),
     localSyncJoinViaInvite: async () => ({ success: false, error: 'Disabled in browser demo.' }),
     localSyncGetStartupSummary: async () => null,

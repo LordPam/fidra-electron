@@ -11,10 +11,7 @@ They are related operationally, but they are not the same thing.
 
 Personnel is Fidra's list of named people who can access a shared database.
 
-This only becomes relevant when you are using a shared mode such as:
-
-- Local Sync with personnel enabled
-- Cloud Connect
+This only becomes relevant when you are using Local Sync with personnel enabled.
 
 If you are using a standalone local database, the Personnel area stays disabled.
 

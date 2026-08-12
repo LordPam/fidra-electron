@@ -1,6 +1,7 @@
 import type { TransactionRow } from '../../shared/ipc-types';
 import { computeRunningBalances } from './balance';
 import { formatCurrency, formatDate } from '../lib/format';
+import { toAmount, toAmountString } from '../../shared/money';
 
 function sortByDate(transactions: TransactionRow[]): TransactionRow[] {
   return [...transactions].sort(
@@ -83,7 +84,7 @@ export function exportMarkdown(transactions: TransactionRow[], includeBalance = 
     let income = 0;
     let expenses = 0;
     for (const t of monthTxns) {
-      const amt = parseFloat(t.amount) || 0;
+      const amt = toAmount(t.amount);
       if (t.type === 'income') income += amt;
       else expenses += amt;
     }
@@ -144,7 +145,7 @@ export function exportTSV(transactions: TransactionRow[], includeBalance = false
     const fields = [
       t.date,
       t.description,
-      parseFloat(t.amount).toFixed(2),
+      toAmountString(t.amount) ?? t.amount,
       t.type,
       t.status,
       t.category || '',

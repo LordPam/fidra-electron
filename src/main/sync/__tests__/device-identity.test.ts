@@ -21,8 +21,6 @@ function freshSettings(): GlobalSettings {
     lastOpenedAt: null,
     alwaysShowFileChooser: false,
     firstRunComplete: false,
-    cloudServers: [],
-    activeServerId: null,
     uiPreferences: {
       tableZoom: 0.8,
       plannedTableZoom: 0.8,

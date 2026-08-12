@@ -7,21 +7,16 @@ import { getWindowManager } from '../window/window-manager';
 import {
   loadGlobalSettings,
   removeRecentFile,
-  updateCloudServer,
-  removeCloudServer,
   markFirstRunComplete,
   getUiPreferences,
   saveUiPreferences,
 } from '../window/global-settings';
 import {
-  cloudServerConfigSchema,
   profileSchema,
   transactionSettingsSchema,
   invoiceDefaultsSchema,
   uiPreferencesSchema,
 } from '../../shared/ipc-schemas';
-import type { CloudServerConfig } from '../../shared/ipc-types';
-import type { UiPreferences } from '../../shared/global-settings-types';
 
 const STALE_THRESHOLD_MS = 24 * 60 * 60 * 1000; // 24 hours
 
@@ -30,7 +25,7 @@ const STALE_THRESHOLD_MS = 24 * 60 * 60 * 1000; // 24 hours
  * Priority: auth session email → local profile (initials > name) → null.
  */
 function getCurrentUser(ctx: import('../window/window-context').WindowContext): { displayName: string; source: 'auth' | 'profile' | 'none' } | null {
-  // 1. Auth session (cloud with Supabase Auth)
+  // 1. Auth session (Local Sync auth)
   if (ctx.authSession?.user?.email) {
     return { displayName: ctx.authSession.user.email, source: 'auth' };
   }
@@ -230,36 +225,6 @@ export function registerWindowHandlers(): void {
     return { path: ctx.dbPath, name: ctx.dbName };
   });
 
-  ipcMain.handle('window:isCloudWindow', (event) => {
-    return resolveContext(event).isCloudWindow;
-  });
-
-  ipcMain.handle('window:getCloudServers', () => {
-    return loadGlobalSettings().cloudServers;
-  });
-
-  ipcMain.handle('window:saveCloudServer', (_event, config: unknown) => {
-    const validated = cloudServerConfigSchema.parse(config);
-    updateCloudServer(validated);
-  });
-
-  ipcMain.handle('window:removeCloudServer', (_event, id: unknown) => {
-    const validId = z.string().parse(id);
-    removeCloudServer(validId);
-  });
-
-  ipcMain.handle('window:openCloudServer', async (_event, serverId: unknown) => {
-    const validServerId = z.string().parse(serverId);
-    try {
-      const wm = getWindowManager();
-      const ctx = await wm.createCloudWindow(validServerId);
-      wm.markStartupComplete(ctx.window.webContents.id);
-      return { success: true };
-    } catch (e) {
-      return { success: false, error: String(e) };
-    }
-  });
-
   ipcMain.handle('window:switchToFile', async (event, dbPath: unknown) => {
     const validPath = z.string().parse(dbPath);
     try {
@@ -295,19 +260,6 @@ export function registerWindowHandlers(): void {
         return { success: false, reloading: false, error: 'File selection canceled' };
       }
       return { success: false, reloading: false, error: errMsg };
-    }
-  });
-
-  ipcMain.handle('window:switchToCloudServer', async (event, serverId: unknown) => {
-    const validServerId = z.string().parse(serverId);
-    try {
-      const wcId = event.sender.id;
-      const wm = getWindowManager();
-      const reloading = await wm.switchWindowToCloud(wcId, validServerId);
-      if (reloading) wm.markStartupComplete(wcId);
-      return { success: true, reloading };
-    } catch (e) {
-      return { success: false, reloading: false, error: String(e) };
     }
   });
 
@@ -347,54 +299,37 @@ export function registerWindowHandlers(): void {
     return getCurrentUser(ctx);
   });
 
-  // Financial year start month (per-database, with cloud sync)
+  // Financial year start month (per-database, org-scoped — syncs via Local Sync)
   ipcMain.handle('settings:getFYStartMonth', (event) => {
     const ctx = resolveContext(event);
     const val = ctx.settingsRepo.getSetting('fy.startMonth');
     if (!val) {
-      // Persist the default so it participates in cloud sync
+      // Persist the default so it participates in org-scoped sync
       ctx.settingsRepo.setSetting('fy.startMonth', '1');
       return 1;
     }
     return parseInt(val, 10);
   });
 
-  ipcMain.handle('settings:saveFYStartMonth', async (event, month: unknown) => {
+  ipcMain.handle('settings:saveFYStartMonth', (event, month: unknown) => {
     const validMonth = z.number().int().min(1).max(12).parse(month);
     const ctx = resolveContext(event);
     ctx.settingsRepo.setSetting('fy.startMonth', String(validMonth));
-    // Sync to cloud if connected (direct write, no queue)
-    if (ctx.pgSettingsRepo) {
-      await ctx.pgSettingsRepo.setSetting('fy.startMonth', String(validMonth)).catch((e: unknown) => {
-        console.error('[CLOUD] Failed to sync FY start month:', e instanceof Error ? (e as Error).message : String(e));
-      });
-    } else if (ctx.supabaseSettingsRepo) {
-      await ctx.supabaseSettingsRepo.setSetting('fy.startMonth', String(validMonth)).catch((e: unknown) => {
-        console.error('[CLOUD] Failed to sync FY start month:', e instanceof Error ? (e as Error).message : String(e));
-      });
-    }
   });
 
-  // Organisation name (per-database, org-scoped — syncs via Local Sync + Cloud Connect)
+  // Organisation name (per-database, org-scoped — syncs via Local Sync)
   ipcMain.handle('settings:getOrgName', (event) => {
     const ctx = resolveContext(event);
     return ctx.settingsRepo.getSetting('report.orgName') ?? '';
   });
 
-  ipcMain.handle('settings:saveOrgName', async (event, name: unknown) => {
+  ipcMain.handle('settings:saveOrgName', (event, name: unknown) => {
     const validName = z.string().max(200).parse(name);
     const ctx = resolveContext(event);
     ctx.settingsRepo.setSetting('report.orgName', validName);
-    // Sync to cloud if connected
-    const cloudRepo = ctx.pgSettingsRepo ?? ctx.supabaseSettingsRepo;
-    if (cloudRepo) {
-      await cloudRepo.setSetting('report.orgName', validName).catch((e: unknown) => {
-        console.error('[CLOUD] Failed to sync report.orgName:', e instanceof Error ? e.message : String(e));
-      });
-    }
   });
 
-  // Current sheet selection (per-database, UI-only — not synced to cloud)
+  // Current sheet selection (per-database, UI-only — device-scoped)
   ipcMain.handle('settings:getCurrentSheet', (event) => {
     const ctx = resolveContext(event);
     return ctx.settingsRepo.getSetting('ui.currentSheet') ?? 'All Sheets';
@@ -406,7 +341,7 @@ export function registerWindowHandlers(): void {
     ctx.settingsRepo.setSetting('ui.currentSheet', validated);
   });
 
-  // Invoice defaults (per-database, with cloud sync)
+  // Invoice defaults (per-database, org-scoped — syncs via Local Sync)
   const INVOICE_KEYS = ['fromName', 'fromAddress', 'bankDetails', 'notes', 'logoPath', 'logoData', 'counter', 'accentMode'] as const;
 
   ipcMain.handle('settings:getInvoiceDefaults', (event) => {
@@ -423,20 +358,11 @@ export function registerWindowHandlers(): void {
     };
   });
 
-  ipcMain.handle('settings:saveInvoiceDefaults', async (event, defaults: unknown) => {
+  ipcMain.handle('settings:saveInvoiceDefaults', (event, defaults: unknown) => {
     const validated = invoiceDefaultsSchema.parse(defaults);
     const ctx = resolveContext(event);
     for (const key of INVOICE_KEYS) {
       ctx.settingsRepo.setSetting(`invoice.${key}`, validated[key]);
-    }
-    // Sync to cloud if connected (direct write, no queue — matches FY start month pattern)
-    const cloudRepo = ctx.pgSettingsRepo ?? ctx.supabaseSettingsRepo;
-    if (cloudRepo) {
-      for (const key of INVOICE_KEYS) {
-        await cloudRepo.setSetting(`invoice.${key}`, validated[key]).catch((e: unknown) => {
-          console.error(`[CLOUD] Failed to sync invoice.${key}:`, e instanceof Error ? e.message : String(e));
-        });
-      }
     }
   });
 

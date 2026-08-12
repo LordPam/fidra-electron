@@ -7,9 +7,6 @@ import type {
   AttachmentRow,
   InvoiceRow,
   InvoiceDefaults,
-  CloudServerConfig,
-  CloudStatus,
-  SyncConflict,
   AuditLogRow,
   LocalSyncConfig,
   LocalSyncStatus,
@@ -24,7 +21,7 @@ import type {
   UpdateInfo,
   UpdateDownloadProgress,
 } from '../shared/ipc-types';
-import type { AuthSession, PersonnelRecord, PersonnelRole, LocalAuthStatus } from '../shared/auth-types';
+import type { PersonnelRecord, PersonnelRole, LocalAuthStatus } from '../shared/auth-types';
 import type {
   CsvParseRequest,
   CsvParseResponse,
@@ -142,36 +139,6 @@ const api = {
   printToPDF: (html: string, options?: { footerText?: string }): Promise<number[]> =>
     ipcRenderer.invoke('app:printToPDF', html, options),
 
-  // Cloud
-  getCloudConfig: (): Promise<CloudServerConfig | null> =>
-    ipcRenderer.invoke('cloud:getConfig'),
-  saveCloudConfig: (config: CloudServerConfig): Promise<void> =>
-    ipcRenderer.invoke('cloud:saveConfig', config),
-  deleteCloudConfig: (): Promise<void> =>
-    ipcRenderer.invoke('cloud:deleteConfig'),
-  testCloudConnection: (connectionString: string): Promise<{ success: boolean; error?: string }> =>
-    ipcRenderer.invoke('cloud:testConnection', connectionString),
-  connectCloud: (): Promise<{ success: boolean; error?: string; authenticated?: boolean }> =>
-    ipcRenderer.invoke('cloud:connect'),
-  disconnectCloud: (): Promise<void> =>
-    ipcRenderer.invoke('cloud:disconnect'),
-  getCloudStatus: (): Promise<CloudStatus> =>
-    ipcRenderer.invoke('cloud:getStatus'),
-
-  // Sync
-  syncNow: (): Promise<number> =>
-    ipcRenderer.invoke('sync:now'),
-  getSyncStatus: (): Promise<{ isSyncing: boolean; pendingCount: number; conflicts: SyncConflict[] }> =>
-    ipcRenderer.invoke('sync:getStatus'),
-  resolveConflict: (changeId: string, useLocal: boolean): Promise<void> =>
-    ipcRenderer.invoke('sync:resolveConflict', changeId, useLocal),
-
-  // Connection
-  getConnectionStatus: (): Promise<{ status: 'connected' | 'reconnecting' | 'offline' }> =>
-    ipcRenderer.invoke('connection:getStatus'),
-  reconnectCloud: (): Promise<{ success: boolean }> =>
-    ipcRenderer.invoke('connection:reconnect'),
-
   // Startup
   getStartupMode: (): Promise<{ mode: 'wizard' | 'restore' | 'chooser' }> =>
     ipcRenderer.invoke('app:getStartupMode'),
@@ -193,20 +160,8 @@ const api = {
     ipcRenderer.invoke('window:removeRecent', filePath),
   getDbInfo: (): Promise<{ path: string; name: string }> =>
     ipcRenderer.invoke('window:getDbInfo'),
-  isCloudWindow: (): Promise<boolean> =>
-    ipcRenderer.invoke('window:isCloudWindow'),
-  getCloudServers: (): Promise<CloudServerConfig[]> =>
-    ipcRenderer.invoke('window:getCloudServers'),
-  saveCloudServer: (config: CloudServerConfig): Promise<void> =>
-    ipcRenderer.invoke('window:saveCloudServer', config),
-  removeCloudServer: (id: string): Promise<void> =>
-    ipcRenderer.invoke('window:removeCloudServer', id),
-  openCloudServer: (serverId: string): Promise<{ success: boolean; error?: string }> =>
-    ipcRenderer.invoke('window:openCloudServer', serverId),
   switchToFile: (dbPath: string): Promise<{ success: boolean; reloading: boolean; error?: string }> =>
     ipcRenderer.invoke('window:switchToFile', dbPath),
-  switchToCloudServer: (serverId: string): Promise<{ success: boolean; reloading: boolean; error?: string }> =>
-    ipcRenderer.invoke('window:switchToCloudServer', serverId),
 
   // Invoices
   getInvoices: (): Promise<InvoiceRow[]> =>
@@ -262,27 +217,9 @@ const api = {
   saveUiPreferences: (prefs: UiPreferences): Promise<void> =>
     ipcRenderer.invoke('settings:saveUiPreferences', prefs),
 
-  // Auth
-  authSignIn: (email: string, password: string): Promise<{ success: boolean; error?: string }> =>
-    ipcRenderer.invoke('auth:signIn', email, password),
-  authSignUp: (email: string, password: string): Promise<{ success: boolean; error?: string }> =>
-    ipcRenderer.invoke('auth:signUp', email, password),
-  authSignOut: (): Promise<void> =>
-    ipcRenderer.invoke('auth:signOut'),
-  authGetSession: (): Promise<AuthSession | null> =>
-    ipcRenderer.invoke('auth:getSession'),
-  authGetOAuthUrl: (provider: 'google' | 'azure'): Promise<{ url?: string; error?: string }> =>
-    ipcRenderer.invoke('auth:getOAuthUrl', provider),
-  authOAuthCallback: (code: string): Promise<{ success: boolean; error?: string }> =>
-    ipcRenderer.invoke('auth:oauthCallback', code),
-  authAdminFirstSetup: (name: string, email: string, password: string): Promise<{ success: boolean; error?: string }> =>
-    ipcRenderer.invoke('auth:adminFirstSetup', name, email, password),
-
   // Personnel
   getPersonnel: (): Promise<PersonnelRecord[]> =>
     ipcRenderer.invoke('personnel:getAll'),
-  invitePersonnel: (name: string, email: string, role: PersonnelRole): Promise<PersonnelRecord> =>
-    ipcRenderer.invoke('personnel:invite', name, email, role),
   removePersonnel: (id: string): Promise<{ success: boolean; error?: string }> =>
     ipcRenderer.invoke('personnel:remove', id),
   updatePersonnelRole: (id: string, role: PersonnelRole): Promise<{ success: boolean; error?: string }> =>
@@ -321,8 +258,6 @@ const api = {
     ipcRenderer.invoke('localSync:joinGroup', opts),
   localSyncRecoverAttachments: (): Promise<{ success: boolean; copiedCount?: number; exportedCount?: number; error?: string }> =>
     ipcRenderer.invoke('localSync:recoverAttachments'),
-  localSyncMigrateFromCloud: (opts: { syncFolder: string; passphrase: string; newDbPath: string }): Promise<MigrationResult> =>
-    ipcRenderer.invoke('localSync:migrateFromCloud', opts),
   localSyncJoinViaInvite: (opts: { syncFolder: string; email: string; inviteCode: string; password: string; newDbPath: string }): Promise<MigrationResult> =>
     ipcRenderer.invoke('localSync:joinViaInvite', opts),
   localSyncValidateFolder: (folderPath: string): Promise<SyncFolderValidation> =>
@@ -373,58 +308,6 @@ const api = {
     ipcRenderer.invoke('csvImport:deleteProfile', profileId),
   csvImportTrainModel: (): Promise<void> =>
     ipcRenderer.invoke('csvImport:trainModel'),
-
-  // Event listeners (main → renderer push)
-  onSyncStatusChanged: (callback: (data: { isSyncing: boolean; pendingCount: number }) => void): (() => void) => {
-    const handler = (_event: unknown, data: { isSyncing: boolean; pendingCount: number }) => callback(data);
-    ipcRenderer.on('sync:statusChanged', handler);
-    return () => ipcRenderer.removeListener('sync:statusChanged', handler);
-  },
-  onConnectionStatusChanged: (callback: (status: string) => void): (() => void) => {
-    const handler = (_event: unknown, status: string) => callback(status);
-    ipcRenderer.on('connection:statusChanged', handler);
-    return () => ipcRenderer.removeListener('connection:statusChanged', handler);
-  },
-  onConflictDetected: (callback: (data: SyncConflict) => void): (() => void) => {
-    const handler = (_event: unknown, data: SyncConflict) => callback(data);
-    ipcRenderer.on('sync:conflictDetected', handler);
-    return () => ipcRenderer.removeListener('sync:conflictDetected', handler);
-  },
-  onDataChanged: (callback: (tables: string[]) => void): (() => void) => {
-    const handler = (_event: unknown, tables: string[]) => callback(tables);
-    ipcRenderer.on('cloud:dataChanged', handler);
-    return () => ipcRenderer.removeListener('cloud:dataChanged', handler);
-  },
-  onMenuAddCloudServer: (callback: () => void): (() => void) => {
-    const handler = () => callback();
-    ipcRenderer.on('menu:addCloudServer', handler);
-    return () => ipcRenderer.removeListener('menu:addCloudServer', handler);
-  },
-  onAuthSessionChanged: (callback: (session: AuthSession | null) => void): (() => void) => {
-    const handler = (_event: unknown, session: AuthSession | null) => callback(session);
-    ipcRenderer.on('auth:sessionChanged', handler);
-    return () => ipcRenderer.removeListener('auth:sessionChanged', handler);
-  },
-  onAuthSessionRestored: (callback: (session: AuthSession) => void): (() => void) => {
-    const handler = (_event: unknown, session: AuthSession) => callback(session);
-    ipcRenderer.on('auth:sessionRestored', handler);
-    return () => ipcRenderer.removeListener('auth:sessionRestored', handler);
-  },
-  onAdminSetupRequired: (callback: () => void): (() => void) => {
-    const handler = () => callback();
-    ipcRenderer.on('cloud:adminSetupRequired', handler);
-    return () => ipcRenderer.removeListener('cloud:adminSetupRequired', handler);
-  },
-  onAuthRequired: (callback: () => void): (() => void) => {
-    const handler = () => callback();
-    ipcRenderer.on('cloud:authRequired', handler);
-    return () => ipcRenderer.removeListener('cloud:authRequired', handler);
-  },
-  onAuthOAuthCallback: (callback: (code: string) => void): (() => void) => {
-    const handler = (_event: unknown, code: string) => callback(code);
-    ipcRenderer.on('auth:oauthCallback', handler);
-    return () => ipcRenderer.removeListener('auth:oauthCallback', handler);
-  },
 
   // Local Sync event listeners (main → renderer push)
   onLocalSyncStatusChanged: (callback: (status: LocalSyncStatus) => void): (() => void) => {

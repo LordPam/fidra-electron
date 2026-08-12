@@ -1,4 +1,5 @@
 import type { TransactionRow } from '../../shared/ipc-types';
+import { sumAmounts, toAmount } from '../../shared/money';
 
 // --- Types ---
 
@@ -102,7 +103,7 @@ function buildBreakdown(
   }
   const result: CategoryRow[] = [];
   for (const [category, items] of byCat) {
-    const total = items.reduce((s, t) => s + (parseFloat(t.amount) || 0), 0);
+    const total = sumAmounts(items.map((t) => t.amount));
     const pct = grandTotal > 0 ? (total / grandTotal) * 100 : 0;
     // Group by description and count occurrences
     const byDesc = new Map<string, { count: number; amount: number }>();
@@ -110,7 +111,7 @@ function buildBreakdown(
       const desc = t.description || 'Other';
       const existing = byDesc.get(desc) || { count: 0, amount: 0 };
       existing.count++;
-      existing.amount += parseFloat(t.amount) || 0;
+      existing.amount += toAmount(t.amount);
       byDesc.set(desc, existing);
     }
     const subItems = [...byDesc.entries()]
@@ -132,7 +133,7 @@ function buildActivityBreakdown(txns: TransactionRow[]): ActivityRow[] {
   for (const t of txns) {
     const activity = t.activity || 'General';
     const existing = byActivity.get(activity) || { income: 0, expense: 0, count: 0 };
-    const amt = parseFloat(t.amount) || 0;
+    const amt = toAmount(t.amount);
     if (t.type === 'income') existing.income += amt;
     else existing.expense += amt;
     existing.count++;
@@ -327,8 +328,8 @@ export function renderReportHTML(data: ReportData): string {
   const income = countable.filter((t) => t.type === 'income');
   const expenses = countable.filter((t) => t.type === 'expense');
 
-  const totalIncome = income.reduce((s, t) => s + (parseFloat(t.amount) || 0), 0);
-  const totalExpenses = expenses.reduce((s, t) => s + (parseFloat(t.amount) || 0), 0);
+  const totalIncome = sumAmounts(income.map((t) => t.amount));
+  const totalExpenses = sumAmounts(expenses.map((t) => t.amount));
   const net = totalIncome - totalExpenses;
   const closingBalance = openingBalance + net;
 
@@ -336,7 +337,7 @@ export function renderReportHTML(data: ReportData): string {
   let running = openingBalance;
   const balanceMap = new Map<string, number>();
   for (const t of countable) {
-    const amt = parseFloat(t.amount) || 0;
+    const amt = toAmount(t.amount);
     if (t.type === 'income') running += amt;
     else running -= amt;
     balanceMap.set(t.id, running);
@@ -587,12 +588,12 @@ export function renderReportHTML(data: ReportData): string {
     if (pending.length > 0) {
       sectionNum++;
       const pendingTotal = pending.reduce((s, t) => {
-        const amt = parseFloat(t.amount) || 0;
+        const amt = toAmount(t.amount);
         return s + (t.type === 'income' ? amt : -amt);
       }, 0);
       const pendingRows = pending
         .map((t) => {
-          const amt = parseFloat(t.amount) || 0;
+          const amt = toAmount(t.amount);
           const isExp = t.type === 'expense';
           return `<tr>
         <td>${esc(fmtShortDate(t.date))}</td>
@@ -629,12 +630,12 @@ export function renderReportHTML(data: ReportData): string {
     let plannedHTML = '';
     if (hasPlanned) {
       sectionNum++;
-      const plannedIncome = plannedData!.filter((p) => p.type === 'income').reduce((s, p) => s + (parseFloat(p.amount) || 0), 0);
-      const plannedExpense = plannedData!.filter((p) => p.type === 'expense').reduce((s, p) => s + (parseFloat(p.amount) || 0), 0);
+      const plannedIncome = sumAmounts(plannedData!.filter((p) => p.type === 'income').map((p) => p.amount));
+      const plannedExpense = sumAmounts(plannedData!.filter((p) => p.type === 'expense').map((p) => p.amount));
       const plannedNet = plannedIncome - plannedExpense;
       const plannedRows = plannedData!
         .map((p) => {
-          const amt = parseFloat(p.amount) || 0;
+          const amt = toAmount(p.amount);
           const isExp = p.type === 'expense';
           return `<tr>
         <td>${esc(fmtShortDate(p.date))}</td>
@@ -692,7 +693,7 @@ export function renderReportHTML(data: ReportData): string {
     const descending = [...countable].reverse();
     const registerRows = descending
       .map((t) => {
-        const amt = parseFloat(t.amount) || 0;
+        const amt = toAmount(t.amount);
         const isExpense = t.type === 'expense';
         const bal = balanceMap.get(t.id) ?? 0;
         return `<tr>

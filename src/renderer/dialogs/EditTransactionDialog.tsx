@@ -25,6 +25,7 @@ import { Paperclip, File, FileText, FileImage, FileSpreadsheet, Trash2, ArrowRig
 import { useUndoStore } from '@/stores/undo-store';
 import { useAttachmentSignal } from '@/stores/attachment-signal';
 import { createAddAttachmentCommand, createRemoveAttachmentCommand } from '@/services/undo';
+import { isPositiveAmount, toAmountString } from '../../shared/money';
 
 interface EditTransactionDialogProps {
   open: boolean;
@@ -72,7 +73,7 @@ export function EditTransactionDialog({
   const isTransfer = transaction?.linked_id != null;
 
   // Initialize form fields only when the dialog opens, not when the prop
-  // reference changes mid-edit (which happens during cloud sync refreshes).
+  // reference changes mid-edit (which happens during sync refreshes).
   // This prevents loss of in-progress edits.
   const prevOpenRef = useRef(false);
   useEffect(() => {
@@ -119,9 +120,8 @@ export function EditTransactionDialog({
   };
 
   const handleAmountBlur = () => {
-    if (amount && !isNaN(parseFloat(amount))) {
-      setAmount(parseFloat(amount).toFixed(2));
-    }
+    const normalised = toAmountString(amount);
+    if (normalised !== null) setAmount(normalised);
   };
 
   const attachmentRevision = useAttachmentSignal((s) => s.revision);
@@ -167,19 +167,22 @@ export function EditTransactionDialog({
     if (!transaction) return;
 
     const errors: Record<string, boolean> = {};
-    if (!amount || isNaN(parseFloat(amount)) || parseFloat(amount) <= 0) errors.amount = true;
+    if (!isPositiveAmount(amount)) errors.amount = true;
     if (!description.trim()) errors.description = true;
 
     if (Object.keys(errors).length > 0) {
       setFieldErrors(errors);
       return;
     }
+
+    // Non-null: isPositiveAmount above rejected anything unparseable.
+    const normalisedAmount = toAmountString(amount)!;
     setFieldErrors({});
 
     const updated: TransactionRow = {
       ...transaction,
       type,
-      amount: parseFloat(amount).toFixed(2),
+      amount: normalisedAmount,
       date,
       description: description.trim(),
       category: category || null,

@@ -10,7 +10,11 @@ const SCHEMA = `
     role TEXT NOT NULL DEFAULT 'member' CHECK (role IN ('admin', 'member')),
     auth_uid TEXT,
     created_at TEXT NOT NULL DEFAULT '',
-    invited_by TEXT
+    invited_by TEXT,
+    password_hash TEXT,
+    encrypted_passphrase TEXT,
+    passphrase_salt TEXT,
+    device_id TEXT DEFAULT ''
   );
   CREATE UNIQUE INDEX idx_personnel_email ON personnel(email);
 `;

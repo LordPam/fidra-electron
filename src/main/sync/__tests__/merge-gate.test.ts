@@ -406,13 +406,28 @@ describe('classifyChangesets — conflicts', () => {
     const delMarker = deleteChanges.filter((c) => c.cid === CRSQL_DELETE_SENTINEL);
     expect(delMarker.length).toBeGreaterThan(0);
 
+    // The deterministic tiebreaker gives the conflict to the peer with the
+    // LOWER site_id. Real site_ids are random per run, so force the remote
+    // site_id to the maximum — the local peer is then always the conflict
+    // owner. (site_id only feeds the tiebreaker + reporting here.)
+    const maxSiteId = Buffer.alloc(16, 0xff);
+    const doctoredMarker = delMarker.map((c) => ({ ...c, site_id: maxSiteId }));
+
     // lastExportedVersion = 0 means our local edit hasn't been exported yet,
     // so the deleting peer couldn't have seen it → true concurrent conflict
-    const result = classifyChangesets(localDb, delMarker, localSiteId, 0);
+    const result = classifyChangesets(localDb, doctoredMarker, localSiteId, 0);
     expect(result.conflicts).toHaveLength(1);
     expect(result.conflicts[0].fieldName).toBe(CRSQL_DELETE_SENTINEL);
     expect(result.conflicts[0].remoteValue).toBe('DELETE');
-    expect(result.conflicts[0].remoteSiteId).toBe(remoteSiteId.toString('hex'));
+    expect(result.conflicts[0].remoteSiteId).toBe(maxSiteId.toString('hex'));
+
+    // Flip side: if the remote peer has the LOWER site_id, this peer
+    // auto-merges and lets the other peer own the conflict.
+    const minSiteId = Buffer.alloc(16, 0x00);
+    const flipped = delMarker.map((c) => ({ ...c, site_id: minSiteId }));
+    const flippedResult = classifyChangesets(localDb, flipped, localSiteId, 0);
+    expect(flippedResult.conflicts).toHaveLength(0);
+    expect(flippedResult.autoMerge).toHaveLength(flipped.length);
   });
 
   test('delete auto-merges when local edits were already exported', () => {

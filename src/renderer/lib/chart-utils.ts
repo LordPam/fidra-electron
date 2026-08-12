@@ -1,4 +1,5 @@
 import type { TransactionRow } from '../../shared/ipc-types';
+import { toAmount } from '../../shared/money';
 
 const COUNTABLE_INCOME = new Set(['--', 'approved']);
 const COUNTABLE_EXPENSE = new Set(['approved']);
@@ -42,7 +43,7 @@ export function groupByMonth(
       entry = { income: 0, expense: 0 };
       map.set(monthKey, entry);
     }
-    const amount = parseFloat(t.amount) || 0;
+    const amount = toAmount(t.amount);
     if (t.type === 'income' && COUNTABLE_INCOME.has(t.status)) {
       entry.income += amount;
     } else if (t.type === 'expense' && COUNTABLE_EXPENSE.has(t.status)) {
@@ -76,7 +77,7 @@ export function computeDailyBalances(
 
   for (const t of sorted) {
     if (t.date < startDate) {
-      const amount = parseFloat(t.amount) || 0;
+      const amount = toAmount(t.amount);
       balance += t.type === 'income' ? amount : -amount;
     } else if (t.date <= endDate) {
       inRangeTransactions.push(t);
@@ -86,7 +87,7 @@ export function computeDailyBalances(
   // Group by date
   const dateMap = new Map<string, number>();
   for (const t of inRangeTransactions) {
-    const amount = parseFloat(t.amount) || 0;
+    const amount = toAmount(t.amount);
     const delta = t.type === 'income' ? amount : -amount;
     dateMap.set(t.date, (dateMap.get(t.date) || 0) + delta);
   }
@@ -127,7 +128,7 @@ export function groupByCategory(
     if (type === 'income' && !COUNTABLE_INCOME.has(t.status)) continue;
 
     const category = t.category || 'Uncategorized';
-    const amount = parseFloat(t.amount) || 0;
+    const amount = toAmount(t.amount);
     map.set(category, (map.get(category) || 0) + amount);
   }
 

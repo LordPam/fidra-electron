@@ -2,23 +2,26 @@ import { ipcMain } from 'electron';
 import { z } from 'zod';
 import { resolveContext } from './context-resolver';
 import * as attachmentService from '../services/attachment-service';
-import { transactionRowSchema } from '../../shared/ipc-schemas';
+import { idSchema, nameSchema, transactionRowSchema } from '../../shared/ipc-schemas';
+import type { AttachmentRow, TransactionRow } from '../../shared/ipc-types';
+import { assertSheetsExist } from '../services/referential-integrity';
 import { logTransactionCreated, logTransactionUpdated, logTransactionDeleted, logBulkTransactionsSaved, logBulkTransactionsDeleted } from '../services/audit-service';
 
 export function registerTransactionHandlers(): void {
   ipcMain.handle('transactions:getAll', (event, sheet?: unknown) => {
-    const validSheet = sheet != null ? z.string().parse(sheet) : undefined;
+    const validSheet = sheet != null ? nameSchema.parse(sheet) : undefined;
     return resolveContext(event).repos.transactions.getAll(validSheet);
   });
 
   ipcMain.handle('transactions:getById', (event, id: unknown) => {
-    const validId = z.string().parse(id);
+    const validId = idSchema.parse(id);
     return resolveContext(event).repos.transactions.getById(validId);
   });
 
   ipcMain.handle('transactions:save', (event, data: unknown) => {
     const validated = transactionRowSchema.parse(data);
     const ctx = resolveContext(event);
+    assertSheetsExist(ctx.sqlite, [{ label: 'sheet', sheet: validated.sheet }]);
     const existing = ctx.repos.transactions.getById(validated.id);
     const result = ctx.repos.transactions.save(validated);
     if (existing) {
@@ -40,29 +43,41 @@ export function registerTransactionHandlers(): void {
     return result;
   });
 
-  ipcMain.handle('transactions:delete', async (event, id: unknown) => {
-    const validId = z.string().parse(id);
+  ipcMain.handle('transactions:delete', (event, id: unknown) => {
+    const validId = idSchema.parse(id);
     const ctx = resolveContext(event);
     const existing = ctx.repos.transactions.getById(validId);
-    const deletedAttachments = await attachmentService.removeAllForTransaction(validId, ctx);
-    const success = ctx.repos.transactions.remove(validId);
-    if (success && existing) {
-      logTransactionDeleted(ctx, existing);
+    if (!existing) {
+      return { success: false, deletedAttachments: [], deletedCounterpart: null, counterpartAttachments: [] };
     }
 
-    // Cascade delete: if this was a transfer, delete the counterpart too
-    let deletedCounterpart: import('../../shared/ipc-types').TransactionRow | null = null;
-    let counterpartAttachments: import('../../shared/ipc-types').AttachmentRow[] = [];
-    if (existing?.linked_id) {
-      const counterparts = ctx.repos.transactions.getByLinkedId(existing.linked_id)
-        .filter((t: import('../../shared/ipc-types').TransactionRow) => t.id !== validId);
-      if (counterparts.length > 0) {
-        const cp = counterparts[0];
-        deletedCounterpart = cp;
-        counterpartAttachments = await attachmentService.removeAllForTransaction(cp.id, ctx);
-        ctx.repos.transactions.remove(cp.id);
-        logTransactionDeleted(ctx, cp);
+    // Cascade delete: if this was a transfer, the counterpart goes with it
+    const deletedCounterpart = existing.linked_id
+      ? ctx.repos.transactions.getByLinkedId(existing.linked_id)
+        .find((t: TransactionRow) => t.id !== validId) ?? null
+      : null;
+
+    // Row deletions commit as one unit; files move only afterwards, so a failure
+    // can't leave attachment rows deleted for a transaction that survived.
+    let deletedAttachments: AttachmentRow[] = [];
+    let counterpartAttachments: AttachmentRow[] = [];
+    const success = ctx.sqlite.transaction(() => {
+      deletedAttachments = ctx.repos.attachments.removeForTransaction(validId);
+      const removed = ctx.repos.transactions.remove(validId);
+      if (deletedCounterpart) {
+        counterpartAttachments = ctx.repos.attachments.removeForTransaction(deletedCounterpart.id);
+        ctx.repos.transactions.remove(deletedCounterpart.id);
       }
+      return removed;
+    })();
+
+    attachmentService.moveAttachmentFilesToTrash([...deletedAttachments, ...counterpartAttachments], ctx);
+
+    if (success) {
+      logTransactionDeleted(ctx, existing);
+    }
+    if (deletedCounterpart) {
+      logTransactionDeleted(ctx, deletedCounterpart);
     }
 
     return { success, deletedAttachments, deletedCounterpart, counterpartAttachments };
@@ -71,6 +86,7 @@ export function registerTransactionHandlers(): void {
   ipcMain.handle('transactions:bulkSave', (event, items: unknown) => {
     const validated = z.array(transactionRowSchema).parse(items);
     const ctx = resolveContext(event);
+    assertSheetsExist(ctx.sqlite, validated.map((t) => ({ label: 'sheet', sheet: t.sheet })));
     let created = 0;
     let updated = 0;
     for (const tx of validated) {
@@ -84,9 +100,12 @@ export function registerTransactionHandlers(): void {
     return result;
   });
 
-  ipcMain.handle('transactions:bulkDelete', async (event, ids: unknown) => {
-    const validIds = z.array(z.string()).parse(ids);
+  ipcMain.handle('transactions:bulkDelete', (event, ids: unknown) => {
+    const validIds = z.array(idSchema).parse(ids);
     const ctx = resolveContext(event);
+    if (validIds.length === 0) {
+      return { count: 0, deletedAttachments: {} };
+    }
 
     // Expand ID set to include counterparts of any transfers in the batch
     const idSet = new Set(validIds);
@@ -101,14 +120,20 @@ export function registerTransactionHandlers(): void {
     }
     const expandedIds = [...idSet];
 
-    const deletedAttachments: Record<string, import('../../shared/ipc-types').AttachmentRow[]> = {};
-    for (const id of expandedIds) {
-      const removed = await attachmentService.removeAllForTransaction(id, ctx);
-      if (removed.length > 0) {
-        deletedAttachments[id] = removed;
+    // As in the single delete: rows first, as one unit, then the files.
+    const deletedAttachments: Record<string, AttachmentRow[]> = {};
+    const count = ctx.sqlite.transaction(() => {
+      for (const id of expandedIds) {
+        const removed = ctx.repos.attachments.removeForTransaction(id);
+        if (removed.length > 0) {
+          deletedAttachments[id] = removed;
+        }
       }
-    }
-    const count = ctx.repos.transactions.bulkRemove(expandedIds);
+      return ctx.repos.transactions.bulkRemove(expandedIds);
+    })();
+
+    attachmentService.moveAttachmentFilesToTrash(Object.values(deletedAttachments).flat(), ctx);
+
     if (count > 0) {
       logBulkTransactionsDeleted(ctx, count, expandedIds);
     }
@@ -127,15 +152,19 @@ export function registerTransactionHandlers(): void {
     }
 
     const ctx = resolveContext(event);
-    const savedExpense = ctx.repos.transactions.save(validExpense);
-    const savedIncome = ctx.repos.transactions.save(validIncome);
+    assertSheetsExist(ctx.sqlite, [
+      { label: 'sheet', sheet: validExpense.sheet },
+      { label: 'sheet', sheet: validIncome.sheet },
+    ]);
+    const { expense: savedExpense, income: savedIncome } =
+      ctx.repos.transactions.saveTransfer(validExpense, validIncome);
     logTransactionCreated(ctx, savedExpense);
     logTransactionCreated(ctx, savedIncome);
     return { expense: savedExpense, income: savedIncome };
   });
 
   ipcMain.handle('transactions:getByLinkedId', (event, linkedId: unknown) => {
-    const validLinkedId = z.string().parse(linkedId);
+    const validLinkedId = idSchema.parse(linkedId);
     return resolveContext(event).repos.transactions.getByLinkedId(validLinkedId);
   });
 }

@@ -101,39 +101,6 @@ export interface InvoicePrefill {
   plannedTemplateId?: string;
 }
 
-export interface CloudServerConfig {
-  id: string;
-  name: string;
-  connectionString: string;
-  poolMin: number;
-  poolMax: number;
-  storageUrl?: string;
-  storageKey?: string;
-  storageBucket?: string;
-  createdAt: string;
-  authMode?: import('./auth-types').AuthMode;
-  projectUrl?: string;
-  anonKey?: string;
-}
-
-export interface CloudStatus {
-  connected: boolean;
-  serverName?: string;
-  connectionStatus?: 'connected' | 'reconnecting' | 'offline' | 'offline-authenticated';
-  isSyncing?: boolean;
-  pendingCount?: number;
-  authSession?: import('./auth-types').AuthSession | null;
-  authMode?: import('./auth-types').AuthMode | null;
-}
-
-export interface SyncConflict {
-  id: string;
-  entityType: string;
-  entityId: string;
-  localPayload: string;
-  error: string;
-}
-
 // ─── Local Sync types ────────────────────────────────────────────────
 
 export interface MigrationResult {
@@ -453,60 +420,6 @@ export interface IpcChannels {
     result: void;
   };
 
-  // Cloud
-  'cloud:getConfig': {
-    args: [];
-    result: CloudServerConfig | null;
-  };
-  'cloud:saveConfig': {
-    args: [config: CloudServerConfig];
-    result: void;
-  };
-  'cloud:deleteConfig': {
-    args: [];
-    result: void;
-  };
-  'cloud:testConnection': {
-    args: [connectionString: string];
-    result: { success: boolean; error?: string };
-  };
-  'cloud:connect': {
-    args: [];
-    result: { success: boolean; error?: string; authenticated?: boolean };
-  };
-  'cloud:disconnect': {
-    args: [];
-    result: void;
-  };
-  'cloud:getStatus': {
-    args: [];
-    result: CloudStatus;
-  };
-
-  // Sync
-  'sync:now': {
-    args: [];
-    result: number;
-  };
-  'sync:getStatus': {
-    args: [];
-    result: { isSyncing: boolean; pendingCount: number; conflicts: SyncConflict[] };
-  };
-  'sync:resolveConflict': {
-    args: [changeId: string, useLocal: boolean];
-    result: void;
-  };
-
-  // Connection
-  'connection:getStatus': {
-    args: [];
-    result: { status: 'connected' | 'reconnecting' | 'offline' };
-  };
-  'connection:reconnect': {
-    args: [];
-    result: { success: boolean };
-  };
-
   // Startup
   'app:getStartupMode': {
     args: [];
@@ -546,32 +459,8 @@ export interface IpcChannels {
     args: [];
     result: { path: string; name: string };
   };
-  'window:isCloudWindow': {
-    args: [];
-    result: boolean;
-  };
-  'window:getCloudServers': {
-    args: [];
-    result: CloudServerConfig[];
-  };
-  'window:saveCloudServer': {
-    args: [config: CloudServerConfig];
-    result: void;
-  };
-  'window:removeCloudServer': {
-    args: [id: string];
-    result: void;
-  };
-  'window:openCloudServer': {
-    args: [serverId: string];
-    result: { success: boolean; error?: string };
-  };
   'window:switchToFile': {
     args: [dbPath: string];
-    result: { success: boolean; reloading: boolean; error?: string };
-  };
-  'window:switchToCloudServer': {
-    args: [serverId: string];
     result: { success: boolean; reloading: boolean; error?: string };
   };
 
@@ -607,7 +496,7 @@ export interface IpcChannels {
     result: string;
   };
 
-  // Per-database profile (local identity when not using cloud auth)
+  // Per-database profile (local identity when Local Sync auth is not in use)
   'settings:getProfile': {
     args: [];
     result: { name: string; initials: string };
@@ -647,7 +536,7 @@ export interface IpcChannels {
     result: void;
   };
 
-  // Invoice defaults (per-database, syncs to cloud)
+  // Invoice defaults (per-database)
   'settings:getInvoiceDefaults': {
     args: [];
     result: InvoiceDefaults;
@@ -667,44 +556,10 @@ export interface IpcChannels {
     result: void;
   };
 
-  // Auth
-  'auth:signIn': {
-    args: [email: string, password: string];
-    result: { success: boolean; error?: string };
-  };
-  'auth:signUp': {
-    args: [email: string, password: string];
-    result: { success: boolean; error?: string };
-  };
-  'auth:signOut': {
-    args: [];
-    result: void;
-  };
-  'auth:getSession': {
-    args: [];
-    result: import('./auth-types').AuthSession | null;
-  };
-  'auth:getOAuthUrl': {
-    args: [provider: 'google' | 'azure'];
-    result: { url: string } | { error: string };
-  };
-  'auth:oauthCallback': {
-    args: [code: string];
-    result: { success: boolean; error?: string };
-  };
-  'auth:adminFirstSetup': {
-    args: [name: string, email: string, password: string];
-    result: { success: boolean; error?: string };
-  };
-
   // Personnel
   'personnel:getAll': {
     args: [];
     result: import('./auth-types').PersonnelRecord[];
-  };
-  'personnel:invite': {
-    args: [name: string, email: string, role: import('./auth-types').PersonnelRole];
-    result: import('./auth-types').PersonnelRecord;
   };
   'personnel:remove': {
     args: [id: string];
@@ -834,11 +689,6 @@ export interface IpcChannels {
     args: [];
     result: { success: boolean; copiedCount?: number; exportedCount?: number; error?: string };
   };
-  'localSync:migrateFromCloud': {
-    args: [opts: { syncFolder: string; passphrase: string; newDbPath: string }];
-    result: MigrationResult;
-  };
-
   // CSV Import
   'csvImport:parse': {
     args: [request: import('./csv-import-types').CsvParseRequest];

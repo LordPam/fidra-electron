@@ -11,8 +11,7 @@ const DOCS_SECTIONS = [
       { title: "Files and Storage", href: "setup/files-and-storage.html" },
       { title: "Install Notes", href: "setup/install-notes.html" },
       { title: "Shared Folders in OneDrive and SharePoint", href: "setup/shared-folders.html" },
-      { title: "Local Sync", href: "setup/local-sync.html" },
-      { title: "Cloud Connect", href: "setup/cloud-connect.html" }
+      { title: "Local Sync", href: "setup/local-sync.html" }
     ]
   },
   {

@@ -19,8 +19,8 @@ interface TransactionState {
   error: string | null;
   /** Monotonic counter bumped on every explicit mutation (add/update/remove).
    *  silentRefresh captures this before its async fetch and bails out if it
-   *  changed — prevents a stale cloud-sync fetch from overwriting a mutation
-   *  that completed while the fetch was in-flight. */
+   *  changed — prevents a stale sync-triggered fetch from overwriting a
+   *  mutation that completed while the fetch was in-flight. */
   _generation: number;
 
   loadAll: (sheet?: string) => Promise<void>;

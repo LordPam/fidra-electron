@@ -1,5 +1,44 @@
 import type Database from 'better-sqlite3';
 import type { InvoiceRow } from '../../shared/ipc-types';
+import { parsePence, penceToAmount, toAmount } from '../../shared/money';
+
+interface LineItem {
+  description: string;
+  quantity: number;
+  unitPrice: number;
+}
+
+/** The object form `line_items` is stored in today, alongside a legacy bare array. */
+interface LineItemsWrapper {
+  items: LineItem[];
+  taxRate?: number;
+  accentMode?: string;
+}
+
+/**
+ * Read `line_items`, which comes in two shapes: a bare array (legacy) and
+ * `{ items, taxRate, accentMode }` (current). Returns null if it is neither.
+ *
+ * Reading only the array form used to throw `items.reduce is not a function` on
+ * every invoice the app writes now, which took `planned:save` down with it.
+ */
+function parseLineItems(json: string): { items: LineItem[]; wrapper: LineItemsWrapper | null } | null {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(json);
+  } catch {
+    return null;
+  }
+
+  if (Array.isArray(parsed)) {
+    return { items: parsed as LineItem[], wrapper: null };
+  }
+  if (parsed && typeof parsed === 'object' && Array.isArray((parsed as LineItemsWrapper).items)) {
+    const wrapper = parsed as LineItemsWrapper;
+    return { items: wrapper.items, wrapper };
+  }
+  return null;
+}
 
 export class InvoiceRepo {
   constructor(private readonly db: Database.Database) {}
@@ -96,22 +135,31 @@ export class InvoiceRepo {
     const now = new Date().toISOString();
     let count = 0;
     for (const inv of linked) {
-      let items: { description: string; quantity: number; unitPrice: number }[];
-      try {
-        items = JSON.parse(inv.line_items);
-      } catch {
-        continue;
-      }
+      const parsed = parseLineItems(inv.line_items);
+      if (!parsed) continue;
+      const { items, wrapper } = parsed;
+
       if (items.length > 0) {
         items[0].description = description;
-        items[0].unitPrice = parseFloat(amount) || items[0].unitPrice;
+        items[0].unitPrice = parsePence(amount) === null ? items[0].unitPrice : toAmount(amount);
       }
-      const subtotal = items.reduce((s, it) => s + it.quantity * it.unitPrice, 0).toFixed(2);
+
+      // Totalled in pence: quantity × unit price repeated in pounds drifts.
+      let totalPence = 0;
+      for (const item of items) {
+        totalPence += (parsePence(item.unitPrice) ?? 0) * (item.quantity ?? 0);
+      }
+      const taxRate = wrapper?.taxRate ?? 0;
+      if (taxRate) {
+        totalPence = Math.round(totalPence * (1 + taxRate / 100));
+      }
+
+      const lineItems = wrapper ? JSON.stringify({ ...wrapper, items }) : JSON.stringify(items);
       const version = inv.version + 1;
 
       this.db.prepare(
         'UPDATE invoices SET due_date = ?, line_items = ?, subtotal = ?, version = ?, modified_at = ? WHERE id = ?',
-      ).run(dueDate, JSON.stringify(items), subtotal, version, now, inv.id);
+      ).run(dueDate, lineItems, penceToAmount(totalPence), version, now, inv.id);
       count++;
     }
     return count;

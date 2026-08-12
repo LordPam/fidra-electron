@@ -1,12 +1,10 @@
 import { useState, useEffect } from 'react';
-import { FilePlus, FolderOpen, Cloud, Trash2, Settings, Plus, FileSpreadsheet, FolderSync, AlertTriangle } from 'lucide-react';
+import { FilePlus, FolderOpen, Trash2, FileSpreadsheet, FolderSync, AlertTriangle } from 'lucide-react';
 import logoLight from '@/assets/logo-light.svg';
 import logoDark from '@/assets/logo-dark.svg';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { CloudServerDialog } from './CloudServerDialog';
 import { JoinLocalSyncDialog } from './JoinLocalSyncDialog';
-import type { CloudServerConfig } from '../../shared/ipc-types';
 
 interface RecentFileEntry {
   path: string;
@@ -37,21 +35,13 @@ function formatRelativeDate(iso: string): string {
   }
 }
 
-function getFileInitial(name: string): string {
-  return name.replace(/\.(fdra|db|sqlite)$/, '').charAt(0).toUpperCase();
-}
-
 export function FileChooserDialog({ onDismiss }: FileChooserDialogProps) {
   const [recentFiles, setRecentFiles] = useState<RecentFileEntry[]>([]);
-  const [cloudServers, setCloudServers] = useState<CloudServerConfig[]>([]);
-  const [cloudDialogOpen, setCloudDialogOpen] = useState(false);
-  const [editingServer, setEditingServer] = useState<CloudServerConfig | null>(null);
   const [joinSyncOpen, setJoinSyncOpen] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
     window.api.getRecentFiles().then(setRecentFiles);
-    window.api.getCloudServers().then((servers) => setCloudServers(servers as CloudServerConfig[]));
   }, []);
 
   const handleOpenFile = async () => {
@@ -99,31 +89,7 @@ export function FileChooserDialog({ onDismiss }: FileChooserDialogProps) {
     setRecentFiles((prev) => prev.filter((f) => f.path !== filePath));
   };
 
-  const handleOpenCloudServer = async (serverId: string) => {
-    const result = await window.api.switchToCloudServer(serverId);
-    if (result.success && !result.reloading) onDismiss?.();
-  };
-
-  const handleEditCloudServer = (server: CloudServerConfig, e: React.MouseEvent) => {
-    e.stopPropagation();
-    setEditingServer(server);
-    setCloudDialogOpen(true);
-  };
-
-  const handleAddCloudServer = () => {
-    setEditingServer(null);
-    setCloudDialogOpen(true);
-  };
-
-  const handleCloudDialogClose = (open: boolean) => {
-    setCloudDialogOpen(open);
-    if (!open) {
-      setEditingServer(null);
-      window.api.getCloudServers().then((servers) => setCloudServers(servers as CloudServerConfig[]));
-    }
-  };
-
-  const hasContent = recentFiles.length > 0 || cloudServers.length > 0;
+  const hasContent = recentFiles.length > 0;
 
   return (
     <div className="flex h-screen w-full bg-surface">
@@ -160,44 +126,6 @@ export function FileChooserDialog({ onDismiss }: FileChooserDialogProps) {
             <FolderSync className="h-4 w-4" />
             Join Local Sync
           </Button>
-        </div>
-
-        {/* Cloud servers section */}
-        <div className="mt-8">
-          <h3 className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            Cloud Servers
-          </h3>
-          {cloudServers.length > 0 && (
-            <ul className="mb-2 space-y-1">
-              {cloudServers.map((server) => (
-                <li key={server.id}>
-                  <button
-                    className="group flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-sm hover:bg-surface-inset transition-fidra"
-                    onClick={() => handleOpenCloudServer(server.id)}
-                  >
-                    <div className="flex items-center gap-2 min-w-0 flex-1">
-                      <Cloud className="h-3.5 w-3.5 shrink-0 text-fidra-teal" />
-                      <span className="truncate text-foreground">{server.name}</span>
-                    </div>
-                    <button
-                      className="ml-1 rounded p-0.5 opacity-0 hover:text-foreground group-hover:opacity-100 transition-fidra"
-                      onClick={(e) => handleEditCloudServer(server, e)}
-                      title="Edit server"
-                    >
-                      <Settings className="h-3 w-3" />
-                    </button>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-          <button
-            className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-surface-inset transition-fidra"
-            onClick={handleAddCloudServer}
-          >
-            <Plus className="h-3.5 w-3.5" />
-            Add Server
-          </button>
         </div>
 
         <div className="mt-auto" />
@@ -274,13 +202,6 @@ export function FileChooserDialog({ onDismiss }: FileChooserDialogProps) {
           </div>
         )}
       </div>
-
-      <CloudServerDialog
-        open={cloudDialogOpen}
-        onOpenChange={handleCloudDialogClose}
-        editServer={editingServer}
-        isStandalone
-      />
 
       <JoinLocalSyncDialog
         open={joinSyncOpen}

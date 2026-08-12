@@ -52,6 +52,17 @@ export class TransactionRepo {
     return data;
   }
 
+  /**
+   * Save both halves of a transfer as one unit. A transfer that lands only its
+   * expense side is worse than one that never saved: the ledger silently loses money.
+   */
+  saveTransfer(expense: TransactionRow, income: TransactionRow): { expense: TransactionRow; income: TransactionRow } {
+    return this.db.transaction(() => ({
+      expense: this.save(expense),
+      income: this.save(income),
+    }))();
+  }
+
   getByLinkedId(linkedId: string): TransactionRow[] {
     return this.db
       .prepare('SELECT * FROM transactions WHERE linked_id = ?')
@@ -100,6 +111,8 @@ export class TransactionRepo {
   }
 
   bulkRemove(ids: string[]): number {
+    // `IN ()` is a syntax error in SQLite, so an empty batch must not reach it.
+    if (ids.length === 0) return 0;
     const placeholders = ids.map(() => '?').join(',');
     const result = this.db.prepare(`DELETE FROM transactions WHERE id IN (${placeholders})`).run(...ids);
     return result.changes;

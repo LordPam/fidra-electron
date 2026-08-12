@@ -3,6 +3,7 @@ import type { ActivityRow, MonthViewRow } from '@/domain/models';
 import type { DatePrecision } from '@/lib/activity-parser';
 import { parseActivityDate } from '@/lib/activity-parser';
 import { expandTemplate } from '@/services/forecast';
+import { toAmount } from '../../shared/money';
 
 export function lastDayOfMonth(year: number, month: number): string {
   const days = new Date(year, month, 0).getDate();
@@ -63,7 +64,7 @@ export function aggregateActivities(
       map.set(key, entry);
     }
     entry.count++;
-    const amount = parseFloat(t.amount) || 0;
+    const amount = toAmount(t.amount);
     if (t.type === 'income') entry.income += amount;
     else entry.expenses += amount;
   }
@@ -179,7 +180,7 @@ export function computeMonthView(
         entry = { plannedIncome: 0, plannedExpenses: 0 };
         plannedMap.set(key, entry);
       }
-      const amount = parseFloat(inst.transaction.amount) || 0;
+      const amount = toAmount(inst.transaction.amount);
       if (inst.transaction.type === 'income') entry.plannedIncome += amount;
       else entry.plannedExpenses += amount;
     }

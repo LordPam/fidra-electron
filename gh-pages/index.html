@@ -528,9 +528,9 @@
 
     .sync-grid {
       display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
+      grid-template-columns: minmax(0, 1fr);
       gap: 24px;
-      max-width: 920px;
+      max-width: 560px;
       margin: 0 auto;
     }
 
@@ -582,12 +582,6 @@
       font-family: var(--font-display);
       font-size: 11px;
       font-weight: 600;
-    }
-
-    .sync-badge.cloud {
-      color: var(--teal-dark);
-      background: rgba(137, 176, 174, 0.14);
-      border: 1px solid rgba(137, 176, 174, 0.34);
     }
 
     .sync-badge.local {
@@ -1171,7 +1165,7 @@
 
       .features-grid,
       .sync-grid {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
+        grid-template-columns: minmax(0, 1fr);
       }
     }
 
@@ -1530,12 +1524,12 @@
         <div class="section-eyebrow">Team sync</div>
         <h2 class="section-title">Works with your infrastructure</h2>
         <p class="section-sub">
-          Choose the sync model that fits your organisation. Both keep the app local-first, and
-          Fidra still works fully offline if you do not need sync at all.
+          Sharing a ledger takes nothing more than a folder your committee already has. Fidra stays
+          local-first either way, and works fully offline if you do not need sync at all.
         </p>
 
         <div class="sync-grid">
-          <article class="sync-card standard">
+          <article class="sync-card featured">
             <div class="sync-badge local">Local Sync</div>
             <h3 class="sync-title">Peer-to-peer via a shared folder</h3>
             <p class="sync-desc">
@@ -1551,26 +1545,6 @@
             <div class="sync-ideal"><strong>Best for:</strong> societies that need shared editing without relying on outside infrastructure.</div>
             <a class="sync-link" href="local-sync.html">
               <span>See how Local Sync is set up</span>
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"></path><path d="M13 6l6 6-6 6"></path></svg>
-            </a>
-          </article>
-
-          <article class="sync-card featured">
-            <div class="sync-badge cloud">Cloud Connect</div>
-            <h3 class="sync-title">Real-time sync via your own server</h3>
-            <p class="sync-desc">
-              Best for organisations that can provision a Postgres database and want live sync
-              through infrastructure they already control.
-            </p>
-            <ul class="sync-list">
-              <li><span class="check-icon slate" aria-hidden="true"><svg viewBox="0 0 10 10"><polyline points="2,5 4,7 8,3"></polyline></svg></span>Real-time LISTEN/NOTIFY sync</li>
-              <li><span class="check-icon slate" aria-hidden="true"><svg viewBox="0 0 10 10"><polyline points="2,5 4,7 8,3"></polyline></svg></span>Runs on your own Postgres or Supabase setup</li>
-              <li><span class="check-icon slate" aria-hidden="true"><svg viewBox="0 0 10 10"><polyline points="2,5 4,7 8,3"></polyline></svg></span>Optional owner and member access controls</li>
-              <li><span class="check-icon slate" aria-hidden="true"><svg viewBox="0 0 10 10"><polyline points="2,5 4,7 8,3"></polyline></svg></span>Conflicting edits are surfaced for review</li>
-            </ul>
-            <div class="sync-ideal"><strong>Best for:</strong> clubs with technical members or access to a managed Postgres service.</div>
-            <a class="sync-link" href="cloud-connect.html">
-              <span>See how Cloud Connect is set up</span>
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"></path><path d="M13 6l6 6-6 6"></path></svg>
             </a>
           </article>
@@ -1594,8 +1568,7 @@
             </button>
             <div class="faq-a">
               Yes. Fidra is free for organisations. There are no subscription fees or usage caps.
-              Cloud Connect needs a Postgres database you control, while Local Sync only needs a
-              shared folder.
+              Local Sync needs nothing beyond a shared folder your committee already has.
             </div>
           </div>
 
@@ -1606,8 +1579,7 @@
             </button>
             <div class="faq-a">
               No. Fidra works as a standalone desktop app first. If you want shared editing, Local
-              Sync avoids a dedicated server entirely, and Cloud Connect is there if you already
-              have a database setup you trust.
+              Sync uses a shared folder as a mailbox and avoids a dedicated server entirely.
             </div>
           </div>
 

@@ -9,12 +9,9 @@ import ActivitiesView from '@/views/ActivitiesView';
 import ReportsView from '@/views/ReportsView';
 import InvoicesView from '@/views/InvoicesView';
 import SettingsView from '@/views/SettingsView';
-import { ConflictResolutionDialog } from '@/dialogs/ConflictResolutionDialog';
-import { CloudServerDialog } from '@/dialogs/CloudServerDialog';
 import { AuthGateDialog } from '@/dialogs/AuthGateDialog';
 import { SetupWizard } from '@/dialogs/SetupWizard';
 import { FileChooserDialog } from '@/dialogs/FileChooserDialog';
-import { useCloudStore } from '@/stores/cloud-store';
 import { useLocalSyncStore } from '@/stores/local-sync-store';
 import { useAuthStore } from '@/stores/auth-store';
 import { useTransactionStore } from '@/stores/transaction-store';
@@ -87,57 +84,6 @@ function ThemeWatcher() {
   return null;
 }
 
-function CloudSyncWiring() {
-  const setOnDataChanged = useCloudStore((s) => s.setOnDataChanged);
-  const txRefresh = useTransactionStore((s) => s.silentRefresh);
-  const sheetRefresh = useSheetStore((s) => s.silentRefresh);
-  const plannedRefresh = usePlannedStore((s) => s.silentRefresh);
-  const categoryRefresh = useCategoryStore((s) => s.silentRefresh);
-  const invoiceLoadAll = useInvoiceStore((s) => s.loadAll);
-
-  const handleDataChanged = useCallback((tables: string[]) => {
-    for (const table of tables) {
-      if (table === 'transactions') txRefresh();
-      if (table === 'sheets') sheetRefresh();
-      if (table === 'planned_templates') plannedRefresh();
-      if (table === 'categories') categoryRefresh();
-      if (table === 'invoices') invoiceLoadAll();
-      if (table === 'db_settings') {
-        useUiStore.getState().loadFYStartMonth();
-        useUiStore.getState().loadOrgName();
-      }
-      if (table === 'attachments') {
-        useAttachmentSignal.getState().bump();
-        txRefresh();
-      }
-      // activity_notes, personnel, audit_log are loaded on-demand
-      // by their respective views — no persistent store to refresh
-    }
-  }, [txRefresh, sheetRefresh, plannedRefresh, categoryRefresh, invoiceLoadAll]);
-
-  useEffect(() => {
-    setOnDataChanged(handleDataChanged);
-  }, [setOnDataChanged, handleDataChanged]);
-
-  return null;
-}
-
-function MenuCloudServerDialog() {
-  const [open, setOpen] = useState(false);
-
-  useEffect(() => {
-    return window.api.onMenuAddCloudServer(() => setOpen(true));
-  }, []);
-
-  return (
-    <CloudServerDialog
-      open={open}
-      onOpenChange={setOpen}
-      isStandalone
-    />
-  );
-}
-
 function AuthWiring() {
   const initialize = useAuthStore((s) => s.initialize);
   const initEventListeners = useAuthStore((s) => s.initEventListeners);
@@ -170,9 +116,10 @@ function LocalSyncEarlyWiring() {
 }
 
 /**
- * Auth gate hook. For cloud windows, blocks the app until authenticated.
- * Reads hydration state from auth-store (set by initialize()) instead of
- * calling IPC directly. Returns `pending: true` until isHydrated is true.
+ * Auth gate hook. For Local Sync databases with auth enabled, blocks the
+ * app until authenticated. Reads hydration state from auth-store (set by
+ * initialize()) instead of calling IPC directly. Returns `pending: true`
+ * until isHydrated is true.
  */
 function useAuthGate() {
   const isHydrated = useAuthStore((s) => s.isHydrated);
@@ -181,44 +128,19 @@ function useAuthGate() {
   const [personnelEmpty, setPersonnelEmpty] = useState<boolean | null>(null);
   const [authRequired, setAuthRequired] = useState(false);
 
-  // After hydration: if cloud member mode or localSync mode and not authenticated, gate is needed
+  // After hydration: if localSync mode and not authenticated, gate is needed
   useEffect(() => {
     if (!isHydrated) return;
-    if (isAuthenticated || authMode === 'admin' || authMode === null) {
+    if (isAuthenticated || authMode !== 'localSync') {
       setAuthRequired(false);
       return;
     }
-    // Member mode or localSync mode, not authenticated → auth required
     setAuthRequired(true);
-    if (authMode === 'localSync') {
-      // For local sync, check if any auth personnel exist
-      window.api.localAuthGetStatus().then((status) => {
-        setPersonnelEmpty(!status.authEnabled);
-      }).catch(() => setPersonnelEmpty(true));
-    } else {
-      window.api.getPersonnel().then((records) => {
-        setPersonnelEmpty((records as unknown[]).length === 0);
-      }).catch(() => setPersonnelEmpty(true));
-    }
+    // Check if any auth personnel exist yet (first-setup vs sign-in)
+    window.api.localAuthGetStatus().then((status) => {
+      setPersonnelEmpty(!status.authEnabled);
+    }).catch(() => setPersonnelEmpty(true));
   }, [isHydrated, isAuthenticated, authMode]);
-
-  // Listen for auth-required events (transitions while running)
-  useEffect(() => {
-    const unsub1 = window.api.onAuthRequired?.(() => {
-      setAuthRequired(true);
-      window.api.getPersonnel().then((records) => {
-        setPersonnelEmpty((records as unknown[]).length === 0);
-      }).catch(() => setPersonnelEmpty(true));
-    });
-    const unsub2 = window.api.onAdminSetupRequired(() => {
-      setAuthRequired(true);
-      setPersonnelEmpty(true);
-    });
-    return () => {
-      unsub1?.();
-      unsub2?.();
-    };
-  }, []);
 
   // Close gate when authenticated
   useEffect(() => {
@@ -226,7 +148,7 @@ function useAuthGate() {
   }, [isAuthenticated]);
 
   const showGate = !isAuthenticated && authRequired && personnelEmpty !== null;
-  return { showGate, pending: !isHydrated, personnelEmpty: personnelEmpty ?? true, authMode };
+  return { showGate, pending: !isHydrated, personnelEmpty: personnelEmpty ?? true };
 }
 
 function LocalSyncWiring() {
@@ -312,26 +234,6 @@ function LocalSyncConflictOverlay() {
   );
 }
 
-function ConflictOverlay() {
-  const pendingConflicts = useCloudStore((s) => s.pendingConflicts);
-  const resolveConflict = useCloudStore((s) => s.resolveConflict);
-
-  const current = pendingConflicts[0];
-  if (!current) return null;
-
-  return (
-    <ConflictResolutionDialog
-      open={true}
-      changeId={current.changeId}
-      entityType={current.entityType}
-      local={current.local}
-      server={current.server}
-      remaining={pendingConflicts.length - 1}
-      onResolve={resolveConflict}
-    />
-  );
-}
-
 function AnimatedMain() {
   const location = useLocation();
   const currentSheet = useSheetStore((s) => s.currentSheet);
@@ -354,7 +256,7 @@ function AnimatedMain() {
 
 export function App() {
   const [startupOverlay, setStartupOverlay] = useState<'wizard' | 'chooser' | null | 'loading'>('loading');
-  const { showGate, pending: authPending, personnelEmpty, authMode } = useAuthGate();
+  const { showGate, pending: authPending, personnelEmpty } = useAuthGate();
 
   const showFileChooser = useCallback(() => {
     setStartupOverlay('chooser');
@@ -415,7 +317,7 @@ export function App() {
     );
   }
 
-  // Auth gate blocks the ENTIRE app for cloud windows — no data visible
+  // Auth gate blocks the ENTIRE app — no data visible until authenticated.
   // This check runs before any routes render, preventing even a flash of cached data
   if (showGate) {
     return (
@@ -423,7 +325,7 @@ export function App() {
         <AuthWiring />
         <LocalSyncEarlyWiring />
         <UpdateToast />
-        <AuthGateDialog open={true} personnelEmpty={personnelEmpty} authMode={authMode} onDisconnected={showFileChooser} />
+        <AuthGateDialog open={true} personnelEmpty={personnelEmpty} onDisconnected={showFileChooser} />
       </>
     );
   }
@@ -433,14 +335,11 @@ export function App() {
       <AuthWiring />
       <ThemeWatcher />
       <GlobalKeyboardNav />
-      <CloudSyncWiring />
       <LocalSyncWiring />
-      <ConflictOverlay />
       <LocalSyncConflictOverlay />
       <SyncToast />
       <UpdateToast />
       <WhileAwayWiring />
-      <MenuCloudServerDialog />
       <div className="flex h-screen overflow-hidden">
         <Sidebar />
         <AnimatedMain />

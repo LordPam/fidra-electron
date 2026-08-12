@@ -8,6 +8,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { AlertTriangle } from 'lucide-react';
 import type { LocalSyncConflict } from '../../shared/ipc-types';
+import { toAmountString } from '../../shared/money';
 
 interface LocalSyncConflictDialogProps {
   open: boolean;
@@ -19,8 +20,7 @@ interface LocalSyncConflictDialogProps {
 function formatValue(value: string | null, fieldName: string): string {
   if (value == null || value === '') return '-';
   if (fieldName === 'amount' || fieldName === 'subtotal') {
-    const num = parseFloat(value);
-    return isNaN(num) ? value : num.toFixed(2);
+    return toAmountString(value) ?? value;
   }
   if (fieldName === 'date' || fieldName === 'start_date' || fieldName === 'due_date') {
     return value.substring(0, 10);

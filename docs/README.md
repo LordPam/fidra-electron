@@ -4,7 +4,7 @@ This is the first markdown-first pass of Fidra's documentation.
 
 The goal is not to describe every feature. The goal is to cover the things a real treasurer or committee member needs in order to set Fidra up safely, understand where data lives, and avoid the less obvious mistakes.
 
-The website already contains marketing-style setup guides for the sync options. These docs should not duplicate those walkthroughs.
+The website already contains a marketing-style setup guide for Local Sync. These docs should not duplicate that walkthrough.
 
 ## Principles
 
@@ -16,10 +16,9 @@ The website already contains marketing-style setup guides for the sync options. 
 
 ## Use the Website Guides For Setup Walkthroughs
 
-These are the primary click-by-click setup guides:
+This is the primary click-by-click setup guide:
 
 - [Local Sync website guide](../gh-pages/local-sync.html)
-- [Cloud Connect website guide](../gh-pages/cloud-connect.html)
 
 The markdown docs should complement those pages with:
 
@@ -35,15 +34,14 @@ The markdown docs should complement those pages with:
 2. [Install Notes](setup/install-notes.md)
 3. [Shared Folders in OneDrive and SharePoint](setup/shared-folders.md)
 4. [Local Sync Notes](setup/local-sync.md)
-5. [Cloud Connect Notes](setup/cloud-connect.md)
-6. [Date-Based Activities](workflows/date-based-activities.md)
-7. [Personnel and Approvals](workflows/personnel-and-approvals.md)
-8. [Planned Transactions](workflows/planned-transactions.md)
-9. [Reports and Invoices](workflows/reports-and-invoices.md)
-10. [Keyboard Shortcuts](reference/keyboard-shortcuts.md)
-11. [Backups and Restore](operations/backups-and-restore.md)
-12. [Treasurer Handover](workflows/treasurer-handover.md)
-13. [Troubleshooting and Recovery](operations/troubleshooting-and-recovery.md)
+5. [Date-Based Activities](workflows/date-based-activities.md)
+6. [Personnel and Approvals](workflows/personnel-and-approvals.md)
+7. [Planned Transactions](workflows/planned-transactions.md)
+8. [Reports and Invoices](workflows/reports-and-invoices.md)
+9. [Keyboard Shortcuts](reference/keyboard-shortcuts.md)
+10. [Backups and Restore](operations/backups-and-restore.md)
+11. [Treasurer Handover](workflows/treasurer-handover.md)
+12. [Troubleshooting and Recovery](operations/troubleshooting-and-recovery.md)
 
 ## Current Docs
 
@@ -53,7 +51,6 @@ The markdown docs should complement those pages with:
 - [Install Notes](setup/install-notes.md)
 - [Shared Folders in OneDrive and SharePoint](setup/shared-folders.md)
 - [Local Sync Notes](setup/local-sync.md)
-- [Cloud Connect Notes](setup/cloud-connect.md)
 
 ### Workflows
 

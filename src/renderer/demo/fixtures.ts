@@ -1,7 +1,5 @@
 import type {
   AttachmentRow,
-  CloudServerConfig,
-  CloudStatus,
   InvoiceDefaults,
   InvoiceRow,
   LocalSyncConfig,
@@ -28,8 +26,6 @@ export interface DemoDataState {
   currentUser: { displayName: string; source: 'auth' | 'profile' | 'none' } | null;
   dbInfo: { path: string; name: string };
   invoiceDefaults: InvoiceDefaults;
-  cloudConfig: CloudServerConfig | null;
-  cloudStatus: CloudStatus;
   localSyncConfig: LocalSyncConfig | null;
   localSyncStatus: LocalSyncStatus;
 }
@@ -553,15 +549,6 @@ export function createDemoDataState(): DemoDataState {
       logoData: '',
       counter: JSON.stringify({ date: '20260501', count: 1 }),
       accentMode: 'fidra',
-    },
-    cloudConfig: null,
-    cloudStatus: {
-      connected: false,
-      connectionStatus: 'offline',
-      isSyncing: false,
-      pendingCount: 0,
-      authSession: null,
-      authMode: null,
     },
     localSyncConfig: null,
     localSyncStatus: {

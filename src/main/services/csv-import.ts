@@ -15,6 +15,9 @@ import type {
 } from '../../shared/csv-import-types';
 import { loadGlobalSettings, saveGlobalSettings } from '../window/global-settings';
 import { resolveStatus } from '../../shared/transaction-rules';
+import { z } from 'zod';
+import { transactionRowSchema } from '../../shared/ipc-schemas';
+import { assertSheetsExist } from './referential-integrity';
 
 // ─── Parse for Preview ───────────────────────────────────────────────
 
@@ -124,6 +127,8 @@ export function analyzeForImport(ctx: WindowContext, request: CsvAnalyzeRequest)
 // ─── Commit Import ───────────────────────────────────────────────────
 
 export function commitImport(ctx: WindowContext, request: CsvCommitRequest): CsvImportResult {
+  assertSheetsExist(ctx.sqlite, [{ label: 'target sheet', sheet: request.targetSheet }]);
+
   const includedRows = request.rows.filter((r) => r.include);
   const now = new Date().toISOString();
   const createdIds: string[] = [];
@@ -158,7 +163,10 @@ export function commitImport(ctx: WindowContext, request: CsvCommitRequest): Csv
   });
 
   if (transactions.length > 0) {
-    ctx.repos.transactions.bulkSave(transactions);
+    // Imported rows are assembled here rather than arriving over IPC as rows, so
+    // this is the only place they can be held to the same contract as every other
+    // writer — a bank CSV is exactly the kind of input that produces odd values.
+    ctx.repos.transactions.bulkSave(z.array(transactionRowSchema).parse(transactions));
   }
 
   // Learn description mappings from user edits

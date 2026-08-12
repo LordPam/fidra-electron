@@ -1,4 +1,5 @@
 import type { TransactionRow } from '../../shared/ipc-types';
+import { fromPence, toPence } from '../../shared/money';
 
 const COUNTABLE_INCOME = new Set(['--', 'approved']);
 const COUNTABLE_EXPENSE = new Set(['approved']);
@@ -7,24 +8,25 @@ export function computeTotal(
   transactions: TransactionRow[],
   opts?: { excludeTransfers?: boolean },
 ): number {
-  let total = 0;
+  // Accumulated in pence so a long ledger cannot drift; converted once at the end.
+  let totalPence = 0;
   for (const t of transactions) {
     if (opts?.excludeTransfers && t.linked_id) continue;
-    const amount = parseFloat(t.amount) || 0;
+    const amount = toPence(t.amount);
     if (t.type === 'income' && COUNTABLE_INCOME.has(t.status)) {
-      total += amount;
+      totalPence += amount;
     } else if (t.type === 'expense' && COUNTABLE_EXPENSE.has(t.status)) {
-      total -= amount;
+      totalPence -= amount;
     }
   }
-  return total;
+  return fromPence(totalPence);
 }
 
 export function computeRunningBalances(
   transactions: TransactionRow[],
 ): Map<string, number> {
   const balances = new Map<string, number>();
-  let running = 0;
+  let runningPence = 0;
 
   // Sort by date ASC, then created_at ASC, then id for deterministic tiebreak
   const sorted = [...transactions].sort((a, b) => {
@@ -36,24 +38,24 @@ export function computeRunningBalances(
   });
 
   for (const t of sorted) {
-    const amount = parseFloat(t.amount) || 0;
+    const amount = toPence(t.amount);
     if (t.type === 'income' && COUNTABLE_INCOME.has(t.status)) {
-      running += amount;
+      runningPence += amount;
     } else if (t.type === 'expense' && COUNTABLE_EXPENSE.has(t.status)) {
-      running -= amount;
+      runningPence -= amount;
     }
-    balances.set(t.id, running);
+    balances.set(t.id, fromPence(runningPence));
   }
 
   return balances;
 }
 
 export function computePendingTotal(transactions: TransactionRow[]): number {
-  let total = 0;
+  let totalPence = 0;
   for (const t of transactions) {
     if (t.type === 'expense' && t.status === 'pending' && !t.linked_id) {
-      total += parseFloat(t.amount) || 0;
+      totalPence += toPence(t.amount);
     }
   }
-  return total;
+  return fromPence(totalPence);
 }

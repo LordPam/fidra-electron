@@ -76,6 +76,10 @@ const SCHEMA = `
     value TEXT NOT NULL DEFAULT '',
     scope TEXT NOT NULL DEFAULT 'device'
   );
+  CREATE TABLE sync_meta (
+    key TEXT PRIMARY KEY NOT NULL,
+    value TEXT NOT NULL DEFAULT ''
+  );
   CREATE TABLE personnel (
     id TEXT PRIMARY KEY NOT NULL DEFAULT '',
     email TEXT NOT NULL DEFAULT '',
@@ -175,10 +179,11 @@ afterEach(() => {
 
 describe('SyncOrchestrator', () => {
   test('1: edit A → exportNow() → .bundle exists', () => {
-    dbA.prepare("INSERT INTO transactions (id, amount, description) VALUES ('tx-1', '50', 'Coffee')").run();
-
     const orch = makeOrchestrator(dbA, 'device-a');
     orch.start();
+
+    // Insert after start() — start() itself flushes any pre-existing changes
+    dbA.prepare("INSERT INTO transactions (id, amount, description) VALUES ('tx-1', '50', 'Coffee')").run();
 
     const result = orch.exportNow();
     expect(result.bundleId).toBeTruthy();
@@ -256,11 +261,13 @@ describe('SyncOrchestrator', () => {
   });
 
   test('5: org-scoped setting → export → IS in bundle', () => {
-    // Insert an org-scoped setting (fy_start_month is in ORG_KEYS)
-    dbA.prepare("INSERT INTO settings (key, value, scope) VALUES ('fy_start_month', '4', 'org')").run();
-
     const orchA = makeOrchestrator(dbA, 'device-a');
     orchA.start();
+
+    // Insert an org-scoped setting (fy_start_month is in ORG_KEYS) after
+    // start() — start() itself flushes any pre-existing changes
+    dbA.prepare("INSERT INTO settings (key, value, scope) VALUES ('fy_start_month', '4', 'org')").run();
+
     const result = orchA.exportNow();
     expect(result.changesetCount).toBeGreaterThan(0);
     orchA.stop();
@@ -281,14 +288,12 @@ describe('SyncOrchestrator', () => {
     const garbagePath = path.join(syncFolder, 'sync', 'other-device_0000000001.bundle');
     fs.writeFileSync(garbagePath, 'this is not a valid bundle');
 
+    // Don't call start() — its own import scan would consume the bundle first
     const orchB = makeOrchestrator(dbB, 'device-b');
-    orchB.start();
     const result = orchB.importAll();
 
     expect(result.bundlesSkipped).toBe(1);
     expect(result.bundlesProcessed).toBe(0);
-
-    orchB.stop();
   });
 
   test('7: A exports → B imports → B version poll → no re-export (D4)', () => {

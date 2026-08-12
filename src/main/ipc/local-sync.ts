@@ -17,9 +17,9 @@ import { PersonnelRepo } from '../repositories/personnel-repo';
 import { LocalAuthService } from '../services/local-auth-service';
 import { localSyncConfigSchema, localSyncResolutionSchema, localSyncMigrationOptsSchema, localSyncJoinViaInviteSchema } from '../../shared/ipc-schemas';
 import type { LocalSyncStatus, LocalSyncConflict, MigrationResult, SyncFolderValidation, ImportNotification } from '../../shared/ipc-types';
-import { joinLocalSync, migrateCloudToLocalSync } from '../sync/migration';
+import { joinLocalSync } from '../sync/migration';
 import { syncLog, errorMessage } from '../sync/sync-log';
-import { SessionStore, dbPathToSessionId } from '../cloud/auth/session-store';
+import { SessionStore, dbPathToSessionId } from '../services/session-store';
 
 const SETTING_SYNC_FOLDER = 'localSync.syncFolder';
 const SETTING_PASSPHRASE = 'localSync.passphrase';
@@ -35,23 +35,18 @@ export function registerLocalSyncHandlers(): void {
 
       const ctx = resolveContext(event);
 
-      // Mutual exclusion: reject if Cloud Connect is active (admin or member mode)
-      if (ctx.cloudConnection || ctx.memberConnected) {
-        return { success: false, error: 'Cloud Connect is active on this database. Disconnect Cloud Connect before enabling Local Sync.' };
-      }
-
       // Migration guard: if CRR tables are not yet initialized (first-time Local
-      // Sync on this database — e.g. migrating from Cloud Connect), check whether
-      // the sync folder already has bundles/snapshots from other devices. Joining
-      // an existing sync group with CRR-uninitialized data is dangerous: CRR init
-      // assigns col_version=1 to all existing rows, which can silently lose against
-      // or arbitrarily tie-break with established version histories from peers.
-      // Migrating to an empty folder (you're the first peer) is safe.
+      // Sync on this database), check whether the sync folder already has
+      // bundles/snapshots from other devices. Joining an existing sync group with
+      // CRR-uninitialized data is dangerous: CRR init assigns col_version=1 to all
+      // existing rows, which can silently lose against or arbitrarily tie-break
+      // with established version histories from peers. Configuring an empty folder
+      // (you're the first peer) is safe.
       if (!isCrrInitialized(ctx.sqlite) && syncFolderHasExistingPeers(syncFolder)) {
         return {
           success: false,
           error: 'This sync folder already has data from other devices. '
-            + 'Migrating a database from Cloud Connect into an existing Local Sync group '
+            + 'Adding a database with existing data to an established sync group '
             + 'can cause data conflicts. Use a fresh sync folder to start as the first peer, '
             + 'then have other devices join afterward.',
         };
@@ -442,26 +437,6 @@ export function registerLocalSyncHandlers(): void {
     }
   });
 
-  // ─── localSync:migrateFromCloud ──────────────────────────────────────
-  ipcMain.handle('localSync:migrateFromCloud', (event, rawOpts: unknown): MigrationResult => {
-    try {
-      const opts = localSyncMigrationOptsSchema.parse(rawOpts);
-      const ctx = resolveContext(event);
-
-      // Guard: reject if Local Sync is already configured on this DB
-      if (ctx.localSyncOrchestrator || ctx.settingsRepo.getSetting(SETTING_SYNC_FOLDER)) {
-        return { success: false, error: 'Local Sync is already configured on this database.' };
-      }
-
-      return migrateCloudToLocalSync({ sourceDbPath: ctx.dbPath, ...opts });
-    } catch (e) {
-      if (e instanceof z.ZodError) {
-        return { success: false, error: `Invalid options: ${e.issues.map((i) => i.message).join(', ')}` };
-      }
-      return { success: false, error: e instanceof Error ? e.message : String(e) };
-    }
-  });
-
   // ─── localSync:joinViaInvite ──────────────────────────────────────────
   ipcMain.handle('localSync:joinViaInvite', (_event, rawOpts: unknown): MigrationResult => {
     try {
@@ -567,62 +542,22 @@ export function registerLocalSyncHandlers(): void {
   });
 
   // ─── localSync:recoverAttachments ──────────────────────────────────
-  // One-time recovery: copy attachment files from all known source locations
-  // and export them to the sync shared folder so peers get them.
-  // Searches: (1) migration breadcrumb folder, (2) legacy cloud-cache/fidra_attachments/.
+  // Re-export all local attachment files to the sync shared folder so peers
+  // that missed earlier file bundles can pick them up.
   ipcMain.handle('localSync:recoverAttachments', (event) => {
     try {
       const ctx = resolveContext(event);
       const currentDir = getAttachmentStoragePath(ctx.databaseId);
       fs.mkdirSync(currentDir, { recursive: true });
 
-      // Collect all candidate source directories
-      const sourceDirs: string[] = [];
-
-      // Source 1: migration breadcrumb (set by new migrateCloudToLocalSync)
-      const breadcrumb = ctx.sqlite
-        .prepare("SELECT value FROM sync_meta WHERE key = '_migration.sourceDatabaseId'")
-        .get() as { value: string } | undefined;
-      if (breadcrumb?.value) {
-        sourceDirs.push(getAttachmentStoragePath(breadcrumb.value));
-      }
-
-      // Source 2: legacy cloud-cache/fidra_attachments/ (pre-migration location)
-      const legacyDir = path.join(os.homedir(), '.fidra', 'cloud-cache', 'fidra_attachments');
-      sourceDirs.push(legacyDir);
-
-      // Build a set of stored_names we actually need (from DB metadata)
-      const neededNames = new Set(
-        (ctx.sqlite.prepare('SELECT stored_name FROM attachments').all() as { stored_name: string }[])
-          .map((r) => r.stored_name)
-          .filter(Boolean),
-      );
-
-      // Copy files from source directories that don't already exist locally
-      let copiedCount = 0;
-      for (const sourceDir of sourceDirs) {
-        if (!fs.existsSync(sourceDir)) continue;
-        for (const file of fs.readdirSync(sourceDir)) {
-          const srcFile = path.join(sourceDir, file);
-          const destFile = path.join(currentDir, file);
-          if (!fs.statSync(srcFile).isFile()) continue;
-          if (fs.existsSync(destFile)) continue;
-          // Only copy files that match attachment metadata in the DB
-          if (!neededNames.has(file)) continue;
-          fs.copyFileSync(srcFile, destFile);
-          copiedCount++;
-        }
-      }
-
-      // Export all attachment files to the sync shared folder
       let exportedCount = 0;
       const orchestrator = ctx.localSyncOrchestrator;
       if (orchestrator) {
         exportedCount = orchestrator.exportAllAttachmentFiles();
       }
 
-      syncLog('info', 'recoverAttachments completed', { copiedCount, exportedCount, sourceDirs });
-      return { success: true, copiedCount, exportedCount };
+      syncLog('info', 'recoverAttachments completed', { exportedCount });
+      return { success: true, copiedCount: 0, exportedCount };
     } catch (e) {
       const error = e instanceof Error ? e.message : String(e);
       syncLog('error', 'recoverAttachments failed', { error });

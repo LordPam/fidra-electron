@@ -1,5 +1,3 @@
-import type { CloudServerConfig } from './ipc-types';
-
 export interface RecentFileEntry {
   readonly path: string;
   readonly name: string;
@@ -25,8 +23,6 @@ export interface GlobalSettings {
   lastOpenedAt: string | null;
   alwaysShowFileChooser: boolean;
   firstRunComplete: boolean;
-  cloudServers: CloudServerConfig[];
-  activeServerId: string | null;
   uiPreferences: UiPreferences;
   /** Per-machine display name for Local Sync (informational). Device ID is per-database in sync_meta. */
   localSyncDeviceName?: string;

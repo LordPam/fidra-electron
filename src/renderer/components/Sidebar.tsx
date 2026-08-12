@@ -26,14 +26,12 @@ import {
 import { useSheetStore } from '@/stores/sheet-store';
 import { useWindowStore } from '@/stores/window-store';
 import { useAuthStore } from '@/stores/auth-store';
-import { ConnectionIndicator } from '@/components/ConnectionIndicator';
 import { LocalSyncIndicator } from '@/components/LocalSyncIndicator';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue,
 } from '@/components/ui/select';
 
 const navItems = [
@@ -48,10 +46,8 @@ const navItems = [
 export function Sidebar() {
   const { sheets, currentSheet, setCurrent } = useSheetStore();
   const { dbName, loadDbInfo } = useWindowStore();
-  const session = useAuthStore((s) => s.session);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const authMode = useAuthStore((s) => s.authMode);
-  const signOut = useAuthStore((s) => s.signOut);
   const localSignOut = useAuthStore((s) => s.localSignOut);
   const location = useLocation();
 
@@ -154,7 +150,6 @@ export function Sidebar() {
           </Tooltip>
         )}
 
-        <ConnectionIndicator />
         <LocalSyncIndicator />
 
         <Tooltip>
@@ -174,21 +169,14 @@ export function Sidebar() {
           </TooltipContent>
         </Tooltip>
 
-        {/* Sign Out — Supabase session or Local Sync auth */}
-        {(session || (isAuthenticated && authMode === 'localSync')) && (
+        {/* Sign Out — Local Sync auth */}
+        {isAuthenticated && authMode === 'localSync' && (
           <Tooltip>
             <TooltipTrigger asChild>
               <button
                 type="button"
                 className="flex h-10 w-10 items-center justify-center rounded-md text-fidra-slate transition-fidra hover:bg-fidra-teal/10 hover:text-foreground"
-                onClick={async () => {
-                  if (authMode === 'localSync') {
-                    await localSignOut();
-                  } else {
-                    await signOut();
-                    window.dispatchEvent(new CustomEvent('fidra:showFileChooser'));
-                  }
-                }}
+                onClick={() => localSignOut()}
               >
                 <LogOut className="h-5 w-5" />
               </button>

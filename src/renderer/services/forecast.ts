@@ -1,4 +1,5 @@
 import type { PlannedTemplateRow, TransactionRow } from '../../shared/ipc-types';
+import { fromPence, parsePence, toPence } from '../../shared/money';
 
 const NAMESPACE = '6ba7b812-9dad-11d1-80b4-00c04fd430c8';
 
@@ -126,14 +127,15 @@ export function projectBalance(
   instances: PlannedInstance[],
   targetDate: string,
 ): number {
-  let balance = currentBalance;
+  // A projection walks every future instance, so it accumulates in pence.
+  let balancePence = parsePence(currentBalance) ?? 0;
   for (const inst of instances) {
     if (inst.instanceDate <= targetDate) {
-      const amount = parseFloat(inst.transaction.amount);
-      balance += inst.transaction.type === 'income' ? amount : -amount;
+      const amount = toPence(inst.transaction.amount);
+      balancePence += inst.transaction.type === 'income' ? amount : -amount;
     }
   }
-  return balance;
+  return fromPence(balancePence);
 }
 
 export function getOverdueDate(template: PlannedTemplateRow): string | null {

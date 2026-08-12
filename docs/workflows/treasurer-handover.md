@@ -6,7 +6,6 @@ The safe handover method depends on how the club is using Fidra:
 
 - standalone local database
 - Local Sync
-- Cloud Connect
 
 ## Core Rule
 
@@ -31,7 +30,7 @@ Regardless of sync mode, the incoming treasurer should get:
 At minimum, write down:
 
 - the database path
-- whether the club uses standalone, Local Sync, or Cloud Connect
+- whether the club uses a standalone database or Local Sync
 - the Local Sync shared folder, if applicable
 - the backup directory, if it has been customized
 - who currently has admin access
@@ -70,21 +69,6 @@ Recommended process:
 7. Only then demote or remove the outgoing treasurer if appropriate.
 
 This is better than trying to transfer one person's local working copy.
-
-### Cloud Connect
-
-Cloud Connect handover is mostly an access and infrastructure handover.
-
-Recommended process:
-
-1. Invite the incoming treasurer.
-2. Promote them to admin if they need administrative access.
-3. Verify they can sign in and access the correct database.
-4. Transfer any infrastructure knowledge that lives outside Fidra:
-   - database server details
-   - Supabase project details
-   - storage bucket details
-5. Only then demote or remove the outgoing treasurer if appropriate.
 
 ## Admin Safety Rule
 
@@ -129,5 +113,5 @@ So if the club relies on a specific logo file, re-check invoice appearance on th
 ## What Not to Do
 
 - do not pass around only the raw `.fdra` file and assume that is everything
-- do not point multiple computers directly at one shared live database file instead of using Local Sync or Cloud Connect properly
+- do not point multiple computers directly at one shared live database file instead of setting up Local Sync properly
 - do not remove the outgoing admin before the incoming admin is fully active

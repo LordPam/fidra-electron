@@ -40,6 +40,7 @@ import {
   generateKeyFacts,
   computeHealthStatus,
 } from '@/services/report-insights';
+import { toAmount } from '../../shared/money';
 
 export default function ReportsView() {
   const { transactions, loadAll } = useTransactionStore();
@@ -130,7 +131,7 @@ export default function ReportsView() {
           const days = Math.ceil(
             (new Date(inst.instanceDate + 'T00:00:00').getTime() - new Date(todayStr + 'T00:00:00').getTime()) / 86400000,
           );
-          const amt = parseFloat(inst.transaction.amount) || 0;
+          const amt = toAmount(inst.transaction.amount);
           if (!nearest || days < nearest.daysUntil) nearest = { amount: amt, daysUntil: days };
         }
       }

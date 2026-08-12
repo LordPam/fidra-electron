@@ -68,6 +68,7 @@ import {
 import { Layers, Tags, PanelLeftClose, PanelLeft, RotateCcw, CalendarDays, FileDown, ChevronDown, FileSpreadsheet, FileText, Palette, Image } from 'lucide-react';
 import { ZoomControls } from '@/components/ZoomControls';
 import { useUndoRedoShortcuts } from '@/hooks/useUndoRedoShortcuts';
+import { toAmount } from '../../shared/money';
 
 
 export default function TransactionsView() {
@@ -250,7 +251,7 @@ export default function TransactionsView() {
       let projected = base;
       for (const t of searchFiltered) {
         if (t.status === 'planned') {
-          const amount = parseFloat(t.amount) || 0;
+          const amount = toAmount(t.amount);
           projected += t.type === 'income' ? amount : -amount;
         }
       }

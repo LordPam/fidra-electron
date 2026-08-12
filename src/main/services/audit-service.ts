@@ -1,6 +1,8 @@
 import crypto from 'node:crypto';
 import type { WindowContext } from '../window/window-context';
 import type { AuditLogRow, TransactionRow, PlannedTemplateRow, InvoiceRow } from '../../shared/ipc-types';
+import type { PersonnelRecord } from '../../shared/auth-types';
+import { fromPence, parsePence } from '../../shared/money';
 
 function resolveUser(ctx: WindowContext): string {
   if (ctx.localAuthPersonnel?.name) return ctx.localAuthPersonnel.name;
@@ -33,15 +35,17 @@ function makeEntry(
 
 function safeLog(ctx: WindowContext, entry: AuditLogRow): void {
   try {
-    ctx.activeAuditRepo.log(entry);
+    ctx.auditRepo.log(entry);
   } catch (e) {
     console.warn('[audit] Failed to write audit entry:', e);
   }
 }
 
 function formatAmount(amount: string): string {
-  const num = parseFloat(amount);
-  return `£${num.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const pence = parsePence(amount);
+  // An unreadable amount is worth recording as-is rather than as "£NaN"
+  if (pence === null) return amount;
+  return `£${fromPence(pence).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 export function logTransactionCreated(ctx: WindowContext, tx: TransactionRow): void {
@@ -170,6 +174,18 @@ export function logInvoiceMarkedPaid(ctx: WindowContext, invoice: InvoiceRow): v
   const user = resolveUser(ctx);
   const summary = `Marked invoice ${invoice.invoice_number} as paid`;
   safeLog(ctx, makeEntry('update', 'invoice', invoice.id, user, summary));
+}
+
+export function logPersonnelRemoved(ctx: WindowContext, person: PersonnelRecord): void {
+  const user = resolveUser(ctx);
+  const summary = `Removed ${person.name} (${person.email}) from personnel`;
+  safeLog(ctx, makeEntry('delete', 'personnel', person.id, user, summary));
+}
+
+export function logPersonnelRoleChanged(ctx: WindowContext, person: PersonnelRecord, newRole: string): void {
+  const user = resolveUser(ctx);
+  const summary = `Changed ${person.name}'s role from ${person.role} to ${newRole}`;
+  safeLog(ctx, makeEntry('update', 'personnel', person.id, user, summary));
 }
 
 function diffTransactions(old: TransactionRow, updated: TransactionRow): Record<string, { old: string; new: string }> {

@@ -1,11 +1,8 @@
 /**
  * Sync migration flows for Local Sync onboarding.
  *
- * Two entry points:
- * 1. joinLocalSync — new peer joins an existing Local Sync group via snapshot
- * 2. migrateCloudToLocalSync — Cloud Connect database migrates to Local Sync
- *
- * Both create a NEW database file (sync mode is immutable per file).
+ * Entry point: joinLocalSync — new peer joins an existing Local Sync group
+ * via snapshot. Creates a NEW database file (sync mode is immutable per file).
  */
 import crypto from 'node:crypto';
 import fs from 'node:fs';
@@ -29,13 +26,6 @@ export interface MigrationResult {
 }
 
 interface JoinLocalSyncOpts {
-  syncFolder: string;
-  passphrase: string;
-  newDbPath: string;
-}
-
-interface MigrateCloudToLocalSyncOpts {
-  sourceDbPath: string;
   syncFolder: string;
   passphrase: string;
   newDbPath: string;
@@ -137,96 +127,6 @@ export function joinLocalSync(opts: JoinLocalSyncOpts): MigrationResult {
   } catch (e) {
     const error = e instanceof Error ? e.message : String(e);
     syncLog('error', 'joinLocalSync failed', { error });
-    // Clean up partial file on failure
-    try { fs.unlinkSync(newDbPath); } catch { /* ignore */ }
-    return { success: false, error };
-  }
-}
-
-/**
- * Migrate a Cloud Connect database to Local Sync.
- * Copies the source database to a new file, strips cloud config, initializes CRR.
- */
-export function migrateCloudToLocalSync(opts: MigrateCloudToLocalSyncOpts): MigrationResult {
-  const { sourceDbPath, syncFolder, passphrase, newDbPath } = opts;
-
-  try {
-    // Validate sync folder
-    fs.accessSync(syncFolder, fs.constants.R_OK | fs.constants.W_OK);
-
-    // Copy source database to new location
-    fs.copyFileSync(sourceDbPath, newDbPath);
-
-    // Open copied database (migrations run, schema up to date).
-    // The databaseId is INHERITED from the source DB (byte-copy preserves sync_meta).
-    const { db, databaseId: sourceDatabaseId } = openDatabase(newDbPath);
-
-    try {
-      // Clean up cloud-specific settings
-      const cloudKeys = db
-        .prepare("SELECT key FROM settings WHERE key LIKE 'cloudServer.%' OR key LIKE 'cloud.%'")
-        .all() as { key: string }[];
-      const deleteStmt = db.prepare('DELETE FROM settings WHERE key = ?');
-      for (const row of cloudKeys) {
-        deleteStmt.run(row.key);
-      }
-
-      // Generate a FRESH database.id so the migrated DB has its own attachment
-      // folder. Store the source ID as a breadcrumb for recovery.
-      const newDatabaseId = crypto.randomUUID();
-      db.prepare(
-        "INSERT INTO sync_meta (key, value) VALUES ('_migration.sourceDatabaseId', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
-      ).run(sourceDatabaseId);
-      db.prepare(
-        "INSERT INTO sync_meta (key, value) VALUES ('database.id', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
-      ).run(newDatabaseId);
-
-      // Copy attachment files from source folder to new folder
-      const sourceAttachDir = getAttachmentStoragePath(sourceDatabaseId);
-      const newAttachDir = getAttachmentStoragePath(newDatabaseId);
-      if (fs.existsSync(sourceAttachDir)) {
-        fs.mkdirSync(newAttachDir, { recursive: true });
-        for (const file of fs.readdirSync(sourceAttachDir)) {
-          const srcFile = path.join(sourceAttachDir, file);
-          const destFile = path.join(newAttachDir, file);
-          if (fs.statSync(srcFile).isFile()) {
-            fs.copyFileSync(srcFile, destFile);
-          }
-        }
-        syncLog('info', 'Copied attachment files for migration', {
-          from: sourceAttachDir, to: newAttachDir,
-        });
-      }
-
-      // Initialize CRR tables (idempotent — cloud cache won't have them)
-      initializeCrr(db);
-
-      // Set lastExportedVersion watermark so the orchestrator's first doExport()
-      // doesn't re-export the entire dataset that was copied from the Cloud DB.
-      const dbVersion = (db.prepare('SELECT crsql_db_version()').pluck().get() as number) ?? 0;
-      db.prepare(
-        "INSERT INTO sync_meta (key, value) VALUES ('sync.lastExportedVersion', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
-      ).run(String(dbVersion));
-
-      // Write Local Sync settings (device scope)
-      db.prepare(
-        "INSERT INTO settings (key, value, scope) VALUES (?, ?, 'device') ON CONFLICT(key) DO UPDATE SET value = excluded.value",
-      ).run('localSync.syncFolder', syncFolder);
-      db.prepare(
-        "INSERT INTO settings (key, value, scope) VALUES (?, ?, 'device') ON CONFLICT(key) DO UPDATE SET value = excluded.value",
-      ).run('localSync.passphrase', passphrase);
-
-      // Ensure device identity exists (per-database, stored in sync_meta)
-      initializeDeviceIdentity(db, os.hostname());
-    } finally {
-      db.close();
-    }
-
-    syncLog('info', 'migrateCloudToLocalSync completed', { sourceDbPath, newDbPath, syncFolder });
-    return { success: true, newDbPath };
-  } catch (e) {
-    const error = e instanceof Error ? e.message : String(e);
-    syncLog('error', 'migrateCloudToLocalSync failed', { error });
     // Clean up partial file on failure
     try { fs.unlinkSync(newDbPath); } catch { /* ignore */ }
     return { success: false, error };

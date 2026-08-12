@@ -1,4 +1,5 @@
 import type { TransactionRow } from '../../shared/ipc-types';
+import { toAmount } from '../../shared/money';
 
 export interface TransactionPDFData {
   sheetData: Map<string, TransactionRow[]>;
@@ -28,7 +29,7 @@ function sortByDate(transactions: TransactionRow[]): TransactionRow[] {
 }
 
 function signedAmount(t: TransactionRow): number {
-  const amt = parseFloat(t.amount) || 0;
+  const amt = toAmount(t.amount);
   return t.type === 'income' ? amt : -amt;
 }
 
@@ -63,7 +64,7 @@ function renderSheetSection(sheetName: string, transactions: TransactionRow[], s
   let runningBalance = 0;
 
   const rows = sorted.map((t, i) => {
-    const amt = parseFloat(t.amount) || 0;
+    const amt = toAmount(t.amount);
     if (t.type === 'income') income += amt;
     else expenses += amt;
 
@@ -132,7 +133,7 @@ export function renderTransactionsPDFHTML(data: TransactionPDFData): string {
   for (const txns of data.sheetData.values()) {
     grandCount += txns.length;
     for (const t of txns) {
-      const amt = parseFloat(t.amount) || 0;
+      const amt = toAmount(t.amount);
       if (t.type === 'income') grandIncome += amt;
       else grandExpenses += amt;
     }
@@ -145,7 +146,7 @@ export function renderTransactionsPDFHTML(data: TransactionPDFData): string {
       let sheetIncome = 0;
       let sheetExpenses = 0;
       for (const t of txns) {
-        const amt = parseFloat(t.amount) || 0;
+        const amt = toAmount(t.amount);
         if (t.type === 'income') sheetIncome += amt;
         else sheetExpenses += amt;
       }

@@ -15,6 +15,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { ChevronRight, ChevronDown, X, FileUp } from 'lucide-react';
 import type { TransactionRow } from '../../shared/ipc-types';
 import { defaultStatusForType } from '../../shared/transaction-rules';
+import { isPositiveAmount, toAmountString } from '../../shared/money';
 
 export interface PendingFile {
   path: string;
@@ -111,16 +112,15 @@ export function AddTransactionForm({
   };
 
   const handleAmountBlur = () => {
-    if (amount && !isNaN(parseFloat(amount))) {
-      setAmount(parseFloat(amount).toFixed(2));
-    }
+    const normalised = toAmountString(amount);
+    if (normalised !== null) setAmount(normalised);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
     const errors: Record<string, boolean> = {};
-    if (!amount || isNaN(parseFloat(amount)) || parseFloat(amount) <= 0) errors.amount = true;
+    if (!isPositiveAmount(amount)) errors.amount = true;
     if (!description.trim()) errors.description = true;
     if (!date) errors.date = true;
 
@@ -133,6 +133,9 @@ export function AddTransactionForm({
       setFieldErrors(errors);
       return;
     }
+
+    // Non-null: isPositiveAmount above rejected anything unparseable.
+    const normalisedAmount = toAmountString(amount)!;
 
     const targetSheet = sheet || sheets[0];
     if (!targetSheet) {
@@ -150,7 +153,7 @@ export function AddTransactionForm({
         id: generateId(),
         date,
         description: description.trim(),
-        amount: parseFloat(amount).toFixed(2),
+        amount: normalisedAmount,
         type,
         status: defaultStatusForType(type),
         sheet: targetSheet,
@@ -170,7 +173,7 @@ export function AddTransactionForm({
         id: generateId(),
         date,
         description: description.trim(),
-        amount: parseFloat(amount).toFixed(2),
+        amount: normalisedAmount,
         type: otherType,
         status: defaultStatusForType(otherType),
         sheet: counterpartSheet,
@@ -191,7 +194,7 @@ export function AddTransactionForm({
         id: generateId(),
         date,
         description: description.trim(),
-        amount: parseFloat(amount).toFixed(2),
+        amount: normalisedAmount,
         type,
         status: defaultStatusForType(type),
         sheet: targetSheet,

@@ -20,6 +20,7 @@ import { ComboboxInput } from '@/components/ComboboxInput';
 import { Checkbox } from '@/components/ui/checkbox';
 import { ArrowRightLeft } from 'lucide-react';
 import type { PlannedTemplateRow } from '../../shared/ipc-types';
+import { isPositiveAmount, toAmountString } from '../../shared/money';
 
 type PlannedMode = 'income' | 'expense' | 'transfer';
 
@@ -103,12 +104,15 @@ export function AddPlannedDialog({
 
   const handleSave = useCallback(() => {
     if (!description.trim()) return;
-    if (!amount || isNaN(parseFloat(amount)) || parseFloat(amount) <= 0) return;
+    if (!isPositiveAmount(amount)) return;
     if (!startDate) return;
 
     const targetSheet = mode === 'transfer' ? sheet || sheets[0] : sheet || sheets[0];
     if (!targetSheet) return;
     if (mode === 'transfer' && (!transferToSheet || transferToSheet === targetSheet)) return;
+
+    // Non-null: isPositiveAmount above rejected anything unparseable.
+    const normalisedAmount = toAmountString(amount)!;
 
     if (hasEndDate && endDate && endDate <= startDate) return;
 
@@ -116,7 +120,7 @@ export function AddPlannedDialog({
       id: crypto.randomUUID(),
       start_date: startDate,
       description: description.trim(),
-      amount: parseFloat(amount).toFixed(2),
+      amount: normalisedAmount,
       type,
       frequency,
       target_sheet: targetSheet,

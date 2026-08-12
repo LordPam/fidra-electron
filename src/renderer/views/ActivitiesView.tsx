@@ -38,6 +38,7 @@ import { useUndoRedoShortcuts } from '@/hooks/useUndoRedoShortcuts';
 import { useViewData } from '@/hooks/useViewData';
 import { useViewZoom } from '@/hooks/useViewZoom';
 import { renameActivity, deleteActivity, persistActivityNote } from '@/services/activity';
+import { toAmount } from '../../shared/money';
 
 const ACTIVITY_CHART_COLORS = ['#89B0AE', '#6B8F8D', '#455561'];
 
@@ -143,7 +144,7 @@ export default function ActivitiesView() {
       const instances = expandTemplate(tmpl, horizonStr, true);
       for (const inst of instances) {
         if (inst.instanceDate < todayStr) continue; // only future instances
-        const amount = parseFloat(inst.transaction.amount) || 0;
+        const amount = toAmount(inst.transaction.amount);
         const entry = map.get(activity) ?? { plannedNet: 0 };
         entry.plannedNet += inst.transaction.type === 'income' ? amount : -amount;
         map.set(activity, entry);

@@ -27,13 +27,29 @@ export function registerBackupHandlers(): void {
   ipcMain.handle('backup:restore', async (event, backupPath: unknown) => {
     const validPath = backupPathSchema.parse(backupPath);
     const ctx = resolveContext(event);
-    const result = await restoreBackup(ctx.sqlite, ctx.dbPath, ctx.databaseId, validPath, ctx.settingsRepo);
-    if (result.success) {
-      // Reload the window with the restored database
-      const wm = getWindowManager();
-      await wm.switchWindowToFile(event.sender.id, ctx.dbPath);
+    const wm = getWindowManager();
+
+    // Another window on the same file would keep its own connection — and its WAL —
+    // alive across the swap, then replay it over the restored database.
+    if (wm.otherWindowsWithFile(event.sender.id, ctx.dbPath).length > 0) {
+      return {
+        success: false,
+        error: 'This database is open in another Fidra window. Close that window and try again.',
+      };
     }
-    return result;
+
+    // Nothing may hold the connection while the file underneath it is replaced.
+    ctx.stopLocalSyncServices();
+
+    const result = await restoreBackup(ctx.sqlite, ctx.dbPath, ctx.databaseId, validPath, ctx.settingsRepo);
+
+    // The connection is closed whether or not the restore succeeded, so the window
+    // needs a fresh context either way — otherwise every later query throws.
+    if (result.dbClosed) {
+      wm.reopenWindowDatabase(event.sender.id);
+    }
+
+    return { success: result.success, error: result.error };
   });
 
   ipcMain.handle('backup:delete', (_event, backupPath: unknown) => {

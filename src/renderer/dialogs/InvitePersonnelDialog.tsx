@@ -19,8 +19,7 @@ interface InvitePersonnelDialogProps {
 }
 
 export function InvitePersonnelDialog({ open, onOpenChange }: InvitePersonnelDialogProps) {
-  const { invitePersonnel, localInviteMember, authMode } = useAuthStore();
-  const isLocalSync = authMode === 'localSync';
+  const { localInviteMember } = useAuthStore();
 
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -56,18 +55,12 @@ export function InvitePersonnelDialog({ open, onOpenChange }: InvitePersonnelDia
     setError('');
     setSaving(true);
     try {
-      if (isLocalSync) {
-        const result = await localInviteMember(name.trim(), email.trim(), role);
-        setSaving(false);
-        if (!result.success) {
-          setError(result.error ?? 'Invite failed.');
-        } else {
-          setInviteCode(result.inviteCode ?? null);
-        }
+      const result = await localInviteMember(name.trim(), email.trim(), role);
+      setSaving(false);
+      if (!result.success) {
+        setError(result.error ?? 'Invite failed.');
       } else {
-        await invitePersonnel(name.trim(), email.trim(), role);
-        setSaving(false);
-        handleClose();
+        setInviteCode(result.inviteCode ?? null);
       }
     } catch (e) {
       setSaving(false);

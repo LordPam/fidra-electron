@@ -51,6 +51,7 @@ import {
 } from 'lucide-react';
 import { ZoomControls } from '@/components/ZoomControls';
 import { useUndoRedoShortcuts } from '@/hooks/useUndoRedoShortcuts';
+import { toAmount } from '../../shared/money';
 
 const HORIZON_DAYS = 180;
 
@@ -164,7 +165,7 @@ export default function PlannedView() {
 
     for (const { template, instances, overdueDate } of expanded) {
       for (const inst of instances) {
-        const amount = parseFloat(inst.transaction.amount) || 0;
+        const amount = toAmount(inst.transaction.amount);
         if (template.type === 'income') totalIncome += amount;
         else totalExpenses += amount;
       }
@@ -188,7 +189,7 @@ export default function PlannedView() {
     const { template, nextDue } = entry;
     return {
       description: template.description,
-      amount: parseFloat(template.amount) || 0,
+      amount: toAmount(template.amount),
       type: template.type,
       party: template.party,
       nextDue,
@@ -353,7 +354,7 @@ export default function PlannedView() {
         invoicePrefill: {
           toName: template.party || '',
           description: template.description,
-          amount: parseFloat(template.amount) || 0,
+          amount: toAmount(template.amount),
           date: dueDate,
           plannedTemplateId: template.id,
         },

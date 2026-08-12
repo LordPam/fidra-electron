@@ -1,5 +1,6 @@
 import ExcelJS from 'exceljs';
 import type { TransactionRow } from '../../shared/ipc-types';
+import { toAmount } from '../../shared/money';
 
 function sortByDate(transactions: TransactionRow[]): TransactionRow[] {
   return [...transactions].sort(
@@ -8,7 +9,7 @@ function sortByDate(transactions: TransactionRow[]): TransactionRow[] {
 }
 
 function signedAmount(t: TransactionRow): number {
-  const amt = parseFloat(t.amount) || 0;
+  const amt = toAmount(t.amount);
   return t.type === 'income' ? amt : -amt;
 }
 
@@ -157,7 +158,7 @@ export async function exportXLSX(
     let income = 0;
     let expenses = 0;
     for (const t of txns) {
-      const amt = parseFloat(t.amount) || 0;
+      const amt = toAmount(t.amount);
       if (t.type === 'income') income += amt;
       else expenses += amt;
     }

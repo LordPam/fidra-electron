@@ -6,34 +6,6 @@ import { getWindowManager } from '../window/window-manager';
 import { loadGlobalSettings, removeRecentFile, markFirstRunComplete } from '../window/global-settings';
 import { checkForUpdates } from '../services/update-checker';
 
-function buildCloudServersSubmenu(): MenuItemConstructorOptions[] {
-  const settings = loadGlobalSettings();
-
-  const items: MenuItemConstructorOptions[] = settings.cloudServers.map((server) => ({
-    label: server.name,
-    click: async () => {
-      const ctx = await getWindowManager().createCloudWindow(server.id);
-      getWindowManager().markStartupComplete(ctx.window.webContents.id);
-    },
-  }));
-
-  if (items.length > 0) {
-    items.push({ type: 'separator' });
-  }
-
-  items.push({
-    label: 'Add Cloud Server...',
-    click: () => {
-      const win = BrowserWindow.getFocusedWindow();
-      if (win) {
-        win.webContents.send('menu:addCloudServer');
-      }
-    },
-  });
-
-  return items;
-}
-
 function buildRecentFilesSubmenu(): MenuItemConstructorOptions[] {
   const settings = loadGlobalSettings();
   if (settings.recentFiles.length === 0) {
@@ -185,10 +157,6 @@ export function buildMenu(): void {
       {
         label: 'Open Recent',
         submenu: buildRecentFilesSubmenu(),
-      },
-      {
-        label: 'Open Cloud Server',
-        submenu: buildCloudServersSubmenu(),
       },
       { type: 'separator' },
       {

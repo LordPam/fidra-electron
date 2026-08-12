@@ -2,12 +2,12 @@ import { ipcMain } from 'electron';
 import { z } from 'zod';
 import { resolveContext } from './context-resolver';
 import * as attachmentService from '../services/attachment-service';
-import { attachmentRowSchema } from '../../shared/ipc-schemas';
+import { attachmentRowSchema, idSchema } from '../../shared/ipc-schemas';
 import { logAttachmentAdded, logAttachmentRemoved } from '../services/audit-service';
 
 export function registerAttachmentHandlers(): void {
   ipcMain.handle('attachments:getForTransaction', (event, transactionId: unknown) => {
-    const validId = z.string().parse(transactionId);
+    const validId = idSchema.parse(transactionId);
     return attachmentService.getForTransaction(validId, resolveContext(event));
   });
 
@@ -19,9 +19,9 @@ export function registerAttachmentHandlers(): void {
   ipcMain.handle(
     'attachments:add',
     async (event, transactionId: unknown, filePath: unknown, filename: unknown) => {
-      const validTxId = z.string().parse(transactionId);
-      const validPath = z.string().parse(filePath);
-      const validName = z.string().parse(filename);
+      const validTxId = idSchema.parse(transactionId);
+      const validPath = z.string().min(1).parse(filePath);
+      const validName = z.string().min(1).parse(filename);
       const ctx = resolveContext(event);
       const result = await attachmentService.addAttachment(validTxId, validPath, validName, ctx);
       logAttachmentAdded(ctx, validTxId, validName);
@@ -30,7 +30,7 @@ export function registerAttachmentHandlers(): void {
   );
 
   ipcMain.handle('attachments:remove', async (event, id: unknown) => {
-    const validId = z.string().parse(id);
+    const validId = idSchema.parse(id);
     const ctx = resolveContext(event);
     const attachment = ctx.attachmentRepo.getById(validId);
     const result = await attachmentService.removeAttachment(validId, ctx);
@@ -41,7 +41,7 @@ export function registerAttachmentHandlers(): void {
   });
 
   ipcMain.handle('attachments:open', (event, id: unknown) => {
-    const validId = z.string().parse(id);
+    const validId = idSchema.parse(id);
     return attachmentService.openAttachment(validId, resolveContext(event));
   });
 

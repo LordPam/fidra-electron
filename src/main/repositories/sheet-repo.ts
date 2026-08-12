@@ -38,11 +38,16 @@ export class SheetRepo {
     return result.changes > 0;
   }
 
+  // Sheets are referenced by NAME in three places: transactions.sheet,
+  // planned_templates.target_sheet, and planned_templates.transfer_target_sheet
+  // (the destination sheet of a transfer template's income side). All three must
+  // cascade together or a template ends up pointing at a sheet that no longer exists.
   renameSheet(oldName: string, newName: string): void {
     const tx = this.db.transaction(() => {
       this.db.prepare('UPDATE sheets SET name = ? WHERE name = ?').run(newName, oldName);
       this.db.prepare('UPDATE transactions SET sheet = ? WHERE sheet = ?').run(newName, oldName);
       this.db.prepare('UPDATE planned_templates SET target_sheet = ? WHERE target_sheet = ?').run(newName, oldName);
+      this.db.prepare('UPDATE planned_templates SET transfer_target_sheet = ? WHERE transfer_target_sheet = ?').run(newName, oldName);
     });
     tx();
   }
@@ -51,6 +56,7 @@ export class SheetRepo {
     const tx = this.db.transaction(() => {
       this.db.prepare('UPDATE transactions SET sheet = ? WHERE sheet = ?').run(targetName, sourceName);
       this.db.prepare('UPDATE planned_templates SET target_sheet = ? WHERE target_sheet = ?').run(targetName, sourceName);
+      this.db.prepare('UPDATE planned_templates SET transfer_target_sheet = ? WHERE transfer_target_sheet = ?').run(targetName, sourceName);
       this.db.prepare('DELETE FROM sheets WHERE id = ?').run(sourceId);
     });
     tx();
@@ -61,6 +67,9 @@ export class SheetRepo {
       this.db.prepare('DELETE FROM attachments WHERE transaction_id IN (SELECT id FROM transactions WHERE sheet = ?)').run(name);
       this.db.prepare('DELETE FROM transactions WHERE sheet = ?').run(name);
       this.db.prepare('DELETE FROM planned_templates WHERE target_sheet = ?').run(name);
+      // Templates that live on another sheet but transfer INTO this one survive;
+      // they lose their (now dangling) destination and become plain planned rows.
+      this.db.prepare('UPDATE planned_templates SET transfer_target_sheet = NULL WHERE transfer_target_sheet = ?').run(name);
       this.db.prepare('DELETE FROM sheets WHERE id = ?').run(id);
     });
     tx();
@@ -82,8 +91,15 @@ export class SheetRepo {
     return this.db.prepare('SELECT * FROM transactions WHERE sheet = ?').all(name) as import('../../shared/ipc-types').TransactionRow[];
   }
 
+  /**
+   * Every template affected by an operation on this sheet — templates that live on it
+   * plus templates that transfer into it. Callers snapshot this before rename/merge/delete
+   * so undo can restore both `target_sheet` and `transfer_target_sheet`.
+   */
   getPlannedOnSheet(name: string): import('../../shared/ipc-types').PlannedTemplateRow[] {
-    return this.db.prepare('SELECT * FROM planned_templates WHERE target_sheet = ?').all(name) as import('../../shared/ipc-types').PlannedTemplateRow[];
+    return this.db.prepare(
+      'SELECT * FROM planned_templates WHERE target_sheet = ? OR transfer_target_sheet = ?',
+    ).all(name, name) as import('../../shared/ipc-types').PlannedTemplateRow[];
   }
 
   getAttachmentsOnSheet(name: string): import('../../shared/ipc-types').AttachmentRow[] {

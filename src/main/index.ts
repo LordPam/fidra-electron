@@ -30,16 +30,6 @@ if (started) {
 
 import { checkForUpdates } from './services/update-checker';
 
-// Register fidra:// deep link protocol (for OAuth callbacks)
-if (process.defaultApp) {
-  // Dev mode: register with the full path to electron
-  if (process.argv.length >= 2) {
-    app.setAsDefaultProtocolClient('fidra', process.execPath, [path.resolve(process.argv[1])]);
-  }
-} else {
-  app.setAsDefaultProtocolClient('fidra');
-}
-
 // Single instance lock (Windows/Linux deep link handling)
 const gotTheLock = app.requestSingleInstanceLock();
 diag(`Single instance lock acquired: ${gotTheLock}`);
@@ -47,11 +37,7 @@ if (!gotTheLock) {
   diag('Quitting — another instance has the lock');
   app.quit();
 } else {
-  app.on('second-instance', (_event, argv) => {
-    // Windows/Linux: deep link URL is in argv
-    const url = argv.find((arg) => arg.startsWith('fidra://'));
-    if (url) handleDeepLink(url);
-
+  app.on('second-instance', () => {
     // Focus existing window
     const allWindows = BrowserWindow.getAllWindows();
     if (allWindows.length > 0) {
@@ -61,49 +47,10 @@ if (!gotTheLock) {
   });
 }
 
-// macOS: deep link handling
-app.on('open-url', (event, url) => {
-  event.preventDefault();
-  handleDeepLink(url);
-});
-
-function handleDeepLink(url: string): void {
-  console.log('[DEEP-LINK] Received:', url);
-  try {
-    const parsed = new URL(url);
-    if (parsed.hostname === 'auth' && parsed.pathname === '/callback') {
-      const code = parsed.searchParams.get('code');
-      if (code) {
-        // Find the window context that initiated the OAuth flow and dispatch the callback
-        const wm = getWindowManager();
-        for (const ctx of wm.getAllContexts()) {
-          if (ctx.sessionManager) {
-            ctx.sendToRenderer('auth:oauthCallback', code);
-            break;
-          }
-        }
-      }
-    }
-  } catch (e) {
-    console.error('[DEEP-LINK] Failed to parse URL:', e);
-  }
-}
-
-// Prevent uncaught pg connection errors from crashing the app
 process.on('uncaughtException', (err) => {
-  const msg = err?.message ?? '';
-  if (msg.includes('Connection terminated') || msg.includes('connection reset') || msg.includes('ECONNRESET')) {
-    console.warn('[MAIN] Suppressed transient pg error:', msg);
-    return;
-  }
   console.error('[MAIN] Uncaught exception:', err);
 });
 process.on('unhandledRejection', (reason) => {
-  const msg = String(reason);
-  if (msg.includes('Connection terminated') || msg.includes('connection reset') || msg.includes('ECONNRESET')) {
-    console.warn('[MAIN] Suppressed transient pg rejection:', msg);
-    return;
-  }
   console.error('[MAIN] Unhandled rejection:', reason);
 });
 

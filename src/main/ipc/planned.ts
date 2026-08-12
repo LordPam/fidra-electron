@@ -1,7 +1,8 @@
 import { ipcMain } from 'electron';
 import { z } from 'zod';
 import { resolveContext } from './context-resolver';
-import { plannedTemplateRowSchema, plannedTemplateBulkSaveSchema } from '../../shared/ipc-schemas';
+import { idSchema, plannedTemplateBulkSaveSchema, plannedTemplateRowSchema } from '../../shared/ipc-schemas';
+import { assertSheetsExist } from '../services/referential-integrity';
 import { logPlannedCreated, logPlannedUpdated, logPlannedDeleted, logBulkPlannedSaved } from '../services/audit-service';
 
 export function registerPlannedHandlers(): void {
@@ -12,6 +13,10 @@ export function registerPlannedHandlers(): void {
   ipcMain.handle('planned:save', async (event, data: unknown) => {
     const validated = plannedTemplateRowSchema.parse(data);
     const ctx = resolveContext(event);
+    assertSheetsExist(ctx.sqlite, [
+      { label: 'target sheet', sheet: validated.target_sheet },
+      { label: 'transfer target sheet', sheet: validated.transfer_target_sheet },
+    ]);
     const existing = ctx.plannedRepo.getById(validated.id);
     const result = await ctx.repos.planned.save(validated);
     if (existing) {
@@ -30,6 +35,10 @@ export function registerPlannedHandlers(): void {
   ipcMain.handle('planned:bulkSave', async (event, data: unknown) => {
     const validated = plannedTemplateBulkSaveSchema.parse(data);
     const ctx = resolveContext(event);
+    assertSheetsExist(ctx.sqlite, validated.flatMap((t) => [
+      { label: 'target sheet', sheet: t.target_sheet },
+      { label: 'transfer target sheet', sheet: t.transfer_target_sheet },
+    ]));
     const existingMap = new Map(
       validated.map((tmpl) => [tmpl.id, ctx.plannedRepo.getById(tmpl.id)]),
     );
@@ -47,7 +56,7 @@ export function registerPlannedHandlers(): void {
   });
 
   ipcMain.handle('planned:delete', (event, id: unknown) => {
-    const validId = z.string().parse(id);
+    const validId = idSchema.parse(id);
     const ctx = resolveContext(event);
     const result = ctx.repos.planned.remove(validId);
     logPlannedDeleted(ctx, validId);

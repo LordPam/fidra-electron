@@ -1,7 +1,7 @@
 import { ipcMain } from 'electron';
 import { z } from 'zod';
 import { resolveContext } from './context-resolver';
-import { invoiceRowSchema } from '../../shared/ipc-schemas';
+import { idSchema, invoiceRowSchema } from '../../shared/ipc-schemas';
 import { logInvoiceCreated, logInvoiceUpdated, logInvoiceDeleted, logInvoiceMarkedPaid } from '../services/audit-service';
 
 export function registerInvoiceHandlers(): void {
@@ -10,7 +10,7 @@ export function registerInvoiceHandlers(): void {
   });
 
   ipcMain.handle('invoices:getByPlannedTemplate', (event, plannedTemplateId: unknown) => {
-    const validId = z.string().parse(plannedTemplateId);
+    const validId = idSchema.parse(plannedTemplateId);
     return resolveContext(event).repos.invoices.getByPlannedTemplateId(validId);
   });
 
@@ -28,7 +28,7 @@ export function registerInvoiceHandlers(): void {
   });
 
   ipcMain.handle('invoices:delete', (event, id: unknown) => {
-    const validId = z.string().parse(id);
+    const validId = idSchema.parse(id);
     const ctx = resolveContext(event);
     const result = ctx.repos.invoices.remove(validId);
     logInvoiceDeleted(ctx, validId);
@@ -36,8 +36,8 @@ export function registerInvoiceHandlers(): void {
   });
 
   ipcMain.handle('invoices:markPaid', (event, invoiceId: unknown, transactionId: unknown) => {
-    const validInvoiceId = z.string().parse(invoiceId);
-    const validTxId = z.string().parse(transactionId);
+    const validInvoiceId = idSchema.parse(invoiceId);
+    const validTxId = idSchema.parse(transactionId);
     const ctx = resolveContext(event);
     const result = ctx.repos.invoices.markPaid(validInvoiceId, validTxId);
     if (result) logInvoiceMarkedPaid(ctx, result);
@@ -45,7 +45,7 @@ export function registerInvoiceHandlers(): void {
   });
 
   ipcMain.handle('invoices:revertToDraft', (event, invoiceId: unknown) => {
-    const validId = z.string().parse(invoiceId);
+    const validId = idSchema.parse(invoiceId);
     return resolveContext(event).repos.invoices.revertToDraft(validId);
   });
 }

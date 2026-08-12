@@ -159,18 +159,25 @@ export function listBackups(dbPath: string, settings?: BackupSettings): BackupLi
   return backups;
 }
 
+/**
+ * Replace the live database with a backup copy.
+ *
+ * The caller must stop anything holding the connection (Local Sync) first, and must
+ * rebuild the window's context afterwards — `dbClosed` says whether the connection
+ * was closed, which happens whether or not the restore itself succeeded.
+ */
 export async function restoreBackup(
   db: Database.Database,
   dbPath: string,
   databaseId: string,
   backupPath: string,
   settingsRepo: SettingsRepo,
-): Promise<{ success: boolean; error?: string }> {
+): Promise<{ success: boolean; error?: string; dbClosed: boolean }> {
   // Validate backup folder
   const dbFileName = path.basename(dbPath);
   const backupDbFile = path.join(backupPath, dbFileName);
   if (!fs.existsSync(backupDbFile)) {
-    return { success: false, error: `Backup does not contain ${dbFileName}` };
+    return { success: false, error: `Backup does not contain ${dbFileName}`, dbClosed: false };
   }
 
   // Create pre-restore safety backup
@@ -178,13 +185,24 @@ export async function restoreBackup(
     const settings = getBackupSettings(settingsRepo);
     await createBackup(db, dbPath, databaseId, 'pre-restore', settings);
   } catch (e) {
-    return { success: false, error: `Failed to create safety backup: ${e instanceof Error ? e.message : String(e)}` };
+    return {
+      success: false,
+      error: `Failed to create safety backup: ${e instanceof Error ? e.message : String(e)}`,
+      dbClosed: false,
+    };
   }
 
   // Close the database before replacing
   db.close();
 
   try {
+    // The WAL sidecars belong to the database being replaced. Closing the last
+    // connection normally checkpoints and removes them, but if anything still holds
+    // the file open they survive — and SQLite would then replay the old WAL over the
+    // restored file on next open, corrupting it. Remove them before the copy.
+    fs.rmSync(`${dbPath}-wal`, { force: true });
+    fs.rmSync(`${dbPath}-shm`, { force: true });
+
     // Replace the database file
     fs.copyFileSync(backupDbFile, dbPath);
 
@@ -199,9 +217,13 @@ export async function restoreBackup(
       fs.cpSync(backupAttachments, localAttachments, { recursive: true });
     }
 
-    return { success: true };
+    return { success: true, dbClosed: true };
   } catch (e) {
-    return { success: false, error: `Restore failed: ${e instanceof Error ? e.message : String(e)}` };
+    return {
+      success: false,
+      error: `Restore failed: ${e instanceof Error ? e.message : String(e)}`,
+      dbClosed: true,
+    };
   }
 }
 

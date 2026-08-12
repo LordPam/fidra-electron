@@ -1,4 +1,4 @@
-export type AuthMode = 'admin' | 'member' | 'localSync';
+export type AuthMode = 'localSync';
 export type PersonnelRole = 'admin' | 'member';
 
 export interface AuthUser {
@@ -26,7 +26,7 @@ export interface PersonnelRecord {
   readonly encrypted_passphrase: string | null;
   readonly passphrase_salt: string | null;
   readonly device_id: string | null;
-  /** True if the person has completed auth setup (Cloud auth_uid or Local Sync password_hash). */
+  /** True if the person has completed auth setup (password_hash is set). */
   readonly isActive: boolean;
 }
 

@@ -23,6 +23,7 @@ import { Button } from '@/components/ui/button';
 import { Check, X, AlertCircle, ArrowRight, Calendar, ArrowLeftRight, User } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useUndoRedoShortcuts } from '@/hooks/useUndoRedoShortcuts';
+import { toAmount } from '../../shared/money';
 
 type Period = 'month' | '90days' | 'fy';
 
@@ -116,7 +117,7 @@ export default function DashboardView() {
     let incomeCount = 0;
     let expenseCount = 0;
     for (const t of periodFiltered) {
-      const amount = parseFloat(t.amount) || 0;
+      const amount = toAmount(t.amount);
       if (t.type === 'income') {
         income += amount;
         incomeCount++;

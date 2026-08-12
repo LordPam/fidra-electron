@@ -1,6 +1,7 @@
 import type { TransactionRow } from '../../shared/ipc-types';
 import { computeRunningBalances } from './balance';
 import { formatCurrency } from '../lib/format';
+import { fromPence, sumAmounts, toAmount, toPence } from '../../shared/money';
 
 interface ReportConfig {
   title: string;
@@ -45,25 +46,27 @@ export function generateReportMarkdown(
   // Summary
   if (includeSummary) {
     const validTxns = sorted.filter((t) => t.status !== 'rejected' && t.status !== 'planned');
-    let totalIncome = 0;
-    let totalExpenses = 0;
+    let incomePence = 0;
+    let expensePence = 0;
     let incomeCount = 0;
     let expenseCount = 0;
 
     for (const t of validTxns) {
-      const amt = parseFloat(t.amount) || 0;
+      const amt = toPence(t.amount);
       if (t.type === 'income') {
-        totalIncome += amt;
+        incomePence += amt;
         incomeCount++;
       } else {
-        totalExpenses += amt;
+        expensePence += amt;
         expenseCount++;
       }
     }
-    const net = totalIncome - totalExpenses;
-    const pendingTotal = sorted
-      .filter((t) => t.status === 'pending')
-      .reduce((sum, t) => sum + (parseFloat(t.amount) || 0), 0);
+    const totalIncome = fromPence(incomePence);
+    const totalExpenses = fromPence(expensePence);
+    const net = fromPence(incomePence - expensePence);
+    const pendingTotal = sumAmounts(
+      sorted.filter((t) => t.status === 'pending').map((t) => t.amount),
+    );
     const pendingCount = sorted.filter((t) => t.status === 'pending').length;
 
     lines.push('## Summary\n');
@@ -96,7 +99,7 @@ export function generateReportMarkdown(
         entry = { income: 0, expense: 0 };
         monthlyData.set(monthKey, entry);
       }
-      const amt = parseFloat(t.amount) || 0;
+      const amt = toAmount(t.amount);
       if (t.type === 'income') entry.income += amt;
       else entry.expense += amt;
     }
@@ -141,7 +144,7 @@ export function generateReportMarkdown(
       const categoryTotals = new Map<string, number>();
       for (const t of expenses) {
         const cat = t.category || 'Uncategorized';
-        categoryTotals.set(cat, (categoryTotals.get(cat) || 0) + (parseFloat(t.amount) || 0));
+        categoryTotals.set(cat, (categoryTotals.get(cat) || 0) + toAmount(t.amount));
       }
 
       const totalExpenses = [...categoryTotals.values()].reduce((a, b) => a + b, 0);

@@ -21,6 +21,7 @@ import {
 } from '@/components/ui/context-menu';
 import { ArrowUpDown, ArrowUp, ArrowDown, Paperclip, Check, X } from 'lucide-react';
 import { isTransfer, getCounterpart } from '@/services/transfer';
+import { toPence } from '../../shared/money';
 
 export interface TransactionTableHandle {
   setFocusedRow: (id: string | null) => void;
@@ -400,7 +401,7 @@ export const TransactionTable = forwardRef<TransactionTableHandle, TransactionTa
               </span>
             );
           },
-          sortingFn: (a, b) => parseFloat(a.original.amount) - parseFloat(b.original.amount),
+          sortingFn: (a, b) => toPence(a.original.amount) - toPence(b.original.amount),
           size: 120,
         },
         {

@@ -18,6 +18,7 @@ import {
 } from '@/components/ui/select';
 import { ComboboxInput } from '@/components/ComboboxInput';
 import type { TransactionRow } from '../../shared/ipc-types';
+import { toAmountString } from '../../shared/money';
 
 interface BulkEditDialogProps {
   open: boolean;
@@ -104,8 +105,8 @@ export function BulkEditDialog({
         if (type === 'income') changes.status = '--';
       }
       if (analysis.sameAmount) {
-        const newAmount = parseFloat(amount).toFixed(2);
-        if (newAmount !== t.amount) changes.amount = newAmount;
+        const newAmount = toAmountString(amount);
+        if (newAmount !== null && newAmount !== t.amount) changes.amount = newAmount;
       }
       if (analysis.sameDate && date !== t.date) {
         changes.date = date;

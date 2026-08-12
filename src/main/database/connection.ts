@@ -164,7 +164,20 @@ const SCHEMA_DDL = `
   CREATE INDEX IF NOT EXISTS idx_invoices_planned ON invoices(planned_template_id);
 `;
 
-function runMigrations(sqlite: Database.Database): void {
+/**
+ * Apply all pending schema migrations atomically.
+ *
+ * Several steps are `CREATE _new` → copy → `DROP` → `RENAME` sequences. Run
+ * unwrapped, a crash (or a thrown error from a later step) between the DROP and the
+ * RENAME loses the table outright. SQLite DDL is transactional and cr-sqlite's
+ * `crsql_as_crr` is safe inside BEGIN/COMMIT, so the whole set runs as one unit:
+ * either the database comes out fully migrated or exactly as it went in.
+ */
+export function runMigrations(sqlite: Database.Database): void {
+  sqlite.transaction(() => applyMigrations(sqlite))();
+}
+
+function applyMigrations(sqlite: Database.Database): void {
   // Migrate categories from INTEGER AUTOINCREMENT PK to TEXT UUID PK (CRR compatibility)
   const catCols = sqlite.pragma('table_info(categories)') as { name: string; type: string }[];
   const idCol = catCols.find((c) => c.name === 'id');
@@ -211,7 +224,7 @@ function runMigrations(sqlite: Database.Database): void {
     sqlite.exec('ALTER TABLE invoices ADD COLUMN planned_template_snapshot TEXT');
   }
 
-  // Add version/modified_at/modified_by columns to invoices for cloud sync
+  // Add version/modified_at/modified_by columns to invoices
   const invCols3 = sqlite.pragma('table_info(invoices)') as { name: string }[];
   if (invCols3.length > 0 && !invCols3.some((c) => c.name === 'version')) {
     sqlite.exec('ALTER TABLE invoices ADD COLUMN version INTEGER DEFAULT 1');
@@ -397,6 +410,27 @@ function migrateSyncWatermarks(sqlite: Database.Database): void {
   }
 }
 
+/**
+ * Copy rows from a table into its freshly-created replacement, using the columns the
+ * two have in common. Columns present only on the replacement fall back to their
+ * DEFAULT; columns present only on the original are dropped.
+ *
+ * Deriving the list from the live schema rather than hardcoding it is the point:
+ * a rebuild that predates a later ALTER TABLE would otherwise silently drop the
+ * added column's data (`linked_id` and `transfer_target_sheet` were both missing
+ * from the hardcoded lists this replaced).
+ */
+function copyCommonColumns(sqlite: Database.Database, from: string, to: string): void {
+  const columnsOf = (table: string): string[] =>
+    (sqlite.pragma(`table_info(${table})`) as { name: string }[]).map((c) => c.name);
+  const target = new Set(columnsOf(to));
+  const shared = columnsOf(from)
+    .filter((name) => target.has(name))
+    .map((name) => `"${name}"`)
+    .join(', ');
+  sqlite.exec(`INSERT INTO ${to} (${shared}) SELECT ${shared} FROM ${from}`);
+}
+
 /** Rebuild synced tables to add DEFAULT on all NOT NULL columns (CRR requirement). */
 function migrateCrrDefaults(sqlite: Database.Database): void {
   const crrActive = isCrrInitialized(sqlite);
@@ -421,11 +455,11 @@ function migrateCrrDefaults(sqlite: Database.Database): void {
     return cols.some((c) => c.notnull === 1 && c.dflt_value === null && c.pk === 0);
   };
 
-  // Each entry: [table, CREATE DDL for _new, columns to copy, indexes to recreate]
+  // Each entry: [table, CREATE DDL for _new, indexes to recreate].
+  // Columns to copy are derived from the live schema — see copyCommonColumns.
   const migrations: {
     table: string;
     createNew: string;
-    columns: string;
     indexes: string[];
   }[] = [
     {
@@ -444,8 +478,6 @@ function migrateCrrDefaults(sqlite: Database.Database): void {
         created_at TEXT NOT NULL DEFAULT '',
         modified_at TEXT, modified_by TEXT
       )`,
-      columns:
-        'id, date, description, amount, type, status, sheet, category, party, reference, activity, notes, version, created_at, modified_at, modified_by',
       indexes: [
         'CREATE INDEX IF NOT EXISTS idx_transactions_date ON transactions(date)',
         'CREATE INDEX IF NOT EXISTS idx_transactions_sheet ON transactions(sheet)',
@@ -470,8 +502,6 @@ function migrateCrrDefaults(sqlite: Database.Database): void {
         version INTEGER DEFAULT 1,
         created_at TEXT NOT NULL DEFAULT ''
       )`,
-      columns:
-        'id, start_date, description, amount, type, frequency, target_sheet, category, party, activity, notes, end_date, occurrence_count, skipped_dates, fulfilled_dates, version, created_at',
       indexes: [
         'CREATE INDEX IF NOT EXISTS idx_planned_start ON planned_templates(start_date)',
         'CREATE INDEX IF NOT EXISTS idx_planned_target ON planned_templates(target_sheet)',
@@ -485,7 +515,6 @@ function migrateCrrDefaults(sqlite: Database.Database): void {
         is_virtual INTEGER DEFAULT 0, is_planned INTEGER DEFAULT 0, sort_order INTEGER DEFAULT 0,
         created_at TEXT NOT NULL DEFAULT ''
       )`,
-      columns: 'id, name, is_virtual, is_planned, sort_order, created_at',
       indexes: ['CREATE INDEX IF NOT EXISTS idx_sheets_name ON sheets(name)'],
     },
     {
@@ -498,7 +527,6 @@ function migrateCrrDefaults(sqlite: Database.Database): void {
         mime_type TEXT, file_size INTEGER DEFAULT 0,
         created_at TEXT NOT NULL DEFAULT ''
       )`,
-      columns: 'id, transaction_id, filename, stored_name, mime_type, file_size, created_at',
       indexes: ['CREATE INDEX IF NOT EXISTS idx_attachments_transaction ON attachments(transaction_id)'],
     },
     {
@@ -513,7 +541,6 @@ function migrateCrrDefaults(sqlite: Database.Database): void {
         summary TEXT NOT NULL DEFAULT '',
         details TEXT
       )`,
-      columns: 'id, timestamp, action, entity_type, entity_id, user, summary, details',
       indexes: [
         'CREATE INDEX IF NOT EXISTS idx_audit_timestamp ON audit_log(timestamp)',
         'CREATE INDEX IF NOT EXISTS idx_audit_entity ON audit_log(entity_type, entity_id)',
@@ -525,7 +552,6 @@ function migrateCrrDefaults(sqlite: Database.Database): void {
         activity TEXT PRIMARY KEY NOT NULL DEFAULT '',
         notes TEXT NOT NULL DEFAULT ''
       )`,
-      columns: 'activity, notes',
       indexes: [],
     },
     {
@@ -548,8 +574,6 @@ function migrateCrrDefaults(sqlite: Database.Database): void {
         created_at TEXT NOT NULL DEFAULT '',
         modified_at TEXT, modified_by TEXT
       )`,
-      columns:
-        'id, invoice_number, date, due_date, from_name, from_address, to_name, to_address, line_items, subtotal, notes, bank_details, planned_template_id, status, transaction_id, paid_at, planned_template_snapshot, version, created_at, modified_at, modified_by',
       indexes: [
         'CREATE INDEX IF NOT EXISTS idx_invoices_date ON invoices(date)',
         'CREATE INDEX IF NOT EXISTS idx_invoices_planned ON invoices(planned_template_id)',
@@ -560,7 +584,7 @@ function migrateCrrDefaults(sqlite: Database.Database): void {
   for (const m of migrations) {
     if (!needsMigration(m.table)) continue;
     sqlite.exec(m.createNew);
-    sqlite.exec(`INSERT INTO ${m.table}_new (${m.columns}) SELECT ${m.columns} FROM ${m.table}`);
+    copyCommonColumns(sqlite, m.table, `${m.table}_new`);
     sqlite.exec(`DROP TABLE ${m.table}`);
     sqlite.exec(`ALTER TABLE ${m.table}_new RENAME TO ${m.table}`);
     for (const idx of m.indexes) {
@@ -614,13 +638,9 @@ function migrateCrrPrimaryKeys(sqlite: Database.Database): void {
       value TEXT NOT NULL DEFAULT '',
       scope TEXT NOT NULL DEFAULT 'device'
     )`);
-    // Copy existing data — handle case where scope column might not exist yet
-    const settCols = sqlite.pragma('table_info(settings)') as { name: string }[];
-    if (settCols.some((c) => c.name === 'scope')) {
-      sqlite.exec('INSERT INTO settings_tmp (key, value, scope) SELECT key, value, scope FROM settings');
-    } else {
-      sqlite.exec("INSERT INTO settings_tmp (key, value, scope) SELECT key, value, 'device' FROM settings");
-    }
+    // `scope` may not exist yet on the old table; copyCommonColumns then leaves the
+    // new column at its DEFAULT ('device').
+    copyCommonColumns(sqlite, 'settings', 'settings_tmp');
     sqlite.exec('DROP TABLE settings');
     sqlite.exec('ALTER TABLE settings_tmp RENAME TO settings');
     rebuiltTables.push('settings');
@@ -641,23 +661,9 @@ function migrateCrrPrimaryKeys(sqlite: Database.Database): void {
       passphrase_salt TEXT,
       device_id TEXT DEFAULT ''
     )`);
-    // Copy columns that exist — auth/device columns may or may not be present yet
-    const persColNames = (sqlite.pragma('table_info(personnel)') as { name: string }[]).map((c) => c.name);
-    const hasAuthCols = persColNames.includes('password_hash');
-    const hasDeviceId = persColNames.includes('device_id');
-    if (hasAuthCols && hasDeviceId) {
-      sqlite.exec(
-        'INSERT INTO personnel_tmp (id, email, name, role, auth_uid, created_at, invited_by, password_hash, encrypted_passphrase, passphrase_salt, device_id) SELECT id, email, name, role, auth_uid, created_at, invited_by, password_hash, encrypted_passphrase, passphrase_salt, device_id FROM personnel',
-      );
-    } else if (hasAuthCols) {
-      sqlite.exec(
-        'INSERT INTO personnel_tmp (id, email, name, role, auth_uid, created_at, invited_by, password_hash, encrypted_passphrase, passphrase_salt) SELECT id, email, name, role, auth_uid, created_at, invited_by, password_hash, encrypted_passphrase, passphrase_salt FROM personnel',
-      );
-    } else {
-      sqlite.exec(
-        'INSERT INTO personnel_tmp (id, email, name, role, auth_uid, created_at, invited_by) SELECT id, email, name, role, auth_uid, created_at, invited_by FROM personnel',
-      );
-    }
+    // The auth and device columns may or may not be present yet, depending on how
+    // far this database got before it was last opened.
+    copyCommonColumns(sqlite, 'personnel', 'personnel_tmp');
     sqlite.exec('DROP TABLE personnel');
     sqlite.exec('ALTER TABLE personnel_tmp RENAME TO personnel');
     sqlite.exec('CREATE INDEX IF NOT EXISTS idx_personnel_email ON personnel(email)');
@@ -711,7 +717,7 @@ function migrateCrrUniqueConstraints(sqlite: Database.Database): void {
       is_virtual INTEGER DEFAULT 0, is_planned INTEGER DEFAULT 0, sort_order INTEGER DEFAULT 0,
       created_at TEXT NOT NULL DEFAULT ''
     )`);
-    sqlite.exec('INSERT INTO sheets_tmp SELECT id, name, is_virtual, is_planned, sort_order, created_at FROM sheets');
+    copyCommonColumns(sqlite, 'sheets', 'sheets_tmp');
     sqlite.exec('DROP TABLE sheets');
     sqlite.exec('ALTER TABLE sheets_tmp RENAME TO sheets');
     sqlite.exec('CREATE INDEX IF NOT EXISTS idx_sheets_name ON sheets(name)');
@@ -726,7 +732,7 @@ function migrateCrrUniqueConstraints(sqlite: Database.Database): void {
       name TEXT NOT NULL DEFAULT '',
       sort_order INTEGER DEFAULT 0
     )`);
-    sqlite.exec('INSERT INTO categories_tmp SELECT id, type, name, sort_order FROM categories');
+    copyCommonColumns(sqlite, 'categories', 'categories_tmp');
     sqlite.exec('DROP TABLE categories');
     sqlite.exec('ALTER TABLE categories_tmp RENAME TO categories');
     sqlite.exec('CREATE INDEX IF NOT EXISTS idx_categories_type ON categories(type)');
@@ -772,7 +778,7 @@ export function openDatabase(dbPath: string): OpenDatabaseResult {
 
 /**
  * Read or create a stable per-database UUID stored in sync_meta.
- * Every database (standalone, Cloud Connect, Local Sync) gets one on first open.
+ * Every database (standalone or Local Sync) gets one on first open.
  */
 function getOrCreateDatabaseId(sqlite: Database.Database): string {
   const row = sqlite.prepare("SELECT value FROM sync_meta WHERE key = 'database.id'").get() as

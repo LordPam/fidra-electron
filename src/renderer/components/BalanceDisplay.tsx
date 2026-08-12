@@ -2,6 +2,7 @@ import { useMemo, useEffect, useRef, useState } from 'react';
 import { formatCurrency } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import type { TransactionRow } from '../../shared/ipc-types';
+import { fromPence, toPence } from '../../shared/money';
 
 const TICK_DURATION = 350; // ms
 
@@ -71,11 +72,12 @@ export function BalanceDisplay({ balance, pending, projected, selectedTransactio
     if (selectedTransactions.length === 0) return null;
 
     // Total: income positive, expense negative
-    let total = 0;
+    let totalPence = 0;
     for (const t of selectedTransactions) {
-      const amount = parseFloat(t.amount);
-      total += t.type === 'income' ? amount : -amount;
+      const amount = toPence(t.amount);
+      totalPence += t.type === 'income' ? amount : -amount;
     }
+    const total = fromPence(totalPence);
 
     // Description
     const descriptions = new Set(selectedTransactions.map((t) => t.description).filter(Boolean));

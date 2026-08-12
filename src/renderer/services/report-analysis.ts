@@ -1,5 +1,6 @@
 import type { TransactionRow } from '../../shared/ipc-types';
 import { toISODate, shiftDateRange, getFYStartForDate } from '@/lib/chart-utils';
+import { sumAmounts, toAmount } from '../../shared/money';
 
 // --- Countable statuses (matches chart-utils.ts) ---
 
@@ -29,7 +30,13 @@ function normalizeComparison(txns: TransactionRow[] | null): TransactionRow[] | 
 
 // --- Comparison period calculation ---
 
-/** Get the previous period of the same length (e.g. Mar 1-31 → Feb 1-28). */
+/**
+ * The window of the same length immediately before this one.
+ *
+ * Length, not calendar: Mar 1–31 is 31 days, so its comparison is Jan 29 – Feb 28,
+ * spanning two months. (This previously claimed "Mar 1-31 → Feb 1-28", which is a
+ * different rule and never what the code did.)
+ */
 export function getComparisonPeriod(start: string, end: string): { start: string; end: string } {
   return shiftDateRange(start, end, -1);
 }
@@ -92,7 +99,7 @@ function computePeriodSummary(txns: TransactionRow[]): PeriodSummary {
   let transferVolume = 0;
   for (const t of counted) {
     if (t.linked_id && t.type === 'expense') {
-      transferVolume += parseFloat(t.amount) || 0;
+      transferVolume += toAmount(t.amount);
     }
   }
 
@@ -102,7 +109,7 @@ function computePeriodSummary(txns: TransactionRow[]): PeriodSummary {
   let totalExpenditure = 0;
 
   for (const t of nonTransfer) {
-    const amt = parseFloat(t.amount) || 0;
+    const amt = toAmount(t.amount);
     if (t.type === 'income') totalIncome += amt;
     else totalExpenditure += amt;
   }
@@ -165,7 +172,7 @@ function buildCategoryMap(txns: TransactionRow[]): Map<string, TransactionRow[]>
 }
 
 function categoryTotal(txns: TransactionRow[]): number {
-  return txns.reduce((s, t) => s + (parseFloat(t.amount) || 0), 0);
+  return sumAmounts(txns.map((t) => t.amount));
 }
 
 export function buildCategoryBreakdownWithDeltas(
@@ -185,7 +192,7 @@ export function buildCategoryBreakdownWithDeltas(
   const currentMap = buildCategoryMap(current);
   const comparisonMap = comparison ? buildCategoryMap(comparison) : null;
 
-  const grandTotal = current.reduce((s, t) => s + (parseFloat(t.amount) || 0), 0);
+  const grandTotal = sumAmounts(current.map((t) => t.amount));
 
   // All categories from both periods
   const allCats = new Set([...currentMap.keys()]);
@@ -206,7 +213,7 @@ export function buildCategoryBreakdownWithDeltas(
       const desc = t.description || 'Other';
       const existing = byDesc.get(desc) || { count: 0, amount: 0 };
       existing.count++;
-      existing.amount += parseFloat(t.amount) || 0;
+      existing.amount += toAmount(t.amount);
       byDesc.set(desc, existing);
     }
     const subItems = [...byDesc.entries()]
@@ -266,7 +273,7 @@ function buildActivityMap(txns: TransactionRow[]): Map<string, { income: number;
   for (const t of txns) {
     const activity = t.activity || 'General';
     const existing = map.get(activity) || { income: 0, expenditure: 0, count: 0 };
-    const amt = parseFloat(t.amount) || 0;
+    const amt = toAmount(t.amount);
     if (t.type === 'income') existing.income += amt;
     else existing.expenditure += amt;
     existing.count++;
@@ -378,7 +385,7 @@ export function buildDescriptionBreakdown(
   }
 
   // Compute mean and stddev for high-value detection
-  const amounts = current.map((t) => parseFloat(t.amount) || 0);
+  const amounts = current.map((t) => toAmount(t.amount));
   const mean = amounts.length > 0 ? amounts.reduce((s, a) => s + a, 0) / amounts.length : 0;
   const variance =
     amounts.length > 1
@@ -390,7 +397,7 @@ export function buildDescriptionBreakdown(
   const rows: DescriptionBreakdownRow[] = [];
 
   for (const [key, txns] of descMap) {
-    const totalAmount = txns.reduce((s, t) => s + (parseFloat(t.amount) || 0), 0);
+    const totalAmount = sumAmounts(txns.map((t) => t.amount));
     const avgAmount = txns.length > 0 ? totalAmount / txns.length : 0;
 
     const hasIncome = txns.some((t) => t.type === 'income');
@@ -399,7 +406,7 @@ export function buildDescriptionBreakdown(
       hasIncome && hasExpense ? 'mixed' : hasIncome ? 'income' : 'expense';
 
     const recurring = txns.length >= recurringThreshold;
-    const highValue = txns.some((t) => (parseFloat(t.amount) || 0) > highValueThreshold);
+    const highValue = txns.some((t) => toAmount(t.amount) > highValueThreshold);
 
     // "New" = appears multiple times in current but 0 times in comparison
     const isNew =
@@ -447,7 +454,7 @@ export function buildPartyBreakdown(
   for (const t of current) {
     const party = t.party || 'Other';
     const existing = map.get(party) || { income: 0, expenditure: 0, count: 0 };
-    const amt = parseFloat(t.amount) || 0;
+    const amt = toAmount(t.amount);
     if (t.type === 'income') existing.income += amt;
     else existing.expenditure += amt;
     existing.count++;

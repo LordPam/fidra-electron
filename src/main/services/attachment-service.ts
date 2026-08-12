@@ -1,11 +1,11 @@
 import path from 'node:path';
 import fs from 'node:fs';
-import os from 'node:os';
 import { shell } from 'electron';
 import type { AttachmentRow } from '../../shared/ipc-types';
 import type { WindowContext } from '../window/window-context';
 import { getAttachmentStoragePath } from '../database/connection';
 import { writeAttachmentFile, readAttachmentFile, removeAttachmentFile } from '../sync/attachment-transport';
+import { toAmountString } from '../../shared/money';
 
 const MIME_MAP: Record<string, string> = {
   '.pdf': 'application/pdf',
@@ -34,14 +34,6 @@ function safePath(baseDir: string, filename: string): string {
     throw new Error(`Path traversal blocked: ${filename}`);
   }
   return resolved;
-}
-
-/**
- * Strip path separators from a stored_name before passing to cloud storage.
- * Prevents cloud-side traversal if stored_name contains directory components.
- */
-function sanitizeStoredName(storedName: string): string {
-  return path.basename(storedName);
 }
 
 function getStorageDir(ctx: WindowContext): string {
@@ -76,7 +68,7 @@ function buildDescriptiveName(
 
   const dateStr = tx.date;
   const typeStr = tx.type;
-  const amountStr = parseFloat(tx.amount).toFixed(2);
+  const amountStr = toAmountString(tx.amount) ?? '0.00';
   const partyCamel = toCamelCase(tx.party);
   const baseName = `${dateStr}_${typeStr}_${amountStr}_${partyCamel}`;
 
@@ -120,14 +112,6 @@ export async function addAttachment(
     created_at: new Date().toISOString(),
   };
 
-  if (ctx.supabaseStorage) {
-    try {
-      await ctx.supabaseStorage.upload(sanitizeStoredName(storedName), destPath, mimeType ?? undefined);
-    } catch (e) {
-      console.error('[ATTACHMENTS] Cloud upload failed, file saved locally:', e);
-    }
-  }
-
   return ctx.repos.attachments.save(row);
 }
 
@@ -150,23 +134,22 @@ export async function removeAttachment(id: string, ctx: WindowContext): Promise<
     fs.renameSync(filePath, safePath(trashDir, attachment.stored_name));
   }
 
-  if (ctx.supabaseStorage) {
-    try {
-      await ctx.supabaseStorage.remove(sanitizeStoredName(attachment.stored_name));
-    } catch (e) {
-      console.error('[ATTACHMENTS] Cloud delete failed:', e);
-    }
-  }
-
   return ctx.repos.attachments.remove(id);
 }
 
-export async function removeAllForTransaction(transactionId: string, ctx: WindowContext): Promise<AttachmentRow[]> {
-  const removed = ctx.repos.attachments.removeForTransaction(transactionId);
+/**
+ * Move attachment files into the per-database `.trash` folder.
+ *
+ * Deliberately separate from deleting the rows: callers commit the database side
+ * first and only then move files. A file left on disk after a failed delete is
+ * recoverable; a row deleted for a transaction that survived is not.
+ */
+export function moveAttachmentFilesToTrash(rows: AttachmentRow[], ctx: WindowContext): void {
+  if (rows.length === 0) return;
   const storageDir = getStorageDir(ctx);
   const trashDir = getTrashDir(ctx);
 
-  for (const attachment of removed) {
+  for (const attachment of rows) {
     const filePath = safePath(storageDir, attachment.stored_name);
     if (fs.existsSync(filePath)) {
       try {
@@ -175,17 +158,7 @@ export async function removeAllForTransaction(transactionId: string, ctx: Window
         // Best effort
       }
     }
-
-    if (ctx.supabaseStorage) {
-      try {
-        await ctx.supabaseStorage.remove(sanitizeStoredName(attachment.stored_name));
-      } catch {
-        // Best effort
-      }
-    }
   }
-
-  return removed;
 }
 
 export async function restoreAttachment(row: AttachmentRow, ctx: WindowContext): Promise<AttachmentRow> {
@@ -196,14 +169,6 @@ export async function restoreAttachment(row: AttachmentRow, ctx: WindowContext):
 
   if (fs.existsSync(trashPath)) {
     fs.renameSync(trashPath, destPath);
-  }
-
-  if (ctx.supabaseStorage && fs.existsSync(destPath)) {
-    try {
-      await ctx.supabaseStorage.upload(sanitizeStoredName(row.stored_name), destPath, row.mime_type ?? undefined);
-    } catch (e) {
-      console.error('[ATTACHMENTS] Cloud re-upload failed:', e);
-    }
   }
 
   return ctx.repos.attachments.save(row);
@@ -239,23 +204,7 @@ export async function openAttachment(id: string, ctx: WindowContext): Promise<bo
       } catch { /* fall through to other sources */ }
     }
 
-    // Try legacy cloud-cache location (pre-migration files)
-    const legacyPath = path.join(
-      os.homedir(), '.fidra', 'cloud-cache', 'fidra_attachments', attachment.stored_name,
-    );
-    if (fs.existsSync(legacyPath)) {
-      fs.mkdirSync(storageDir, { recursive: true });
-      fs.copyFileSync(legacyPath, localPath);
-    } else if (ctx.supabaseStorage) {
-      try {
-        await ctx.supabaseStorage.download(sanitizeStoredName(attachment.stored_name), localPath);
-      } catch (e) {
-        console.error('[ATTACHMENTS] Cloud download failed:', e);
-        return false;
-      }
-    } else {
-      return false;
-    }
+    return false;
   }
 
   shell.openPath(localPath);

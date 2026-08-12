@@ -1,5 +1,4 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { useCloudStore } from '@/stores/cloud-store';
 import { useAuthStore } from '@/stores/auth-store';
 import { useUiStore } from '@/stores/ui-store';
 import { PersonnelPanel } from '@/components/PersonnelPanel';
@@ -15,7 +14,6 @@ import type { ThemeMode } from '../../shared/global-settings-types';
 import type { AuditLogRow } from '../../shared/ipc-types';
 import { useLocalSyncStore } from '@/stores/local-sync-store';
 import { LocalSyncSetupDialog } from '@/dialogs/LocalSyncSetupDialog';
-import { MigrateToLocalSyncDialog } from '@/dialogs/MigrateToLocalSyncDialog';
 import { BackupRestoreDialog } from '@/dialogs/BackupRestoreDialog';
 import { cn } from '@/lib/utils';
 import { useWindowStore } from '@/stores/window-store';
@@ -50,14 +48,9 @@ function ActionBadge({ action }: { action: AuditLogRow['action'] }) {
 
 export default function SettingsView() {
   const dbPath = useWindowStore((s) => s.dbPath);
-  const isCloudWindow = useCloudStore((s) => s.isCloudWindow);
-  const connected = useCloudStore((s) => s.connected);
   const isAdmin = useAuthStore((s) => s.isAdmin);
-  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
-  const session = useAuthStore((s) => s.session);
   const personnel = useAuthStore((s) => s.personnel);
   const currentPersonnel = useAuthStore((s) => s.currentPersonnel);
-  const signOut = useAuthStore((s) => s.signOut);
   const localSignOut = useAuthStore((s) => s.localSignOut);
   const theme = useUiStore((s) => s.theme);
   const setTheme = useUiStore((s) => s.setTheme);
@@ -104,7 +97,6 @@ export default function SettingsView() {
   const [lsSyncing, setLsSyncing] = useState(false);
   const [lsRecovering, setLsRecovering] = useState(false);
   const [lsRecoverMessage, setLsRecoverMessage] = useState<string | null>(null);
-  const [migrateDialogOpen, setMigrateDialogOpen] = useState(false);
   const [backupDialogOpen, setBackupDialogOpen] = useState(false);
 
   // Audit log state
@@ -116,11 +108,9 @@ export default function SettingsView() {
   const authMode = useAuthStore((s) => s.authMode);
   const isLocalSyncAuth = authMode === 'localSync';
   const personnelMode = useMemo<'disabled' | 'readonly' | 'admin'>(() => {
-    if (isLocalSyncAuth) return isAdmin ? 'admin' : 'readonly';
-    if (!isCloudWindow || !connected) return 'disabled';
-    if (isAdmin) return 'admin';
-    return 'readonly';
-  }, [isLocalSyncAuth, isCloudWindow, connected, isAdmin]);
+    if (!isLocalSyncAuth) return 'disabled';
+    return isAdmin ? 'admin' : 'readonly';
+  }, [isLocalSyncAuth, isAdmin]);
 
   const fyPreview = useMemo(() => {
     const start = getFYStart(fyStartMonth);
@@ -170,15 +160,10 @@ export default function SettingsView() {
   }, [profileName, profileInitials]);
 
   const handleSignOut = async () => {
-    if (authMode === 'localSync') {
-      await localSignOut();
-    } else {
-      await signOut();
-      window.dispatchEvent(new CustomEvent('fidra:showFileChooser'));
-    }
+    await localSignOut();
   };
 
-  const showProfileForm = profileLoaded && !(isAuthenticated && session) && !isLocalSyncAuth;
+  const showProfileForm = profileLoaded && !isLocalSyncAuth;
 
   return (
     <div className="flex flex-col h-full">
@@ -191,10 +176,10 @@ export default function SettingsView() {
           {/* Identity card */}
           <Card>
             <CardHeader>
-              <CardTitle>{(isAuthenticated && session) || isLocalSyncAuth ? 'Account' : 'Profile'}</CardTitle>
+              <CardTitle>{isLocalSyncAuth ? 'Account' : 'Profile'}</CardTitle>
               <CardDescription>
-                {(isAuthenticated && session) || isLocalSyncAuth
-                  ? isLocalSyncAuth ? 'Your Local Sync identity' : 'Your cloud account details'
+                {isLocalSyncAuth
+                  ? 'Your Local Sync identity'
                   : 'Your name and initials identify you in audit logs and transaction history.'}
               </CardDescription>
             </CardHeader>
@@ -212,27 +197,6 @@ export default function SettingsView() {
                           </Badge>
                         </div>
                       </>
-                    )}
-                  </div>
-                  <Button variant="outline" size="sm" onClick={handleSignOut}>
-                    <LogOut className="h-4 w-4 mr-1.5" />
-                    Sign Out
-                  </Button>
-                </div>
-              ) : isAuthenticated && session ? (
-                <div className="flex items-center justify-between">
-                  <div className="space-y-1">
-                    <p className="font-medium">{session.user.email}</p>
-                    {currentPersonnel && (
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm text-muted-foreground">{currentPersonnel.name}</span>
-                        <Badge variant={currentPersonnel.role === 'admin' ? 'default' : 'secondary'} className="text-xs">
-                          {currentPersonnel.role === 'admin' ? 'Admin' : 'Member'}
-                        </Badge>
-                      </div>
-                    )}
-                    {!currentPersonnel && (
-                      <p className="text-sm text-muted-foreground">No personnel record linked</p>
                     )}
                   </div>
                   <Button variant="outline" size="sm" onClick={handleSignOut}>
@@ -279,9 +243,7 @@ export default function SettingsView() {
               <CardDescription>
                 {personnelMode === 'disabled'
                   ? 'Team access management'
-                  : isLocalSyncAuth
-                    ? 'Team members with access to this database.'
-                    : 'Manage who can access the cloud database.'}
+                  : 'Team members with access to this database.'}
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -409,11 +371,11 @@ export default function SettingsView() {
               </CardTitle>
               <CardDescription>
                 Used on PDF exports and reports.{' '}
-                {(isLocalSyncAuth || isCloudWindow) && 'Shared across all team members.'}
+                {isLocalSyncAuth && 'Shared across all team members.'}
               </CardDescription>
             </CardHeader>
             <CardContent>
-              {isAdmin || (!isLocalSyncAuth && !isCloudWindow) ? (
+              {isAdmin || !isLocalSyncAuth ? (
                 <div className="flex items-center gap-3">
                   <Input
                     value={orgNameInput}
@@ -540,15 +502,9 @@ export default function SettingsView() {
               <div className="flex flex-col items-center justify-center py-6 text-muted-foreground">
                 <FolderSync className="h-10 w-10 mb-2 opacity-40" />
                 <p className="text-sm mb-3">Share data with team members via a shared folder</p>
-                {isCloudWindow ? (
-                  <Button variant="outline" size="sm" onClick={() => setMigrateDialogOpen(true)}>
-                    Migrate to Local Sync
-                  </Button>
-                ) : (
-                  <Button variant="outline" size="sm" onClick={() => setLsDialogOpen(true)}>
-                    Set Up
-                  </Button>
-                )}
+                <Button variant="outline" size="sm" onClick={() => setLsDialogOpen(true)}>
+                  Set Up
+                </Button>
               </div>
             ) : (
               <div className="space-y-3">
@@ -649,7 +605,6 @@ export default function SettingsView() {
           </CardContent>
         </Card>
         <LocalSyncSetupDialog open={lsDialogOpen} onOpenChange={setLsDialogOpen} />
-        <MigrateToLocalSyncDialog open={migrateDialogOpen} onOpenChange={setMigrateDialogOpen} />
 
         {/* Row 6: Audit Log */}
         <Card>

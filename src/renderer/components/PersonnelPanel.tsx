@@ -147,7 +147,7 @@ export function PersonnelPanel({ compact = false }: { compact?: boolean }) {
                           )}
                         </DropdownMenuItem>
                         <DropdownMenuItem
-                          disabled={isLastAdmin && p.role === 'admin'}
+                          disabled={isSelf || (isLastAdmin && p.role === 'admin')}
                           className="text-destructive focus:text-destructive"
                           onClick={() => handleRemove(p.id, p.name)}
                         >

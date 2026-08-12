@@ -1,3 +1,5 @@
+import { fromPence, parsePence } from '../../shared/money';
+
 const currencyFormatter = new Intl.NumberFormat('en-GB', {
   style: 'currency',
   currency: 'GBP',
@@ -6,9 +8,9 @@ const currencyFormatter = new Intl.NumberFormat('en-GB', {
 });
 
 export function formatCurrency(amount: string | number): string {
-  const num = typeof amount === 'string' ? parseFloat(amount) : amount;
-  if (isNaN(num)) return '£0.00';
-  return currencyFormatter.format(num);
+  const pence = parsePence(amount);
+  if (pence === null) return '£0.00';
+  return currencyFormatter.format(fromPence(pence));
 }
 
 const dateFormatter = new Intl.DateTimeFormat('en-GB', {

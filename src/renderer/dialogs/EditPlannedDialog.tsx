@@ -20,6 +20,7 @@ import { ComboboxInput } from '@/components/ComboboxInput';
 import { Checkbox } from '@/components/ui/checkbox';
 import { ArrowRightLeft } from 'lucide-react';
 import type { PlannedTemplateRow } from '../../shared/ipc-types';
+import { isPositiveAmount, toAmountString } from '../../shared/money';
 
 type PlannedMode = 'income' | 'expense' | 'transfer';
 
@@ -109,16 +110,15 @@ export function EditPlannedDialog({
   };
 
   const handleAmountBlur = () => {
-    if (amount && !isNaN(parseFloat(amount))) {
-      setAmount(parseFloat(amount).toFixed(2));
-    }
+    const normalised = toAmountString(amount);
+    if (normalised !== null) setAmount(normalised);
   };
 
   const handleSave = useCallback(() => {
     if (!template) return;
 
     const errors: Record<string, boolean> = {};
-    if (!amount || isNaN(parseFloat(amount)) || parseFloat(amount) <= 0) errors.amount = true;
+    if (!isPositiveAmount(amount)) errors.amount = true;
     if (!description.trim()) errors.description = true;
     if (!startDate) errors.startDate = true;
 
@@ -126,6 +126,9 @@ export function EditPlannedDialog({
       setFieldErrors(errors);
       return;
     }
+
+    // Non-null: isPositiveAmount above rejected anything unparseable.
+    const normalisedAmount = toAmountString(amount)!;
     setFieldErrors({});
 
     if (hasEndDate && endDate && endDate <= startDate) return;
@@ -134,7 +137,7 @@ export function EditPlannedDialog({
     const updated: PlannedTemplateRow = {
       ...template,
       type,
-      amount: parseFloat(amount).toFixed(2),
+      amount: normalisedAmount,
       start_date: startDate,
       description: description.trim(),
       frequency,

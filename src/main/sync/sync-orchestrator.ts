@@ -48,6 +48,7 @@ import { writeHeartbeat, isSyncProviderRunning, isNetworkReachable } from './hea
 import { findLatestSnapshot } from './bundle-io';
 import { getAttachmentStoragePath } from '../database/connection';
 import type { ImportChangeDetail } from '../../shared/ipc-types';
+import { parsePence, penceToAmount } from '../../shared/money';
 import {
   compactBundles,
   shouldAutoSnapshot,
@@ -119,9 +120,9 @@ const HEARTBEAT_INTERVAL_MS = 2 * 60 * 1000; // 2 minutes
  * Main-process-only — renderer uses its own formatCurrency().
  */
 function fmtAmount(amount: string): string {
-  const n = parseFloat(amount);
-  if (isNaN(n)) return amount;
-  return `£${Math.abs(n).toFixed(2)}`;
+  const pence = parsePence(amount);
+  if (pence === null) return amount;
+  return `£${penceToAmount(Math.abs(pence))}`;
 }
 
 /**
