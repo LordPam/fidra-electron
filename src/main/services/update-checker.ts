@@ -17,6 +17,35 @@ let silentCheck = true;
 /** Cached version for fallback download URL. */
 let latestVersion: string | null = null;
 
+/**
+ * Release asset name for the running platform.
+ *
+ * Must match the `postMake` rename map in forge.config.ts, which appends the arch
+ * for anything other than x64. This is where the manual-download fallback used to
+ * 404: it hardcoded `Fidra-macOS.dmg`, the x64 name, while every published build is
+ * arm64 and therefore `Fidra-macOS-arm64.dmg`. Deriving it by the same rule means
+ * the two can only drift if the rule itself changes.
+ */
+function releaseAssetName(): string | null {
+  if (process.platform === 'darwin') {
+    return `Fidra-macOS${process.arch !== 'x64' ? `-${process.arch}` : ''}.dmg`;
+  }
+  if (process.platform === 'win32') {
+    return 'Fidra-Windows-Setup.exe';
+  }
+  return null;
+}
+
+/**
+ * Direct download for the update, or the releases page when we cannot name the
+ * asset — a wrong direct link is worse than a page the user can navigate.
+ */
+function fallbackDownloadUrl(): string {
+  const asset = releaseAssetName();
+  if (!latestVersion || !asset) return RELEASES_URL;
+  return `https://github.com/LordPam/fidra-electron/releases/download/v${latestVersion}/${asset}`;
+}
+
 function sendToAllWindows(channel: string, data?: unknown): void {
   for (const win of BrowserWindow.getAllWindows()) {
     win.webContents.send(channel, data);
@@ -128,16 +157,11 @@ export function registerUpdateHandlers(): void {
     // App is ad-hoc signed — autoUpdater.quitAndInstall() silently fails
     // on unsigned/ad-hoc apps (no throw, just does nothing). Skip it
     // entirely and go straight to the manual download fallback.
-    const url = latestVersion
-      ? `https://github.com/LordPam/fidra-electron/releases/download/v${latestVersion}/Fidra-macOS.dmg`
-      : RELEASES_URL;
-    sendToAllWindows('update:installFailed', url);
+    sendToAllWindows('update:installFailed', fallbackDownloadUrl());
   });
 
   ipcMain.handle('app:openReleaseUrl', async () => {
-    const url = latestVersion
-      ? `https://github.com/LordPam/fidra-electron/releases/download/v${latestVersion}/Fidra-macOS.dmg`
-      : RELEASES_URL;
+    const url = fallbackDownloadUrl();
     console.log('[updater] Opening release URL in browser:', url);
     await shell.openExternal(url);
   });

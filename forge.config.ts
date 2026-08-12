@@ -148,8 +148,12 @@ const config: ForgeConfig = {
       fs.removeSync(path.dirname(tmpApp));
     },
     postMake: async (_forgeConfig, makeResults: ForgeMakeResult[]) => {
-      // 1. Rename user-facing installer artifacts to stable names
-      //    so GitHub "latest" URLs work: /releases/latest/download/Fidra-macOS.dmg
+      // 1. Rename user-facing installer artifacts to stable names so GitHub
+      //    "latest" URLs work, e.g. /releases/latest/download/Fidra-macOS-arm64.dmg
+      //    Note the arch suffix is dropped only for x64, so an arm64 build is NOT
+      //    "Fidra-macOS.dmg" — assuming it was is what made the in-app update
+      //    fallback 404. `releaseAssetName` in update-checker.ts mirrors this rule,
+      //    and gh-pages/index.html hardcodes the arm64 name.
       //    Auto-update files (ZIP, nupkg, RELEASES) keep original names.
       const renameMap: Record<string, (original: string, arch: string) => string | null> = {
         '.dmg': (_o, arch) => `Fidra-macOS${arch !== 'x64' ? `-${arch}` : ''}.dmg`,
