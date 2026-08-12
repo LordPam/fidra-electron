@@ -1761,15 +1761,16 @@
         icon: appleIcon,
         title: "A quick note for macOS",
         subtitle:
-          "Fidra is not yet Developer ID signed and notarized, so macOS may ask for one extra confirmation the first time you open it.",
+          "Fidra is not yet Developer ID signed and notarized, so macOS blocks it on first launch until you approve it once in System Settings.",
         stepsLabel: "What to expect on macOS",
         continueLabel: "Download for macOS",
         sideNote:
-          "On macOS, this is usually just a Gatekeeper confirmation on first launch rather than a different install flow.",
+          "On macOS 14 and earlier you can Control-click the app and choose Open instead. That shortcut was removed in macOS 15, so the approval now happens in System Settings.",
         steps: [
-          "Open the downloaded DMG and move Fidra into Applications.",
-          "If macOS asks for confirmation, right-click the app and choose Open, or allow it in System Settings > Privacy & Security.",
-          "After that first confirmation, later launches are usually straightforward."
+          "Open the downloaded DMG and drag Fidra into Applications.",
+          "Open Fidra once. macOS will refuse and say it cannot verify the developer, which is expected for an app distributed outside the App Store.",
+          "Go to System Settings > Privacy & Security, scroll down to Security, and choose Open Anyway next to the message about Fidra.",
+          "Confirm, and Fidra opens. Later launches are normal."
         ]
       },
       windows: {
