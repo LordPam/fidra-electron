@@ -100,7 +100,7 @@ This ensures every session leaves CLAUDE.md as the single source of truth for pr
 - **Types**: Interfaces for props, Zod schemas for runtime data
 - **Error handling**: Result types at service boundaries, try/catch only in IPC handlers
 - **No barrel files**: Import directly from source modules
-- **Tests**: Vitest for unit/integration, Playwright for E2E
+- **Tests**: Vitest for unit/integration (`npm test`), Playwright for E2E against the real Electron app (`npm run test:e2e`). Both scripts rebuild better-sqlite3 for the runtime they need — it cannot serve Node and Electron at once. E2E runs against the last **build**, so `test:e2e` packages first; see `e2e/README.md`
 - **TypeScript**: `npx tsc --noEmit` must pass after every refactor
 
 ## Key Domain Models

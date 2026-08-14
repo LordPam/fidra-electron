@@ -12,9 +12,13 @@
     "publish": "electron-forge publish",
     "build:demo": "vite build --config vite.demo.config.ts",
     "lint": "eslint --ext .ts,.tsx .",
-    "test": "vitest run",
-    "test:watch": "vitest",
-    "postinstall": "electron-rebuild"
+    "test": "npm run rebuild:node && vitest run",
+    "test:watch": "npm run rebuild:node && vitest",
+    "postinstall": "electron-rebuild",
+    "test:e2e": "npm run rebuild:electron && npm run package && playwright test",
+    "test:all": "npm run test && npm run test:e2e",
+    "rebuild:node": "npm rebuild better-sqlite3",
+    "rebuild:electron": "electron-rebuild -f -w better-sqlite3"
   },
   "keywords": [],
   "author": {
@@ -35,6 +39,7 @@
     "@electron-forge/publisher-github": "^7.11.1",
     "@electron/fuses": "^1.8.0",
     "@electron/rebuild": "^3.7.2",
+    "@playwright/test": "^1.62.1",
     "@types/better-sqlite3": "^7.6.13",
     "@types/electron-squirrel-startup": "^1.0.2",
     "@types/react": "^19.2.14",

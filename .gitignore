@@ -97,3 +97,7 @@ out/
 # Generated scratch (marketing sample data backups, template drafts)
 .tmp-marketing-template.html
 marketing/sampleData_backups/
+
+# Playwright
+/test-results/
+/playwright-report/
