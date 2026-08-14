@@ -192,14 +192,28 @@ export async function restoreBackup(
     };
   }
 
-  // Close the database before replacing
+  // Fold the WAL into the main database and empty it before closing.
+  //
+  // The WAL holds committed pages that are not yet in the main file. Replace the
+  // main file while those are outstanding and SQLite replays them over the restored
+  // data on the next open — the restore appears to succeed and silently does nothing.
+  //
+  // Truncating is what makes that safe. Deleting the sidecars instead, which is what
+  // this did first, leaves SQLite's own state referring to files that no longer
+  // exist, and the next open of that path fails with "disk I/O error" — verified in
+  // backup-with-crsqlite.test.ts, and it only reproduces with the cr-sqlite extension
+  // loaded, which the app always does.
+  try {
+    db.pragma('wal_checkpoint(TRUNCATE)');
+  } catch {
+    // A checkpoint can be blocked by another reader. Carry on: the removal below is
+    // the fallback, and the caller has already refused to run with a second window open.
+  }
   db.close();
 
   try {
-    // The WAL sidecars belong to the database being replaced. Closing the last
-    // connection normally checkpoints and removes them, but if anything still holds
-    // the file open they survive — and SQLite would then replay the old WAL over the
-    // restored file on next open, corrupting it. Remove them before the copy.
+    // Belt and braces for a WAL left behind by a holder we could not checkpoint.
+    // Safe now only because the checkpoint above has already emptied ours.
     fs.rmSync(`${dbPath}-wal`, { force: true });
     fs.rmSync(`${dbPath}-shm`, { force: true });
 
