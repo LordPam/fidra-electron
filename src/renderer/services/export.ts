@@ -31,7 +31,11 @@ export function exportCSV(transactions: TransactionRow[], includeBalance = false
     const fields = [
       t.date,
       `"${(t.description || '').replace(/"/g, '""')}"`,
-      formatCurrency(t.amount),
+      // A plain decimal, not formatCurrency. "£1,000.00" carries a thousands
+      // separator into an unquoted field, which splits the row — every amount of
+      // £1,000 or more gained a column and shifted everything after it. A bare
+      // number is also what a spreadsheet needs to read the column as numeric.
+      toAmountString(t.amount) ?? t.amount,
       t.type,
       t.status,
       t.category || '',
@@ -41,7 +45,7 @@ export function exportCSV(transactions: TransactionRow[], includeBalance = false
       `"${(t.notes || '').replace(/"/g, '""')}"`,
     ];
     if (includeBalance) {
-      fields.push(formatCurrency(balances.get(t.id) ?? 0));
+      fields.push(toAmountString(balances.get(t.id) ?? 0) ?? '0.00');
     }
     return fields.join(',');
   });
