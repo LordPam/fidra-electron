@@ -19,6 +19,25 @@ try {
   }
   assert(fs.readFileSync(path.join(root, 'runtime/LICENSE'), 'utf8').includes('Permission'));
   assert(fs.existsSync(path.join(root, 'LICENSE')));
+  const portableManifest = JSON.parse(await zip.file('plugin.json').async('string'));
+  assert(portableManifest.extensions['com.openai'].interface.shortDescription.length <= 30);
+  const accountZip = await JSZip.loadAsync(fs.readFileSync(path.join(path.dirname(path.resolve(archive)), 'Fidra-account.zip')));
+  assert(!accountZip.file('plugin.json') && !accountZip.file('mcp.json'));
+  const accountManifest = JSON.parse(await accountZip.file('.codex-plugin/plugin.json').async('string'));
+  assert.equal(accountManifest.name, portableManifest.name);
+  assert.equal(accountManifest.version, portableManifest.version);
+  assert.equal(accountManifest.mcpServers, './.mcp.json');
+  assert.equal(accountManifest.skills, './skills');
+  const accountMcp = JSON.parse(await accountZip.file('.mcp.json').async('string'));
+  const portableMcp = JSON.parse(await zip.file('mcp.json').async('string'));
+  const { type, ...portableLaunch } = portableMcp.mcpServers.fidra;
+  assert.equal(type, 'stdio');
+  assert.deepEqual(accountMcp.mcpServers, { fidra: portableLaunch });
+  for (const file of Object.values(zip.files)) {
+    if (!file.dir && !['plugin.json', 'mcp.json'].includes(file.name)) {
+      assert.deepEqual(await accountZip.file(file.name).async('nodebuffer'), await file.async('nodebuffer'));
+    }
+  }
   const privateArchive = path.join(path.dirname(path.resolve(archive)), 'Fidra-private.zip');
   const privateZip = await JSZip.loadAsync(fs.readFileSync(privateArchive));
   const marketplace = JSON.parse(await privateZip.file('Fidra/.agents/plugins/marketplace.json').async('string'));

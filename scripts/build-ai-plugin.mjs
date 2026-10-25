@@ -9,6 +9,7 @@ import JSZip from 'jszip';
 
 // Maintainer build task. No user-specific connection or financial data enters a package.
 const root = path.resolve(import.meta.dirname, '..');
+const pluginVersion = '2.0.3';
 const runtime = process.env.FIDRA_PLUGIN_NODE_RUNTIME;
 if (!runtime || !path.isAbsolute(runtime)) throw new Error('Set FIDRA_PLUGIN_NODE_RUNTIME to a verified official Node 22+ binary for this platform.');
 const metadata = JSON.parse(execFileSync(runtime, ['-p', 'JSON.stringify({platform:process.platform,arch:process.arch,version:process.versions.node})'], { encoding: 'utf8' }));
@@ -47,12 +48,24 @@ try {
   if (!keyring.optionalDependencies[nativeName]) throw new Error('Unsupported credential-store target.');
   addPackage(nativeName);
   const nodeCommand = `\${PLUGIN_ROOT}/runtime/${runtimeName}`;
-  zip.file('plugin.json', JSON.stringify({ $schema: 'https://agent-plugins.org/schemas/1.0.0/plugin.schema.json', name: 'fidra', version: '2.0.0', description: 'Connect Fidra with administrator-approved access. Reconcile statements, check planned payments and add missing entries safely.', author: { name: 'Fidra' }, extensions: { 'com.openai': { requires_local_executor: true, onboardingSkill: './skills/setup/SKILL.md', interface: { displayName: 'Fidra', shortDescription: 'Reconcile statements with your Fidra ledger', developerName: 'Fidra', category: 'Productivity', capabilities: ['Read', 'Write'], logo: './assets/icon.png', composerIcon: './assets/icon.png' } } } }, null, 2));
+  const manifest = { $schema: 'https://agent-plugins.org/schemas/1.0.0/plugin.schema.json', name: 'fidra', version: pluginVersion, description: 'Connect Fidra with administrator-approved access. Reconcile statements, check planned payments and add missing entries safely.', author: { name: 'Fidra' }, extensions: { 'com.openai': { requires_local_executor: true, onboardingSkill: './skills/setup/SKILL.md', interface: { displayName: 'Fidra', shortDescription: 'Reconcile your Fidra ledger', developerName: 'Fidra', category: 'Productivity', capabilities: ['Read', 'Write'], logo: './assets/icon.png', composerIcon: './assets/icon.png' } } } };
+  zip.file('plugin.json', JSON.stringify(manifest, null, 2));
   zip.file('mcp.json', JSON.stringify({ $schema: 'https://agent-plugins.org/schemas/1.0.0/mcp.schema.json', mcpServers: { fidra: { type: 'stdio', command: nodeCommand, args: ['${PLUGIN_ROOT}/server/server.cjs'] } } }, null, 2));
-  zip.file('BUILD.json', JSON.stringify({ pluginVersion: '2.0.0', ...metadata, runtimeSha256: crypto.createHash('sha256').update(fs.readFileSync(runtime)).digest('hex'), sourceDirty: execFileSync('git', ['status', '--porcelain'], { cwd: root, encoding: 'utf8' }).trim().length > 0, sourceCommit: execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim() }, null, 2));
+  zip.file('BUILD.json', JSON.stringify({ pluginVersion, ...metadata, runtimeSha256: crypto.createHash('sha256').update(fs.readFileSync(runtime)).digest('hex'), sourceDirty: execFileSync('git', ['status', '--porcelain'], { cwd: root, encoding: 'utf8' }).trim().length > 0, sourceCommit: execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim() }, null, 2));
   const destination = path.join(output, 'Fidra-plugin.zip');
   fs.writeFileSync(destination, await zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE', platform: 'UNIX' }));
   console.log(destination);
+  // Account ingestion retained the server reference only with the compatibility
+  // manifest as its sole source. Keep the portable package for other clients.
+  const accountZip = new JSZip();
+  for (const file of Object.values(zip.files)) {
+    if (!file.dir && !['plugin.json', 'mcp.json'].includes(file.name)) accountZip.file(file.name, file.async('nodebuffer'), { unixPermissions: file.unixPermissions ?? 0o100644 });
+  }
+  accountZip.file('.codex-plugin/plugin.json', JSON.stringify({ name: manifest.name, version: pluginVersion, description: manifest.description, author: manifest.author, interface: manifest.extensions['com.openai'].interface, requires_local_executor: true, skills: './skills', mcpServers: './.mcp.json', extensions: { 'com.openai': { onboardingSkill: './skills/setup/SKILL.md' } } }, null, 2));
+  accountZip.file('.mcp.json', JSON.stringify({ mcpServers: { fidra: { command: nodeCommand, args: ['${PLUGIN_ROOT}/server/server.cjs'] } } }, null, 2));
+  const accountDestination = path.join(output, 'Fidra-account.zip');
+  fs.writeFileSync(accountDestination, await accountZip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE', platform: 'UNIX' }));
+  console.log(accountDestination);
   const privateZip = new JSZip();
   for (const file of Object.values(zip.files)) {
     if (!file.dir) privateZip.file(`Fidra/${file.name}`, file.async('nodebuffer'), { unixPermissions: file.unixPermissions ?? 0o100644 });

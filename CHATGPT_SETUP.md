@@ -4,14 +4,20 @@ Use the private Fidra source for a one-time desktop installation. Public-directo
 
 ## One-time private installation
 
-1. Get the matching **Fidra-private.zip** package for your computer and unzip its **Fidra** folder into a permanent local location.
-2. On the development Mac, double-click **Add Fidra source.command** in that folder. It uses the installed official Codex command to register the source. This step grants no ledger access.
-3. Restart ChatGPT desktop, open **Plugins / Plugins Directory**, choose the **Fidra** source and install **Fidra**.
-4. Run the installed plugin's setup, then approve the matching request inside Fidra as described below.
+The private personal plugin is saved as [Fidra](https://chatgpt.com/plugins/plugins_6ade37900c748191915641562337d0b4).
 
-The source-registration command is already available on this Mac. An alternative is to enter the extracted Fidra folder in Terminal/PowerShell and run `codex plugin marketplace add .`. OpenAI also documents project-local catalogs; the included `.agents/plugins/marketplace.json` supports that route where the desktop client discovers the project source. Actual source discovery and installation on your account still need checking. [Official local-plugin instructions](https://developers.openai.com/plugins/build/plugins)
+1. Open that page in ChatGPT desktop and install Fidra, or update an existing installation to **2.0.3**.
+2. Keep Fidra open. The current source run with `npm start` and the 0.1.24 desktop app both contain the AI service.
+3. Select the plugin in a local chat and ask **Set up Fidra**.
+4. Review the matching native request in Fidra as described below. Installation alone grants no ledger access.
 
-Do not attach the ZIP to a chat or export ledger context. The ZIP contains the plugin itself, its own runtime and instructions. It has no financial data or connection credential. The retired per-user context/proposal-file workflow is not part of installation.
+Version 2.0.2 displayed the two skills but did not expose the connection tools. The account service omitted the MCP reference while normalizing the portable manifest. Version 2.0.3 uses the compatibility manifest as its sole source, and saved-source read-back now retains `mcpServers: "./.mcp.json"`. Actual desktop tool loading, consent and conversation behavior still require verification; the saved registration is not proof of a live connection.
+
+Maintainers should use **Fidra-account.zip** for Plugin Creator account uploads. It contains the same runtime, adapter, catalog and skills as the portable package, with the account-compatible manifest. It contains no financial data or connection credential. It is an installation archive, not a ledger context/proposal export.
+
+### Alternative local-source installation
+
+**Fidra-private.zip** remains available for a private local catalog. Extract its Fidra folder into a permanent location, then on the development Mac run **Add Fidra source.command** once. Alternatively, enter the folder and run `codex plugin marketplace add .`. Restart the desktop client and install from the Fidra source. Source registration grants no ledger access. Local-source availability and discovery depend on the client; this route is separate from the personal plugin above. [Official local-plugin instructions](https://developers.openai.com/plugins/build/plugins)
 
 ## Approve and use Fidra
 
