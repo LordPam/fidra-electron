@@ -1,6 +1,6 @@
 # Fidra plugin: install once, administrator-approved access
 
-Owner clarification: 2026-10-25. This supersedes the manual installation/export journey in `CHATGPT_SETUP.md` and the temporary-connection UX in the earlier AI plan. It describes required work, not implemented behavior.
+Owner clarification: 2026-10-25. This supersedes the manual installation/export journey in `CHATGPT_SETUP.md` and the temporary-connection UX in the earlier AI plan. Implementation status is recorded below; public distribution and real-client acceptance remain separate milestones.
 
 ## Required experience
 
@@ -10,7 +10,7 @@ Owner clarification: 2026-10-25. This supersedes the manual installation/export 
 4. Ask ChatGPT to reconcile a bank statement and add missing entries. The plugin discovers typed tools and instructions automatically, asks questions in chat, and uses guarded domain operations.
 5. Administrators can inspect, restrict and revoke connected clients in Fidra. Broader access requires new approval.
 
-No ZIP export, project-folder setup, context JSON, proposal-file round trip, separate runtime installation or hourly manual reconnection belongs in the ordinary product journey. Attaching a statement in chat is normal task input; selecting it again in Fidra is unnecessary. File exchange remains an optional fallback.
+No ZIP export, project-folder setup, context JSON, proposal-file round trip, separate runtime installation or hourly manual reconnection belongs in the ordinary product journey. Attaching a statement in chat is normal task input; selecting it again in Fidra is unnecessary. The former file-exchange trial has been removed.
 
 ## Application boundary
 
@@ -29,9 +29,11 @@ Reuse the existing reconciliation validation, source checks, duplicate detection
 - Consent defines permitted ledgers/accounts, context fields and actions. Each task fetches only the data needed within that boundary. Preserve explicit user selection of financial data shared with an AI provider; durable consent is not blanket permission to dump an entire ledger. Task date filters should not require recreating the installation or granting fresh consent within an already approved boundary.
 - Record the approver, requesting identity, scope, client and subsequent activity. ChatGPT's own tool-confirmation controls remain under OpenAI's control and may still appear.
 
-## Current implementation gap
+## Implemented foundation (2026-10-25)
 
-The pushed implementation supplies useful guarded reconciliation tools and an automated-testable adapter. Its installation still requires a locally exported development package; its grants are one-hour, window-bound and manually recreated. Grant creation checks sign-in for authenticated ledgers but does not require an administrator. It does not satisfy the product experience above. Do not describe its automated tests as acceptance of directory installation or persistent admin consent.
+The manual export/file-exchange UI and IPC have been removed. The main-process broker now supports plugin-initiated native approval, encrypted durable consent, explicit standalone-owner enrollment, signed single-use request proofs, scope and current-role checks, restart discovery, pause/resume, revocation and device reset. The adapter stores its installation key through the OS credential store. The maintainer package includes a runtime, credential-store binding, generated tool catalog and updated skills.
+
+Automated tests cover the broker and app. Actual ChatGPT installation, OS credential-store prompts in the installed plugin, real conversation behavior, Windows acceptance and directory publication remain unverified. Do not describe these as completed from passing connector tests.
 
 ## Distribution dependency
 

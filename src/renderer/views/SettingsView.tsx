@@ -1,10 +1,4 @@
 import { PersonalAiSettings } from '@/components/PersonalAiSettings';
-import type { AiBridgeState, AiClient, AiConnectionPermissions } from '../../shared/ai-bridge-types';
-import type { ReconciliationScope, ReconciliationApproval } from '../../shared/reconciliation-types';
-import { usePlannedStore } from '@/stores/planned-store';
-import { useSheetStore } from '@/stores/sheet-store';
-import { useUndoStore } from '@/stores/undo-store';
-import { createReconciliationImportCommand } from '@/services/undo';
 import { DeviceSettings } from '@/components/DeviceSettings';
 import type { DeviceDataInfo } from '../../shared/device-types';
 import { UpdateSettings } from '@/components/UpdateSettings';
@@ -81,28 +75,6 @@ export default function SettingsView() {
     catch (error) { setDeviceError(String(error)); }
     finally { setDeviceBusy(false); }
   };
-
-  const undoableImportId = useUndoStore((state) => state.undoStack.at(-1)?.id?.replace(/^reconciliation:/, '') ?? null);
-  const aiPlanned = usePlannedStore((state) => state.templates);
-  useEffect(() => { void usePlannedStore.getState().loadAll(); }, []);
-  const aiSheets = useSheetStore((state) => state.sheets);
-  const [aiState, setAiState] = useState<AiBridgeState>({ connections: [], proposals: [], statements: [] });
-  const [aiBusy, setAiBusy] = useState(false);
-  const [aiError, setAiError] = useState<string | null>(null);
-  const refreshAi = useCallback(async () => { setAiState(await window.api.getAiBridgeState()); }, []);
-  useEffect(() => {
-    const refresh = () => { refreshAi().catch((error: unknown) => setAiError(String(error))); };
-    const unsubscribe = window.api.onAiChanged(refresh); refresh();
-    const timer = setInterval(refresh, 30000);
-    return () => { unsubscribe(); clearInterval(timer); };
-  }, [refreshAi]);
-  const runAi = async (action: () => Promise<unknown>) => {
-    setAiBusy(true); setAiError(null);
-    try { await action(); await refreshAi(); } catch (error) { setAiError(String(error)); }
-    finally { setAiBusy(false); }
-  };
-  const connectAi = (client: AiClient, scope: ReconciliationScope, permissions: AiConnectionPermissions) => { void runAi(() => window.api.connectAi(client, scope, permissions)); };
-  const approveAi = (approval: ReconciliationApproval) => { void runAi(() => useUndoStore.getState().execute(createReconciliationImportCommand(approval))); };
 
   // Profile state
   const [profileName, setProfileName] = useState('');
@@ -519,18 +491,7 @@ export default function SettingsView() {
           </Card>
         </div>
 
-        <PersonalAiSettings state={aiState} sheets={aiSheets} plannedTemplates={aiPlanned} ledgerName={reportOrgName || dbPath?.split(/[\\/]/).pop() || 'this ledger'} undoableImportId={undoableImportId} onUndo={() => { void runAi(() => useUndoStore.getState().undo()); }} busy={aiBusy} error={aiError} onConnect={connectAi} onApprove={approveAi}
-          onDisconnect={(id) => { void runAi(() => window.api.disconnectAi(id)); }}
-          onExport={(id) => { void runAi(() => window.api.exportAiConnection(id)); }}
-          onExportContext={(id) => { void runAi(() => window.api.exportAiContext(id)); }}
-          onOpenProposal={() => { void runAi(() => window.api.openAiProposal()); }}
-          onSelectStatement={async () => {
-            setAiBusy(true); setAiError(null);
-            try { const selected = await window.api.selectAiStatement(); await refreshAi(); return selected; }
-            catch (error) { setAiError(String(error)); return null; }
-            finally { setAiBusy(false); }
-          }}
-          onDiscard={(id) => { void runAi(() => window.api.discardAiProposal(id)); }} />
+        <PersonalAiSettings />
         <UpdateSettings />
         <DeviceSettings info={deviceInfo} busy={deviceBusy} error={deviceError} onReset={(action) => void resetDevice(action)}
           onShowFiles={() => { window.api.showFinancialFiles().catch((error: unknown) => setDeviceError(String(error))); }} />

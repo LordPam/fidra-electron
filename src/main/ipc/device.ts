@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { SessionStore } from '../services/session-store';
-import { personalAiBridge } from '../services/ai-runtime';
+import { personalAiBridge, personalAiAccess } from '../services/ai-runtime';
 import { spawn } from 'node:child_process';
 import { forgetDatabaseCredentials } from '../services/device-credentials';
 import { z } from 'zod';
@@ -17,6 +17,7 @@ import { resolveContext } from './context-resolver';
 export async function resetOpenDeviceState(afterCleanup: () => Promise<void> = async () => undefined): Promise<void> {
   await withPreparedWindows(async () => {
     personalAiBridge.stop();
+    personalAiAccess.reset();
     SessionStore.clearMemory();
     const contexts = getWindowManager().getAllContexts();
     // Preserve a recovery index before removing recent-file preferences.

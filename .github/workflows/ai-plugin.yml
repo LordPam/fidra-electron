@@ -1,0 +1,34 @@
+name: Build AI plugin candidates
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-15, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Build a self-contained platform package
+        shell: bash
+        run: |
+          export FIDRA_PLUGIN_NODE_RUNTIME="$(node -p 'process.execPath')"
+          npm run build:ai-plugin
+      - name: Verify the packaged runtime and native credential binding
+        run: node scripts/smoke-ai-plugin.mjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: fidra-ai-plugin-${{ matrix.os }}
+          path: out/ai-plugin/*/Fidra-plugin.zip
+          if-no-files-found: error

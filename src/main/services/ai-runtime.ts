@@ -1,7 +1,10 @@
 import os from 'node:os';
 import path from 'node:path';
 import fs from 'node:fs';
-import { app } from 'electron';
+import { app, safeStorage } from 'electron';
+import { AiAuthorizationStore } from './ai-authorization-store';
+import { retireLegacyAiConnections } from './ai-legacy-cleanup';
+import { AiAccessBroker } from './ai-access-broker';
 import { AiBridge } from './ai-bridge';
 import { getWindowManager } from '../window/window-manager';
 import { createBackup, getBackupSettings } from './backup-service';
@@ -10,7 +13,6 @@ export const aiBridgeResourceDirectory = path.join(app.isPackaged ? process.reso
 export const fidraAiWorkflow = fs.readFileSync(path.join(aiBridgeResourceDirectory, 'skills', 'fidra-reconcile', 'SKILL.md'), 'utf8');
 
 export const personalAiBridge = new AiBridge({
-  directory: path.join(os.homedir(), '.fidra', 'ai-connections'),
   instructions: fidraAiWorkflow,
   isCurrent: (context) => getWindowManager().getContext(context.window.webContents.id) === context,
   isPreparing: () => getWindowManager().isPreparingOperation,
@@ -26,3 +28,16 @@ export const personalAiBridge = new AiBridge({
     }
   },
 });
+
+export const personalAiAccess = new AiAccessBroker({
+  discoveryFile: path.join(os.homedir(), '.fidra', 'ai-access', 'endpoint.json'),
+  store: new AiAuthorizationStore(path.join(os.homedir(), '.fidra', 'ai-access', 'authorizations.enc'), {
+    available: () => safeStorage.isEncryptionAvailable(),
+    encrypt: (value) => safeStorage.encryptString(value), decrypt: (value) => safeStorage.decryptString(value),
+  }),
+  bridge: personalAiBridge, contexts: () => getWindowManager().getAllContexts(),
+  preparing: () => getWindowManager().isPreparingOperation,
+  changed: () => { for (const ctx of getWindowManager().getAllContexts()) if (!ctx.isClosed) ctx.sendToRenderer('ai:changed'); },
+});
+
+export function retireOldAiTrial(): void { retireLegacyAiConnections(path.join(os.homedir(), '.fidra', 'ai-connections')); }

@@ -4,7 +4,7 @@ import path from 'node:path';
 // Explicit allowlists only. Ledgers, attachments, backups, accounts.json, and
 // release-keys are deliberately not candidates, even when inside app data.
 const homeFiles = ['settings.json', 'settings.json.tmp', '.first-run-complete', 'startup-diag.log'];
-const homeDirectories = ['sessions', 'logs', 'ai-connections'];
+const homeDirectories = ['sessions', 'logs', 'ai-connections', 'ai-access'];
 const cacheDirectories = ['updates', 'Cache', 'Code Cache', 'GPUCache', 'DawnGraphiteCache', 'DawnWebGPUCache', 'Session Storage', 'Local Storage'];
 
 function removeOwned(root: string, relative: string, directory: boolean): void {

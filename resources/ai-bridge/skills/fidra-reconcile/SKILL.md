@@ -1,6 +1,6 @@
 ---
 name: fidra-reconcile
-description: Reconcile bank statements selected in Fidra against the permitted ledger context, check duplicates and planned payments, and prepare a proposal for approval inside Fidra.
+description: Reconcile statements from this chat against administrator-approved Fidra accounts, check duplicates and planned payments, and add missing entries within permission.
 ---
 
 # Reconcile with Fidra
@@ -9,9 +9,9 @@ Use the Fidra MCP tools for the open ledger. Fidra is the source of account IDs,
 
 ## Establish the source
 
-Call `read_context` to obtain the current permitted accounts, history, planned occurrences and `selectedStatements`. Use only returned identifiers. If the requested account, dates or context fields are unavailable, ask the user to select them in Fidra Settings and renew the connection. An absent record outside the shared scope does not prove a payment is missing.
+Call `list_connections` to choose the approved ledger. Use `connect_fidra` only when first-time approval is needed. Call `read_context` with the user-requested `from` and `to` dates (up to one year per query), optionally narrowing `sheetIds` to approved accounts. Supply `connectionId` when several ledgers are connected. Use only returned identifiers and fields. Ask about unavailable context rather than expanding permission. An absent record outside the requested range does not prove a payment is missing. Reading a different range starts a new reconciliation scope; finish or abandon an existing draft deliberately before changing it.
 
-When the user attaches a statement to this chat, use `register_statement` if available to send its original bytes (UTF-8 CSV/text, or base64 for a PDF). Do not rewrite the statement into a different CSV or invent file contents. Fidra computes and returns the source hash and adds only that statement to this connection. Chat uploads are limited to 1 MB; ask the user to select larger originals in Fidra. Reading an attachment explicitly provided by the user for this task is allowed; do not search for other files. If upload permission is absent, ask them to select the statement in Fidra or enable that permission.
+When the user attaches a statement to this chat, use `register_statement` if available to send its original bytes (UTF-8 CSV/text, or base64 for a PDF). Do not rewrite the statement into a different CSV or invent file contents. Fidra computes and returns the source hash and adds only that statement to this connection. Chat uploads are limited to 1 MB; ask for a smaller original statement export if needed. Reading an attachment explicitly provided by the user for this task is allowed; do not search for other files. If upload permission is absent, explain that a Fidra administrator must approve it.
 
 Call `read_statement` with a selected statement's `id`. Ask which statement/account to use if there is more than one plausible mapping. CSV/text can be read through this tool. For a PDF, use the same user-provided PDF for extraction; a hash does not independently verify OCR. Ask about unreadable values. Fidra checks original row indices and financial values for common signed ISO-date CSVs; other layouts require an explicit source-confirmation answer. Do not supply a bank ID that is absent from the original source.
 
@@ -37,8 +37,8 @@ If the user requested additions (for example, “reconcile this statement and ad
 
 Pass the exact proposal ID and digest to `apply_reconciliation`. Fidra backs up first, rechecks the source and current ledger, records the AI client and supplied answers, and applies the batch atomically. Repeating that same proposal is idempotent. Access permits adding pending actuals and fulfilling exact planned occurrences, not editing/deleting existing actuals, changing settings, or approving transaction status. If the user undid a batch, do not reapply it without a fresh request and proposal.
 
-If the user only asked for an analysis/draft, or add permission is absent, leave the proposal as a draft and explain that approval is available in Fidra. Never click native approval controls on the user's behalf, change a database directly or seek a different tool to bypass the connection permission.
+If the user only asked for an analysis/draft, or add permission is absent, leave the proposal as a draft. An administrator must approve add access before the plugin may apply it. Never seek a native batch-approval workaround for absent add permission. Never click native approval controls on the user's behalf, change a database directly or seek a different tool to bypass the connection permission.
 
 Use `get_proposal` with the returned proposal ID to check its state when needed. Say “prepared” while it is a draft; report an import as completed only after a successful apply response or when Fidra reports `committed`. Summarize additions, skipped existing entries and planned fulfilments, and explain any rows left unresolved. New entries start pending. Native Undo is available subject to later edits; the AI has no edit, delete, transaction-status approval or undo tool.
 
-If access expires or is revoked, stop and ask the user to reconnect in Fidra. If a source changed, ask them to select it again. Do not repeatedly retry denied requests or switch to a wider connection.
+If access is paused, ask the user to open and unlock Fidra or return as the authorised administrator. Installation and approval persist. Revoked access requires a fresh administrator approval; never reinstall or export context to bypass it. Ask the user to attach the original source again if a task session has been cleared. Do not repeatedly retry denied requests or switch to a wider connection.

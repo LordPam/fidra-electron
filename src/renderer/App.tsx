@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { HashRouter, Routes, Route, useNavigate, useLocation } from 'react-router-dom';
+import { AiAccessDialog } from '@/dialogs/AiAccessDialog';
 import { AiProposalNotice } from '@/components/AiProposalNotice';
 import { Sidebar } from '@/components/Sidebar';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
@@ -344,6 +345,7 @@ export function App() {
       <ThemeWatcher />
       <GlobalKeyboardNav />
       <AiProposalNotice />
+      <AiAccessDialog />
       <LocalSyncWiring />
       <LocalSyncConflictOverlay />
       <SyncToast />

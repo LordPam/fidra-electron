@@ -409,13 +409,11 @@ export interface IpcChannels {
   };
 
   // Startup
-  'ai:selectStatement': { args: []; result: import('./statement-types').SelectedStatement | null };
-  'ai:exportContext': { args: [string]; result: boolean };
-  'ai:openProposal': { args: []; result: import('./reconciliation-types').ReconciliationProposal | null };
   'ai:getState': { args: []; result: import('./ai-bridge-types').AiBridgeState };
-  'ai:connect': { args: [{ client: import('./ai-bridge-types').AiClient; scope: import('./reconciliation-types').ReconciliationScope; permissions?: import('./ai-bridge-types').AiConnectionPermissions }]; result: import('./ai-bridge-types').AiConnection };
-  'ai:disconnect': { args: [string]; result: void };
-  'ai:exportConnection': { args: [string]; result: boolean };
+  'ai:approveAccess': { args: [{ requestId: string; policy: import('./ai-access-types').AiAccessPolicy }]; result: void };
+  'ai:denyAccess': { args: [string]; result: void };
+  'ai:revokeAccess': { args: [string]; result: void };
+  'ai:unlockOwner': { args: [{ name: string; password: string }]; result: void };
   'ai:discard': { args: [string]; result: void };
   'ai:approve': { args: [import('./reconciliation-types').ReconciliationApproval]; result: import('./reconciliation-types').ReconciliationCommit };
   'ai:undo': { args: [string]; result: void };

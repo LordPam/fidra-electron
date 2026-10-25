@@ -1,16 +1,18 @@
 ---
 name: setup
-description: Check a newly installed Fidra extension connection and guide the user through selecting the ledger context and bank statement to share.
+description: Connect the installed Fidra plugin through one-time administrator approval and check its permitted ledgers and actions.
 ---
 
-# Set up Fidra
+# Connect Fidra
 
-Explain that the extension reads selected financial context. A draft-only connection needs approval inside Fidra; an explicitly add-enabled connection can add missing entries and fulfil planned payments when the user asks in chat. Existing actuals cannot be edited or deleted. Selected tool results are shared with their AI provider.
+Keep Fidra open. Call `list_connections` first. If this installation has no approved connection, call `connect_fidra`, show its verification code, and ask a Fidra administrator to review the matching request in Fidra. The administrator selects accounts, fields and actions in a native permission screen. Do not approve or click that screen on their behalf. Do not request passwords, owner passwords, keys or credential files.
 
-Try Fidra's `read_context`. If the tool is missing, report that the extension's local server is not connected; do not claim that installation succeeded. Ask the user to keep Fidra open and signed in and check the extension's connection status. Do not read private pairing files or request tokens.
+The app identifies itself by its installation key; its ChatGPT/Claude label is not independent proof of publisher identity. The user must compare the code with the request they initiated. Installing the plugin alone grants no financial access.
 
-If access is denied or expired, direct the user to Fidra Settings → Personal AI: choose this desktop client, select accounts, dates and optional fields, then choose whether to allow statements attached in chat and whether to allow adding missing entries. Share the selected context. Permission changes require reconnecting; do not expand them automatically. The connection ends after one hour or when the ledger closes, the user signs out, or the computer locks.
+If the ledger is standalone and has no administrator identity, explain that its owner first sets up AI access ownership in Fidra Settings → Connected AI apps. Owner setup and password entry happen in Fidra, never in this chat. Existing team ledgers require a Fidra administrator.
 
-When context is available, summarize account names, date range, enabled permissions and selected statement names without dumping financial history. If the user attached a statement and upload permission is enabled, continue with that attachment; do not require a second selection in Fidra. If no statement is available, ask for an attachment or a native Fidra selection. If several accounts/statements are plausible, ask which to reconcile.
+After approval, call `list_connections` again. Summarize the permitted accounts and actions without dumping financial history. If several ledgers are approved, ask which to use and supply its `connectionId` on subsequent calls. Do not choose by window focus. To connect an additional or moved ledger, call `connect_fidra` with `newConnection: true` and obtain a new native approval. Changing an existing permission first requires its administrator to revoke it.
 
-Continue with `fidra-reconcile` when the user wants to reconcile a statement. Do not create a draft solely as an installation test. Prefer the synthetic trial ledger when the user wants a demonstration.
+Installation and consent persist. Paused access means Fidra is closed, the computer is locked, the authorised user is signed out, or the standalone owner needs to unlock access. Ask the user to open/unlock Fidra; do not require package exports, context files, plugin reinstallation or hourly reconnection. Revoked permissions require a new administrator approval. Never expand scope automatically.
+
+When the user requests reconciliation, continue with `fidra-reconcile` and read only the account/date context needed for that request. Do not import or stage transactions solely to test setup. Do not claim a public-directory listing or actual client installation has been verified from a successful connector test.
