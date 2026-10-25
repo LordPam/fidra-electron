@@ -125,7 +125,7 @@ export interface ActivityRow {
   displayTitle: string;
   parsedDate: string | null;
   parsedEndDate: string | null;
-  datePrecision: import('@/lib/activity-parser').DatePrecision;
+  datePrecision: import('../../shared/activity-parser').DatePrecision;
   count: number;
   income: number;
   expenses: number;
@@ -143,7 +143,7 @@ export interface MonthViewRow extends ActivityRow {
 // Planned view types
 export interface ExpandedTemplate {
   template: import('../../shared/ipc-types').PlannedTemplateRow;
-  instances: import('@/services/forecast').PlannedInstance[];
+  instances: import('../../shared/forecast').PlannedInstance[];
   nextDue: string | null;
   overdueDate: string | null;
 }

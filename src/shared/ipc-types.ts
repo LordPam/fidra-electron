@@ -107,6 +107,7 @@ export interface MigrationResult {
   success: boolean;
   newDbPath?: string;
   error?: string;
+  retryable?: boolean;
 }
 
 export interface LocalSyncConfig {
@@ -190,19 +191,6 @@ export interface ImportNotification {
 }
 
 // ─── Update types ───────────────────────────────────────────────────
-
-export interface UpdateInfo {
-  version: string;
-  currentVersion: string;
-  releaseNotes: string | null;
-  downloadUrl: string | null;
-}
-
-export interface UpdateDownloadProgress {
-  percent: number;
-  transferred: number;
-  total: number;
-}
 
 // ─── Backup types ───────────────────────────────────────────────────
 
@@ -421,6 +409,22 @@ export interface IpcChannels {
   };
 
   // Startup
+  'ai:selectStatement': { args: []; result: import('./statement-types').SelectedStatement | null };
+  'ai:exportContext': { args: [string]; result: boolean };
+  'ai:openProposal': { args: []; result: import('./reconciliation-types').ReconciliationProposal | null };
+  'ai:getState': { args: []; result: import('./ai-bridge-types').AiBridgeState };
+  'ai:connect': { args: [{ client: import('./ai-bridge-types').AiClient; scope: import('./reconciliation-types').ReconciliationScope; permissions?: import('./ai-bridge-types').AiConnectionPermissions }]; result: import('./ai-bridge-types').AiConnection };
+  'ai:disconnect': { args: [string]; result: void };
+  'ai:exportConnection': { args: [string]; result: boolean };
+  'ai:discard': { args: [string]; result: void };
+  'ai:approve': { args: [import('./reconciliation-types').ReconciliationApproval]; result: import('./reconciliation-types').ReconciliationCommit };
+  'ai:undo': { args: [string]; result: void };
+  'invitation:open': { args: []; result: { invitation: import('./invitation-types').FidraInvitation; syncFolder: string | null } | null };
+  'invitation:save': { args: [import('./invitation-types').FidraInvitation]; result: boolean };
+  'device:getInfo': { args: []; result: import('./device-types').DeviceDataInfo };
+  'device:showFinancialFiles': { args: []; result: void };
+  'device:reset': { args: [{ confirmed: true; action?: 'reset' | 'uninstall' }]; result: import('./device-types').DeviceActionResult };
+  'device:prepared': { args: [import('./update-types').UpdatePreparationReply]; result: void };
   'app:getStartupMode': {
     args: [];
     result: { mode: 'wizard' | 'restore' | 'chooser' };
@@ -440,7 +444,7 @@ export interface IpcChannels {
     result: { filePath: string | null; canceled: boolean; error?: string };
   };
   'window:createNewDb': {
-    args: [];
+    args: [options?: { chooseLocation: boolean }];
     result: { filePath: string | null; canceled: boolean; error?: string };
   };
   'window:getRecentFiles': {
@@ -658,7 +662,7 @@ export interface IpcChannels {
   };
   'localAuth:inviteMember': {
     args: [data: { name: string; email: string; role: import('./auth-types').PersonnelRole }];
-    result: { success: boolean; inviteCode?: string; record?: import('./auth-types').PersonnelRecord; error?: string };
+    result: { success: boolean; invitation?: import('./invitation-types').FidraInvitation; inviteCode?: string; record?: import('./auth-types').PersonnelRecord; error?: string };
   };
   'localAuth:changePassword': {
     args: [data: { oldPassword: string; newPassword: string }];
@@ -674,11 +678,11 @@ export interface IpcChannels {
   };
 
   'localSync:joinGroup': {
-    args: [opts: { syncFolder: string; passphrase: string; newDbPath: string }];
+    args: [opts: { syncFolder: string; passphrase: string; newDbPath?: string }];
     result: MigrationResult;
   };
   'localSync:joinViaInvite': {
-    args: [opts: { syncFolder: string; email: string; inviteCode: string; password: string; newDbPath: string }];
+    args: [opts: { syncFolder: string; email: string; inviteCode: string; password: string; newDbPath?: string }];
     result: MigrationResult;
   };
   'localSync:validateFolder': {
@@ -719,15 +723,15 @@ export interface IpcChannels {
     result: void;
   };
 
-  // Update
-  'app:installUpdate': {
-    args: [];
-    result: void;
-  };
-  'app:quitAndInstall': {
-    args: [];
-    result: void;
-  };
+  // Application updates are process-wide and never access ledger rows.
+  'updates:getStatus': { args: []; result: import('./update-types').UpdateStatus };
+  'updates:check': { args: []; result: import('./update-types').UpdateStatus };
+  'updates:download': { args: []; result: import('./update-types').UpdateStatus };
+  'updates:setAutomatic': { args: [automatic: boolean]; result: import('./update-types').UpdateStatus };
+  'updates:remindLater': { args: []; result: import('./update-types').UpdateStatus };
+  'updates:openInstaller': { args: []; result: import('./update-types').UpdateStatus };
+  'updates:openReleasePage': { args: []; result: void };
+  'updates:prepared': { args: [reply: import('./update-types').UpdatePreparationReply]; result: void };
 }
 
 export type IpcChannel = keyof IpcChannels;

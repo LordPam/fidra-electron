@@ -6,11 +6,11 @@ import { usePlannedStore } from '@/stores/planned-store';
 import { useUiStore } from '@/stores/ui-store';
 import { formatCurrency } from '@/lib/format';
 import { cn } from '@/lib/utils';
-import { parseActivityDate } from '@/lib/activity-parser';
-import type { DatePrecision } from '@/lib/activity-parser';
+import { parseActivityDate } from '../../shared/activity-parser';
+import type { DatePrecision } from '../../shared/activity-parser';
 import type { CategoryData } from '@/lib/chart-utils';
 import { aggregateActivities, computeMonthView } from '@/services/activity-aggregation';
-import { expandTemplate } from '@/services/forecast';
+import { expandTemplate } from '../../shared/forecast';
 import { ExpensesByCategoryChart } from '@/components/ExpensesByCategoryChart';
 import { NetPositionChart } from '@/components/ActualVsPlannedChart';
 import { MonthSelector } from '@/components/MonthSelector';
@@ -102,9 +102,10 @@ export default function ActivitiesView() {
     switch (sortBy) {
       case 'date':
         sorted.sort((a, b) => {
-          const aKey = a.parsedDate ?? '\uffff';
-          const bKey = b.parsedDate ?? '\uffff';
-          return aKey.localeCompare(bKey);
+          if (a.parsedDate === null && b.parsedDate === null) return a.displayTitle.localeCompare(b.displayTitle);
+          if (a.parsedDate === null) return 1;
+          if (b.parsedDate === null) return -1;
+          return b.parsedDate.localeCompare(a.parsedDate);
         });
         break;
       case 'expense':
@@ -450,7 +451,7 @@ export default function ActivitiesView() {
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <header className="flex items-center gap-3 px-6 py-3 border-b border-border-subtle bg-surface-raised shrink-0">
+      <header className="app-drag app-view-header flex items-center gap-3 px-6 py-3 border-b border-border-subtle bg-surface-raised shrink-0">
         <h1 className="text-xl font-display font-semibold">Activities</h1>
         <MonthSelector
           year={selectedMonth.year}

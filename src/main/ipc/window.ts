@@ -2,6 +2,8 @@ import { ipcMain, dialog, BrowserWindow } from 'electron';
 import { z } from 'zod';
 import path from 'node:path';
 import os from 'node:os';
+import fs from 'node:fs';
+import { reserveAccountPath } from '../services/account-catalog';
 import { resolveContext } from './context-resolver';
 import { getWindowManager } from '../window/window-manager';
 import {
@@ -48,6 +50,8 @@ export function registerWindowHandlers(): void {
       return { mode: 'restore' as const };
     }
 
+    const context = resolveContext(event);
+    if (context.startupMode !== 'restore') return { mode: context.startupMode };
     const settings = loadGlobalSettings();
     if (!settings.firstRunComplete) {
       return { mode: 'wizard' as const };
@@ -64,8 +68,9 @@ export function registerWindowHandlers(): void {
     return { mode: 'restore' as const };
   });
 
-  ipcMain.handle('app:markFirstRunComplete', () => {
+  ipcMain.handle('app:markFirstRunComplete', (event) => {
     markFirstRunComplete();
+    getWindowManager().markStartupComplete(event.sender.id);
   });
 
   ipcMain.handle('window:create', async (event, dbPath?: unknown) => {
@@ -129,6 +134,7 @@ export function registerWindowHandlers(): void {
       // Switch the current window to the chosen file instead of creating a
       // second window. This avoids the first-run bug where the default
       // fidra.db is opened before the user picks their own file.
+      markFirstRunComplete();
       await wm.switchWindowToFile(event.sender.id, filePath);
       wm.markStartupComplete(event.sender.id);
       return { filePath, canceled: false };
@@ -139,7 +145,17 @@ export function registerWindowHandlers(): void {
     }
   });
 
-  ipcMain.handle('window:createNewDb', async (event) => {
+  ipcMain.handle('window:createNewDb', async (event, rawOptions?: unknown) => {
+    const options = z.object({ chooseLocation: z.boolean() }).optional().parse(rawOptions);
+    if (options?.chooseLocation === false) {
+      const filePath = reserveAccountPath();
+      try {
+        markFirstRunComplete();
+        await getWindowManager().switchWindowToFile(event.sender.id, filePath);
+        getWindowManager().markStartupComplete(event.sender.id);
+        return { filePath, canceled: false };
+      } catch (error) { return { filePath: null, canceled: false, error: String(error) }; }
+    }
     const win = BrowserWindow.fromWebContents(event.sender) ?? BrowserWindow.getFocusedWindow();
     const result = await dialog.showSaveDialog(win ?? BrowserWindow.getAllWindows()[0], {
       title: 'Create New Fidra Database',
@@ -157,6 +173,7 @@ export function registerWindowHandlers(): void {
       return { filePath: null, canceled: true };
     }
 
+    if (fs.existsSync(result.filePath)) return { filePath: null, canceled: false, error: 'A file already exists there. Choose another name or open the existing ledger.' };
     try {
       const wm = getWindowManager();
       // Switch the current window instead of creating a new one (avoids
@@ -230,6 +247,8 @@ export function registerWindowHandlers(): void {
     try {
       const wcId = event.sender.id;
       const wm = getWindowManager();
+      if (!fs.existsSync(validPath)) return { success: false, reloading: false, error: 'This ledger was moved or removed. Choose Open a ledger to find it.' };
+      markFirstRunComplete();
       const reloading = await wm.switchWindowToFile(wcId, validPath);
       if (reloading) wm.markStartupComplete(wcId);
       return { success: true, reloading };

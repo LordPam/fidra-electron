@@ -39,7 +39,7 @@ function isRealCalendarDate(value: string): boolean {
 }
 
 /** A calendar date: `YYYY-MM-DD`, and a date that exists. */
-const dateSchema = z
+export const dateSchema = z
   .string()
   .regex(ISO_DATE, 'expected a YYYY-MM-DD date')
   .refine(isRealCalendarDate, 'not a real calendar date');
@@ -234,6 +234,7 @@ export const uiPreferencesSchema = z.object({
   showPlanned: z.boolean(),
   filteredBalanceMode: z.boolean(),
   theme: themeModeSchema,
+  sidebarCollapsed: z.boolean(),
   reportOrgName: z.string().optional(),
 });
 
@@ -276,7 +277,7 @@ export const localSyncResolutionSchema = z.enum(['keep-local', 'accept-remote', 
 export const localSyncMigrationOptsSchema = z.object({
   syncFolder: z.string().min(1),
   passphrase: z.string().min(1),
-  newDbPath: z.string().min(1),
+  newDbPath: z.string().min(1).optional(),
 });
 
 export const localSyncJoinViaInviteSchema = z.object({
@@ -284,7 +285,7 @@ export const localSyncJoinViaInviteSchema = z.object({
   email: z.string().min(1),
   inviteCode: z.string().min(1),
   password: z.string().min(6),
-  newDbPath: z.string().min(1),
+  newDbPath: z.string().min(1).optional(),
 });
 
 // ─── Backup schemas ─────────────────────────────────────────────────

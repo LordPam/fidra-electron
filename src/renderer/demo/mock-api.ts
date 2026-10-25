@@ -70,6 +70,9 @@ export function createDemoApi(): ElectronApi {
   };
 
   const implemented = {
+    // Not Electron — no native window chrome to lay out around.
+    platform: 'browser',
+
     getTransactions: async (sheet?: string) =>
       clone(sheet ? state.transactions.filter((row) => row.sheet === sheet) : state.transactions),
 
@@ -402,6 +405,16 @@ export function createDemoApi(): ElectronApi {
       retentionCount: 10,
       autoBackupOnClose: false,
     }),
+    getUpdateStatus: async () => ({ revision: 0, phase: 'unavailable' as const, currentVersion: 'demo', version: null,
+      releaseNotes: [], progress: 0, lastCheckedAt: null, automatic: false, remindAfter: null,
+      installerReady: false, error: null, message: 'App updates are available in the desktop app.' }),
+    getAiBridgeState: async () => ({ connections: [], proposals: [], statements: [] }),
+    connectAi: async () => { throw new Error('Personal AI connections are available in the desktop app.'); },
+    getDeviceDataInfo: async () => ({ accounts: [], financialDirectory: 'Desktop app only', attachmentDirectory: 'Desktop app only' }),
+    resetDevice: async () => ({ success: false, error: 'Device reset is available in the desktop app.' }),
+    showFinancialFiles: async () => undefined,
+    waitForPendingWork: async () => null,
+    openUpdateReleasePage: async () => { window.open('https://github.com/LordPam/fidra-electron/releases/latest', '_blank', 'noopener'); },
     backupCreate: async () => undefined,
     backupRestore: async () => ({ success: false, error: 'Disabled in browser demo.' }),
     backupDelete: async () => undefined,

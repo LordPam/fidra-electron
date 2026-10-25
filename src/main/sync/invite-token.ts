@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
+import { decodeInvitationPayload } from './invitation';
 import { wrapPassphrase, unwrapPassphrase } from './key-wrap';
 import { syncLog, errorMessage } from './sync-log';
 
@@ -83,6 +84,7 @@ export function readInviteToken(
 
   let raw: string;
   try {
+    if (fs.statSync(filePath).size > 16_384) throw new Error('Invitation file is too large.');
     raw = fs.readFileSync(filePath, 'utf-8');
   } catch (e) {
     const code = (e as NodeJS.ErrnoException).code;
@@ -90,7 +92,8 @@ export function readInviteToken(
     throw e;
   }
 
-  const parsed = JSON.parse(raw) as { encrypted: string; salt: string };
+  const parsed = JSON.parse(raw) as { version?: number; encrypted: string; salt: string };
+  if (parsed.version === 2) return decodeInvitationPayload(parsed.encrypted, parsed.salt, password, email).passphrase;
   // unwrapPassphrase throws on wrong password (AES-GCM auth tag mismatch)
   return unwrapPassphrase(parsed.encrypted, parsed.salt, password);
 }

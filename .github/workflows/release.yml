@@ -3,52 +3,74 @@ name: Release
 on:
   push:
     tags:
-      - 'v*' # Trigger on version tags like v0.1.0, v1.0.0-beta.1
+      - 'v*'
 
 concurrency:
   group: release-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
-  # Both platforms build in parallel and upload to a shared draft release
   build:
     strategy:
       fail-fast: false
       matrix:
         include:
-          - os: macos-latest
+          - os: macos-15
             platform: darwin
+            arch: arm64
           - os: windows-latest
             platform: win32
-
+            arch: x64
     runs-on: ${{ matrix.os }}
     permissions:
       contents: write
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Setup Node.js
+      - name: Set up Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
+      - name: Validate release version and verification key
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          node -e 'const fs = require("fs"); const p = require("./package.json"); const l = require("./package-lock.json"); if (process.env.RELEASE_TAG !== "v" + p.version || l.version !== p.version) throw Error("Tag, package and lockfile versions must match"); if (!fs.existsSync("resources/update-public-key.pem")) throw Error("Configure the Fidra release verification key first")'
       - name: Install dependencies
         run: npm ci
-      - name: Publish
+      - name: Check types and run tests
+        run: |
+          npx tsc --noEmit
+          npm test
+      - name: Prepare update signing key
+        shell: bash
+        env:
+          UPDATE_KEY_B64: ${{ secrets.FIDRA_UPDATE_PRIVATE_KEY_B64 }}
+        run: |
+          node -e 'const fs = require("fs"); const path = require("path"); const crypto = require("crypto"); if (!process.env.UPDATE_KEY_B64) throw Error("Set FIDRA_UPDATE_PRIVATE_KEY_B64 before releasing"); const key = crypto.createPrivateKey(Buffer.from(process.env.UPDATE_KEY_B64, "base64")); if (!crypto.createPublicKey(key).equals(crypto.createPublicKey(fs.readFileSync("resources/update-public-key.pem")))) throw Error("Release signing key does not match the embedded public key"); const file = path.join(process.env.RUNNER_TEMP, "fidra-update-private.pem"); fs.writeFileSync(file, key.export({type:"pkcs8", format:"pem"}), {mode:0o600}); fs.appendFileSync(process.env.GITHUB_ENV, "FIDRA_UPDATE_PRIVATE_KEY_PATH=" + file + "\n")'
+      - name: Build installers and signed update metadata into a draft release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npx electron-forge publish
+        run: npx electron-forge publish --arch=${{ matrix.arch }}
+      - name: Remove temporary signing key
+        if: always()
+        shell: bash
+        run: node -e 'require("fs").rmSync(require("path").join(process.env.RUNNER_TEMP, "fidra-update-private.pem"), {force:true})'
 
-  # After both platforms finish, publish (undraft) the release
   publish-release:
     needs: build
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
-      - name: Publish release
+      - name: Verify all update artifacts and publish
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
-        run: gh release edit "${{ github.ref_name }}" --draft=false
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          gh release view "$RELEASE_TAG" --json assets > release-assets.json
+          node -e 'const names = new Set(require("./release-assets.json").assets.map(a => a.name)); for (const name of ["Fidra-macOS-arm64.dmg", "Fidra-Windows-Setup.exe", "fidra-update-darwin-arm64.json", "fidra-update-win32-x64.json"]) if (!names.has(name)) throw Error("Missing release asset: " + name)'
+          gh release edit "$RELEASE_TAG" --draft=false

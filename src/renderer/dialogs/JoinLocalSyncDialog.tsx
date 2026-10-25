@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import type { FidraInvitation } from '../../shared/invitation-types';
+import { useEffect, useRef, useState } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -20,6 +21,7 @@ interface JoinLocalSyncDialogProps {
 }
 
 export function JoinLocalSyncDialog({ open, onOpenChange, onComplete }: JoinLocalSyncDialogProps) {
+  const [invitation, setInvitation] = useState<FidraInvitation | null>(null);
   const [mode, setMode] = useState<JoinMode>('invite');
   const [folder, setFolder] = useState('');
   const [passphrase, setPassphrase] = useState('');
@@ -29,6 +31,9 @@ export function JoinLocalSyncDialog({ open, onOpenChange, onComplete }: JoinLoca
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPass, setShowPass] = useState(false);
   const [newDbPath, setNewDbPath] = useState('');
+  const joinAbort = useRef<AbortController | null>(null);
+  useEffect(() => () => joinAbort.current?.abort(), []);
+  const [waiting, setWaiting] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -76,18 +81,21 @@ export function JoinLocalSyncDialog({ open, onOpenChange, onComplete }: JoinLoca
   const handleJoin = async () => {
     setError(null);
     setLoading(true);
+    joinAbort.current?.abort();
+    const controller = new AbortController();
+    joinAbort.current = controller;
     try {
       let result;
       if (mode === 'invite') {
-        if (!folder.trim() || !email.trim() || !inviteCode.trim() || !password.trim() || !newDbPath.trim()) {
-          setError('All fields are required.');
+        if (!folder.trim() || !email.trim() || !inviteCode.trim() || !password.trim()) {
+          setError('Choose your shared folder and complete the sign-in details.');
           return;
         }
         if (password.length < 6) {
           setError('Password must be at least 6 characters.');
           return;
         }
-        if (password !== confirmPassword) {
+        if (!invitation?.existingAccount && password !== confirmPassword) {
           setError('Passwords do not match.');
           return;
         }
@@ -95,21 +103,31 @@ export function JoinLocalSyncDialog({ open, onOpenChange, onComplete }: JoinLoca
           syncFolder: folder.trim(),
           email: email.trim(),
           inviteCode: inviteCode.trim().toUpperCase(),
-          password: password.trim(),
-          newDbPath: newDbPath.trim(),
+          password: password,
+          newDbPath: newDbPath.trim() || undefined,
         });
       } else {
-        if (!folder.trim() || !passphrase.trim() || !newDbPath.trim()) {
-          setError('All fields are required.');
+        if (!folder.trim() || !passphrase.trim()) {
+          setError('Choose your shared folder and complete the sign-in details.');
           return;
         }
         result = await window.api.localSyncJoinGroup({
           syncFolder: folder.trim(),
           passphrase: passphrase.trim(),
-          newDbPath: newDbPath.trim(),
+          newDbPath: newDbPath.trim() || undefined,
         });
       }
 
+      for (let attempt = 0; result.retryable && attempt < 24 && !controller.signal.aborted; attempt++) {
+        setWaiting(true); setError('Waiting for OneDrive to download the invitation and team data… You can cancel and return later.');
+        await new Promise((resolve) => setTimeout(resolve, 5000));
+        if (controller.signal.aborted) return;
+        result = mode === 'invite'
+          ? await window.api.localSyncJoinViaInvite({ syncFolder: folder.trim(), email: email.trim(), inviteCode: inviteCode.trim().toUpperCase(), password, newDbPath: newDbPath.trim() || undefined })
+          : await window.api.localSyncJoinGroup({ syncFolder: folder.trim(), passphrase, newDbPath: newDbPath.trim() || undefined });
+      }
+      if (controller.signal.aborted) return;
+      setWaiting(false);
       if (result.success && result.newDbPath) {
         onOpenChange(false);
         const switchResult = await window.api.switchToFile(result.newDbPath);
@@ -122,12 +140,13 @@ export function JoinLocalSyncDialog({ open, onOpenChange, onComplete }: JoinLoca
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Unexpected error.');
     } finally {
-      setLoading(false);
+      if (joinAbort.current === controller) { setLoading(false); setWaiting(false); }
     }
   };
 
   const handleClose = (nextOpen: boolean) => {
-    if (!loading) {
+    if (!loading || waiting) {
+      joinAbort.current?.abort();
       onOpenChange(nextOpen);
       if (!nextOpen) {
         setFolder('');
@@ -141,13 +160,14 @@ export function JoinLocalSyncDialog({ open, onOpenChange, onComplete }: JoinLoca
         setFolderWarning(null);
         setFolderError(null);
         setMode('invite');
+        setInvitation(null);
       }
     }
   };
 
   const canJoin = mode === 'invite'
-    ? folder.trim() && email.trim() && inviteCode.trim() && password.trim() && confirmPassword.trim() && newDbPath.trim()
-    : folder.trim() && passphrase.trim() && newDbPath.trim();
+    ? folder.trim() && email.trim() && inviteCode.trim() && password.trim() && (invitation?.existingAccount || confirmPassword.trim())
+    : folder.trim() && passphrase.trim();
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
@@ -155,16 +175,28 @@ export function JoinLocalSyncDialog({ open, onOpenChange, onComplete }: JoinLoca
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <FolderSync className="h-5 w-5" />
-            Join Local Sync Group
+            Join a team
           </DialogTitle>
           <DialogDescription>
-            Join a team already sharing data via a shared folder. Your data will be populated from the latest snapshot.
+            Join a team already sharing data via a shared folder. Fidra will prepare a local copy of your team’s accounts.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
+          {mode === 'invite' && <div className="space-y-2">
+            <Button variant="outline" disabled={loading} onClick={async () => {
+              try {
+                const result = await window.api.openInvitation();
+                if (!result) return;
+                setInvitation(result.invitation); setEmail(result.invitation.email); setInviteCode(result.invitation.code);
+                if (result.syncFolder) setFolder(result.syncFolder);
+                setError(null);
+              } catch (error) { setError(String(error)); }
+            }}>Open invitation</Button>
+            {invitation && <p className="text-sm">{invitation.existingAccount ? 'Sign in to' : 'Join'} <strong>{invitation.team}</strong> as {invitation.name} ({invitation.email}).</p>}
+          </div>}
           {/* Mode toggle */}
-          <div className="flex rounded-md border p-0.5">
+          {!invitation && <div className="flex rounded-md border p-0.5">
             <button
               type="button"
               className={`flex-1 rounded-sm px-3 py-1.5 text-sm font-medium transition-colors ${
@@ -189,7 +221,7 @@ export function JoinLocalSyncDialog({ open, onOpenChange, onComplete }: JoinLoca
             >
               Passphrase
             </button>
-          </div>
+          </div>}
 
           {/* Sync folder */}
           <div className="space-y-1.5">
@@ -223,7 +255,7 @@ export function JoinLocalSyncDialog({ open, onOpenChange, onComplete }: JoinLoca
           {/* Invite mode: email + invite code + new password */}
           {mode === 'invite' && (
             <>
-              <div className="space-y-1.5">
+              {!invitation && <div className="space-y-1.5">
                 <label htmlFor="join-email" className="text-sm font-medium">Email</label>
                 <Input
                   id="join-email"
@@ -233,8 +265,8 @@ export function JoinLocalSyncDialog({ open, onOpenChange, onComplete }: JoinLoca
                   placeholder="Your email address"
                   disabled={loading}
                 />
-              </div>
-              <div className="space-y-1.5">
+              </div>}
+              {!invitation && <div className="space-y-1.5">
                 <label htmlFor="join-invite-code" className="text-sm font-medium">Invite Code</label>
                 <Input
                   id="join-invite-code"
@@ -242,15 +274,15 @@ export function JoinLocalSyncDialog({ open, onOpenChange, onComplete }: JoinLoca
                   onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
                   placeholder="e.g. K7NP3HWR"
                   className="font-mono tracking-widest uppercase"
-                  maxLength={8}
+                  maxLength={64}
                   disabled={loading}
                 />
                 <p className="text-xs text-muted-foreground">
-                  The 8-character code your admin shared with you.
+                  The access code your admin shared with you. Opening an invitation fills this in automatically.
                 </p>
-              </div>
+              </div>}
               <div className="space-y-1.5">
-                <label htmlFor="join-password" className="text-sm font-medium">New Password</label>
+                <label htmlFor="join-password" className="text-sm font-medium">{invitation?.existingAccount ? 'Your existing password' : 'Choose a password'}</label>
                 <div className="relative">
                   <Input
                     id="join-password"
@@ -270,7 +302,7 @@ export function JoinLocalSyncDialog({ open, onOpenChange, onComplete }: JoinLoca
                   </button>
                 </div>
               </div>
-              <div className="space-y-1.5">
+              {!invitation?.existingAccount && <div className="space-y-1.5">
                 <label htmlFor="join-confirm-password" className="text-sm font-medium">Confirm Password</label>
                 <Input
                   id="join-confirm-password"
@@ -280,7 +312,7 @@ export function JoinLocalSyncDialog({ open, onOpenChange, onComplete }: JoinLoca
                   placeholder="Confirm your password"
                   disabled={loading}
                 />
-              </div>
+              </div>}
             </>
           )}
 
@@ -313,6 +345,7 @@ export function JoinLocalSyncDialog({ open, onOpenChange, onComplete }: JoinLoca
           )}
 
           {/* Save location */}
+          <details className="space-y-1.5"><summary className="cursor-pointer text-sm">Choose a different local location (optional)</summary>
           <div className="space-y-1.5">
             <label htmlFor="join-save-location" className="text-sm font-medium">Save Location</label>
             <div className="flex gap-2">
@@ -320,7 +353,7 @@ export function JoinLocalSyncDialog({ open, onOpenChange, onComplete }: JoinLoca
                 id="join-save-location"
                 value={newDbPath}
                 readOnly
-                placeholder="Choose where to save the new database..."
+                placeholder="Fidra chooses a safe local location"
                 className="flex-1"
               />
               <Button variant="outline" size="sm" onClick={handleBrowseSaveLocation} disabled={loading}>
@@ -329,6 +362,7 @@ export function JoinLocalSyncDialog({ open, onOpenChange, onComplete }: JoinLoca
             </div>
           </div>
 
+          </details>
           {error && (
             <div className="flex items-start gap-2 rounded-md bg-destructive/10 p-3 text-sm text-destructive">
               <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
@@ -338,7 +372,7 @@ export function JoinLocalSyncDialog({ open, onOpenChange, onComplete }: JoinLoca
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => handleClose(false)} disabled={loading}>
+          <Button variant="outline" onClick={() => handleClose(false)} disabled={loading && !waiting}>
             Cancel
           </Button>
           <Button

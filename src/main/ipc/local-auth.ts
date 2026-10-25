@@ -1,4 +1,6 @@
 import os from 'node:os';
+import crypto from 'node:crypto';
+import { createInvitation, writeInvitationToken } from '../sync/invitation';
 import { ipcMain } from 'electron';
 import { resolveContext } from './context-resolver';
 import {
@@ -12,7 +14,6 @@ import { initializeDeviceIdentity, getDeviceIdentity } from '../sync/device-iden
 import { SyncOrchestrator } from '../sync/sync-orchestrator';
 import type { LocalSyncStatus, ImportNotification } from '../../shared/ipc-types';
 import type { LocalAuthStatus } from '../../shared/auth-types';
-import { writeInviteToken, generateInviteCode } from '../sync/invite-token';
 import { syncLog, errorMessage } from '../sync/sync-log';
 import { SessionStore, dbPathToSessionId } from '../services/session-store';
 
@@ -115,29 +116,25 @@ export function registerLocalAuthHandlers(): void {
       return { success: false, error: 'Sync passphrase not available' };
     }
 
-    const result = ctx.localAuthService.inviteMember(
-      name,
-      email,
-      role,
-      ctx.localAuthPersonnel.id,
-    );
-
-    if (!result.success) {
-      return result;
-    }
-
-    // Generate invite code and write invite token (passphrase wrapped with invite code)
-    const inviteCode = generateInviteCode();
+    const existing = ctx.personnelRepo.getByEmail(email);
+    if (existing && !existing.password_hash && (existing.name !== name || existing.role !== role)) return { success: false, error: 'This email has a pending invitation with different details. Use its existing name and role to reissue it.' };
+    const result = existing ? { success: true, record: existing } : ctx.localAuthService.inviteMember(name, email, role, ctx.localAuthPersonnel.id);
+    if (!result.success || !result.record) return result;
     const syncFolder = ctx.settingsRepo.getSetting('localSync.syncFolder');
-    if (syncFolder) {
-      try {
-        writeInviteToken(syncFolder, email, inviteCode, ctx.localSyncPassphrase);
-      } catch (e) {
-        syncLog('warn', 'Failed to write invite token (non-fatal)', { error: errorMessage(e) });
-      }
+    const orchestrator = ctx.localSyncOrchestrator;
+    if (!syncFolder || !orchestrator) return { success: false, error: 'Local Sync must be active before preparing an invitation. Retry after it starts.' };
+    try {
+      const groupId = ctx.settingsRepo.getSetting('localSync.groupId') ?? crypto.randomUUID();
+      ctx.settingsRepo.setSetting('localSync.groupId', groupId, 'org');
+      const invitation = createInvitation({ email: email.trim().toLowerCase(), name: existing?.name ?? name, role: existing?.role ?? role, existingAccount: !!existing?.password_hash,
+        team: ctx.settingsRepo.getSetting('report.orgName') || ctx.dbName, groupId });
+      // The snapshot includes the new person and group identity. Publish the token last.
+      orchestrator.createSnapshot();
+      writeInvitationToken(syncFolder, invitation, ctx.localSyncPassphrase);
+      return { ...result, inviteCode: invitation.code, invitation };
+    } catch (error) {
+      return { success: false, error: `The invitation is not ready: ${errorMessage(error)}. Retry with the same details to reissue it.` };
     }
-
-    return { ...result, inviteCode };
   });
 
   ipcMain.handle('localAuth:changePassword', (event, rawData: unknown) => {

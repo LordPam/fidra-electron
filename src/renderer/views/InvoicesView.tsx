@@ -1,5 +1,6 @@
 // Invoices are intentionally not sheet-scoped — they are ledger-wide documents.
 // Mark-as-paid creates a sheet-scoped transaction, but the invoice itself is global.
+import { useUpdateGuard, useUpdateFlusher, isPreparingUpdate } from '@/services/update-preparation';
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -86,6 +87,10 @@ export default function InvoicesView() {
   const [logoPath, setLogoPath] = useState('');
   const [hydrated, setHydrated] = useState(false);
   const [builderActive, setBuilderActive] = useState(false);
+  useUpdateGuard(() => builderActive && !selectedInvoiceId
+    ? 'Finish the new invoice in Invoices first. Enter a recipient so it can be saved as a draft.'
+    : null);
+
 
   // --- Accent color ---
   const [accentMode, setAccentMode] = useState<AccentMode>('fidra');
@@ -214,7 +219,7 @@ export default function InvoicesView() {
   // --- Persist defaults to SQLite (debounced, only after hydration) ---
   const saveTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   useEffect(() => {
-    if (!hydrated) return;
+    if (!hydrated || isPreparingUpdate()) return;
     clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(() => {
       const defaults: InvoiceDefaults = {
@@ -331,7 +336,7 @@ export default function InvoicesView() {
   }, [selectedInvoiceId]);
 
   useEffect(() => {
-    if (!selectedInvoiceId || isPaid || !autoSaveReadyRef.current) return;
+    if (!selectedInvoiceId || isPaid || !autoSaveReadyRef.current || isPreparingUpdate()) return;
     const existing = invoices.find((i) => i.id === selectedInvoiceId);
     if (!existing) return;
 
@@ -370,7 +375,7 @@ export default function InvoicesView() {
   // Once saved, selectedInvoiceId is set and the existing auto-save takes over.
   const newInvoiceTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   useEffect(() => {
-    if (selectedInvoiceId || !builderActive || !hydrated || !toName.trim()) {
+    if (selectedInvoiceId || !builderActive || !hydrated || !toName.trim() || isPreparingUpdate()) {
       clearTimeout(newInvoiceTimerRef.current);
       return;
     }
@@ -416,6 +421,36 @@ export default function InvoicesView() {
     }, 800);
     return () => clearTimeout(newInvoiceTimerRef.current);
   }, [selectedInvoiceId, builderActive, hydrated, toName, toAddress, date, dueDate, fromName, fromAddress, lineItems, taxRate, grandTotal, notes, bankDetails, plannedTemplateId, existingNumbers, logoPath, save]);
+
+  // Flush the builder explicitly: delayed autosaves alone cannot guarantee a safe quit.
+  useUpdateFlusher(async () => {
+    clearTimeout(saveTimerRef.current);
+    clearTimeout(autoSaveTimerRef.current);
+    clearTimeout(newInvoiceTimerRef.current);
+    if (!hydrated) throw new Error('Invoice settings are still loading. Try updating again in a moment.');
+    if (builderActive && !selectedInvoiceId && !toName.trim()) {
+      throw new Error('Enter a recipient in the new invoice so it can be saved as a draft before continuing.');
+    }
+    const existing = selectedInvoiceId ? useInvoiceStore.getState().invoices.find((invoice) => invoice.id === selectedInvoiceId) : undefined;
+    const nextNumber = builderActive && !selectedInvoiceId ? nextInvoiceNumber(existingNumbers, counterRef.current) : null;
+    await window.api.saveInvoiceDefaults({ fromName, fromAddress, bankDetails, notes, logoPath,
+      logoData: logoDataUri ?? '', counter: nextNumber?.counter ?? counterRef.current, accentMode });
+    if (!builderActive || isPaid) return;
+    if (selectedInvoiceId && !existing) throw new Error('The selected invoice is no longer available. Review it before continuing.');
+    const id = selectedInvoiceId ?? crypto.randomUUID();
+    await save({
+      id, invoice_number: nextNumber?.invoiceNumber ?? invoiceNumber, date, due_date: dueDate,
+      from_name: fromName, from_address: fromAddress || null, to_name: toName, to_address: toAddress || null,
+      line_items: JSON.stringify({ items: lineItems, taxRate, accentMode } as LineItemsWrapper), subtotal: grandTotal.toFixed(2),
+      notes: notes.trim() || null, bank_details: bankDetails.trim() || null, planned_template_id: plannedTemplateId,
+      status: existing?.status ?? 'draft', transaction_id: existing?.transaction_id ?? null,
+      paid_at: existing?.paid_at ?? null, planned_template_snapshot: existing?.planned_template_snapshot ?? null,
+      version: existing?.version ?? 1, created_at: existing?.created_at ?? new Date().toISOString(),
+      modified_at: new Date().toISOString(), modified_by: null,
+    });
+    if (nextNumber) { counterRef.current = nextNumber.counter; setInvoiceNumber(nextNumber.invoiceNumber); }
+    setSelectedInvoiceId(id);
+  });
 
   // --- Logo ---
   const handleChooseLogo = useCallback(async () => {
@@ -823,7 +858,7 @@ export default function InvoicesView() {
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <header className="flex items-center justify-between px-6 py-3 border-b border-border-subtle bg-surface-raised shrink-0">
+      <header className="app-drag app-view-header flex items-center justify-between px-6 py-3 border-b border-border-subtle bg-surface-raised shrink-0">
         <h1 className="text-xl font-display font-semibold">Invoices</h1>
       </header>
 

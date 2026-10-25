@@ -69,3 +69,37 @@ test('refuses an amount it cannot read instead of storing zero', async ({ window
   // Previously `parseFloat(x) || 0` would have quietly booked this as £0.00
   await expect(window.getByText('Should not save')).toHaveCount(0);
 });
+
+test('Ctrl+D duplicates and Ctrl+Delete removes selected real transactions', async ({ window }) => {
+  await goToTransactions(window);
+  await addExpense(window, '18.75', 'Shortcut transaction');
+
+  await window.getByText('Shortcut transaction').click();
+  await window.keyboard.press('Control+d');
+  const shortcutRows = window.locator('tbody tr').filter({ hasText: 'Shortcut transaction' });
+  await expect(shortcutRows).toHaveCount(2);
+
+  await window.keyboard.press('Control+Delete');
+  await expect(shortcutRows).toHaveCount(1);
+});
+
+test('activities default to most recent first', async ({ window }) => {
+  await goToTransactions(window);
+  await window.getByRole('button', { name: 'More details' }).click();
+
+  await window.getByPlaceholder('0.00').fill('10.00');
+  await window.getByPlaceholder('What was this for?').fill('Older activity cost');
+  await window.getByPlaceholder('Activity').fill('2026-09 Older activity');
+  await window.getByRole('button', { name: /^Add (Expense|Income)$/ }).click();
+
+  await window.getByPlaceholder('0.00').fill('20.00');
+  await window.getByPlaceholder('What was this for?').fill('Newer activity cost');
+  await window.getByPlaceholder('Activity').fill('2026-10 Newer activity');
+  await window.getByRole('button', { name: /^Add (Expense|Income)$/ }).click();
+
+  await window.locator('a[href="#/activities"]').click();
+  const activityRows = window.locator('[data-activity]');
+  await expect(activityRows).toHaveCount(2);
+  await expect(activityRows.nth(0)).toHaveAttribute('data-activity', '2026-10 Newer activity');
+  await expect(activityRows.nth(1)).toHaveAttribute('data-activity', '2026-09 Older activity');
+});

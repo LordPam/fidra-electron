@@ -1,5 +1,4 @@
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import { test, expect, assertSandboxed } from './fixtures';
 
@@ -12,7 +11,8 @@ test('runs against a sandboxed home, not the real one', async ({ window, userHom
   assertSandboxed(userHome);
 
   // The app created its state inside the sandbox...
-  const sandboxDb = path.join(userHome, 'userData', 'fidra.db');
+  const sandboxDb = await window.evaluate(() => window.api.getDbPath());
+  expect(sandboxDb.startsWith(path.join(userHome, '.fidra', 'accounts'))).toBe(true);
   await expect.poll(() => fs.existsSync(sandboxDb), {
     message: 'app should create its database inside the sandbox',
   }).toBe(true);
@@ -30,10 +30,118 @@ test('boots to a usable window without main-process errors', async ({ window, ma
   expect(mainErrors, `main process wrote to stderr:\n${mainErrors.join('\n')}`).toEqual([]);
 });
 
-test('lands on an empty dashboard, not a setup wizard', async ({ window }) => {
-  await expect(window.getByText('Dashboard')).toBeVisible({ timeout: 20_000 });
+test('opens a new local ledger from setup', async ({ window }) => {
+  // By role, not text: the expanded sidebar also carries a "Dashboard" nav label.
+  await expect(window.getByRole('heading', { name: 'Dashboard' })).toBeVisible({ timeout: 20_000 });
   await expect(window.getByText('CURRENT BALANCE')).toBeVisible();
   await expect(window.getByText('No recent transactions')).toBeVisible();
+});
+
+test('macOS title band keeps window controls, view title, and sidebar brand in separate zones', async ({ window }) => {
+  const platform = await window.evaluate(() => window.api.platform);
+  if (platform !== 'darwin') test.skip();
+
+  const logo = window.getByTestId('sidebar-brand').locator('img:visible');
+  const title = window.getByRole('heading', { name: 'Dashboard' });
+  const viewHeader = title.locator('..');
+  const sidebar = window.getByTestId('sidebar');
+  const titlebar = window.getByTestId('sidebar-titlebar');
+  const rail = window.getByTestId('sidebar-rail');
+  const cornerUnderlay = window.getByTestId('sidebar-panel-corner-underlay');
+  const panel = window.getByTestId('sidebar-panel-surface');
+  const [logoBox, titleBox, viewHeaderBox, sidebarBox, titlebarBox, railBox, cornerUnderlayBox, panelBox] = await Promise.all([
+    logo.boundingBox(),
+    title.boundingBox(),
+    viewHeader.boundingBox(),
+    sidebar.boundingBox(),
+    titlebar.boundingBox(),
+    rail.boundingBox(),
+    cornerUnderlay.boundingBox(),
+    panel.boundingBox(),
+  ]);
+
+  expect(logoBox).not.toBeNull();
+  expect(titleBox).not.toBeNull();
+  expect(viewHeaderBox).not.toBeNull();
+  expect(sidebarBox).not.toBeNull();
+  expect(titlebarBox).not.toBeNull();
+  expect(railBox).not.toBeNull();
+  expect(cornerUnderlayBox).not.toBeNull();
+  expect(panelBox).not.toBeNull();
+  if (!logoBox || !titleBox || !viewHeaderBox || !sidebarBox || !titlebarBox || !railBox || !cornerUnderlayBox || !panelBox) {
+    throw new Error('Expected visible sidebar and title geometry');
+  }
+  expect(titlebarBox.height).toBe(52);
+  // The rail supplies the top-left corner material. The title band must begin
+  // beside it rather than stacking another translucent layer over the rail.
+  expect(titlebarBox.x).toBe(railBox.x + railBox.width);
+  // The remaining pixel is the sidebar's right-hand separator border.
+  expect(titlebarBox.x + titlebarBox.width).toBe(sidebarBox.x + sidebarBox.width - 1);
+  expect(viewHeaderBox.height).toBe(titlebarBox.height);
+  expect(viewHeaderBox.y + viewHeaderBox.height).toBe(titlebarBox.y + titlebarBox.height);
+  expect(titleBox.y).toBeLessThan(titlebarBox.y + titlebarBox.height);
+  expect(logoBox.y).toBeGreaterThanOrEqual(titlebarBox.y + titlebarBox.height + 12);
+  expect(titleBox.x).toBeGreaterThanOrEqual(sidebarBox.x + sidebarBox.width + 20);
+  expect(panelBox.x).toBe(railBox.x + railBox.width);
+  expect(panelBox.y).toBe(titlebarBox.y + titlebarBox.height);
+  expect(cornerUnderlayBox).toEqual({ x: panelBox.x, y: panelBox.y, width: 16, height: 16 });
+
+  const [titlebarColor, railColor, cornerUnderlayColor, headerColor, panelRadius] = await Promise.all([
+    titlebar.evaluate((element) => getComputedStyle(element).backgroundColor),
+    rail.evaluate((element) => getComputedStyle(element).backgroundColor),
+    cornerUnderlay.evaluate((element) => getComputedStyle(element).backgroundColor),
+    viewHeader.evaluate((element) => getComputedStyle(element).backgroundColor),
+    panel.evaluate((element) => getComputedStyle(element).borderTopLeftRadius),
+  ]);
+  expect(railColor).toBe(titlebarColor);
+  expect(cornerUnderlayColor).toBe(railColor);
+  expect(headerColor).toBe(titlebarColor);
+  expect(panelRadius).toBe('16px');
+  await expect(window.locator('html')).toHaveClass(/mac-vibrancy/);
+  expect(titlebarColor).not.toBe(await panel.evaluate((element) => getComputedStyle(element).backgroundColor));
+});
+
+test('macOS window exposes native material only through translucent chrome', async ({ window }) => {
+  const platform = await window.evaluate(() => window.api.platform);
+  if (platform !== 'darwin') test.skip();
+
+  const titlebarColor = await window.getByTestId('sidebar-titlebar').evaluate(
+    (element) => getComputedStyle(element).backgroundColor,
+  );
+  expect(titlebarColor).toMatch(/\/\s*0\.44\)|rgba\([^)]*,\s*0\.44\)/);
+  const panelColor = await window.getByTestId('sidebar-panel-surface').evaluate(
+    (element) => getComputedStyle(element).backgroundColor,
+  );
+  expect(panelColor).not.toBe(titlebarColor);
+  expect(panelColor).not.toMatch(/\/\s*0\.[0-9]+\)|rgba\([^)]*,\s*0\.[0-9]+\)/);
+});
+
+test('sheet selector is plain text without a floating card background', async ({ window }) => {
+  const selector = window.getByTestId('sidebar-sheet-selector');
+  await expect(selector).toBeVisible();
+  expect(await selector.evaluate((element) => getComputedStyle(element).backgroundColor)).toBe('rgba(0, 0, 0, 0)');
+});
+
+test('sidebar collapses to its icon rail and remains fully navigable', async ({ window }) => {
+  const sidebar = window.getByTestId('sidebar');
+  const rail = window.getByTestId('sidebar-rail');
+  const expandedBox = await sidebar.boundingBox();
+  const railBox = await rail.boundingBox();
+
+  expect(expandedBox).not.toBeNull();
+  expect(railBox).not.toBeNull();
+  if (!expandedBox || !railBox) throw new Error('Expected visible sidebar geometry');
+  expect(expandedBox.width).toBe(240);
+  expect(railBox.width).toBe(56);
+
+  await window.getByRole('button', { name: 'Collapse sidebar' }).click();
+  await expect(sidebar).toHaveAttribute('data-collapsed', 'true');
+  await expect.poll(async () => (await sidebar.boundingBox())?.width).toBe(56);
+  await expect(window.getByRole('link', { name: 'Transactions' })).toBeVisible();
+
+  await window.getByRole('button', { name: 'Expand sidebar' }).click();
+  await expect(sidebar).toHaveAttribute('data-collapsed', 'false');
+  await expect.poll(async () => (await sidebar.boundingBox())?.width).toBe(240);
 });
 
 // The default-sheet creation on first run is covered by transactions.e2e.ts rather

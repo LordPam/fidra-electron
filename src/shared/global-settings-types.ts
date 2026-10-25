@@ -13,11 +13,15 @@ export interface UiPreferences {
   showPlanned: boolean;
   filteredBalanceMode: boolean;
   theme: ThemeMode;
+  /** Sidebar shows icons only (labels hidden, tooltips on hover) when true. */
+  sidebarCollapsed: boolean;
   /** @deprecated Moved to per-database SQLite settings (report.orgName, org-scoped). Kept for backwards compat with existing settings files. */
   reportOrgName?: string;
 }
 
 export interface GlobalSettings {
+  /** Ledger windows to restore after a deliberate update handoff. */
+  updateReopenPaths?: string[];
   recentFiles: RecentFileEntry[];
   lastFile: string | null;
   lastOpenedAt: string | null;

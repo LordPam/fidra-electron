@@ -1,8 +1,8 @@
 import type { TransactionRow, PlannedTemplateRow } from '../../shared/ipc-types';
 import type { ActivityRow, MonthViewRow } from '@/domain/models';
-import type { DatePrecision } from '@/lib/activity-parser';
-import { parseActivityDate } from '@/lib/activity-parser';
-import { expandTemplate } from '@/services/forecast';
+import type { DatePrecision } from '../../shared/activity-parser';
+import { parseActivityDate } from '../../shared/activity-parser';
+import { expandTemplate } from '../../shared/forecast';
 import { toAmount } from '../../shared/money';
 
 export function lastDayOfMonth(year: number, month: number): string {

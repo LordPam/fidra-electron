@@ -7,6 +7,7 @@ import { useInvoiceStore } from '../stores/invoice-store';
 import { useAttachmentSignal } from '../stores/attachment-signal';
 
 export interface UndoCommand {
+  id?: string;
   execute: () => Promise<void>;
   undo: () => Promise<void>;
   description: string;
@@ -38,6 +39,18 @@ export function createAddTransactionCommand(transaction: TransactionRow): UndoCo
     },
     undo: async () => {
       await useTransactionStore.getState().removeTransaction(transaction.id);
+    },
+  };
+}
+
+export function createBulkAddTransactionsCommand(transactions: TransactionRow[]): UndoCommand {
+  return {
+    description: `Duplicate ${transactions.length} transaction${transactions.length !== 1 ? 's' : ''}`,
+    execute: async () => {
+      await useTransactionStore.getState().bulkRestore(transactions);
+    },
+    undo: async () => {
+      await useTransactionStore.getState().bulkRemove(transactions.map((transaction) => transaction.id));
     },
   };
 }
@@ -151,6 +164,18 @@ export function createAddPlannedCommand(template: PlannedTemplateRow): UndoComma
   };
 }
 
+export function createBulkAddPlannedCommand(templates: PlannedTemplateRow[]): UndoCommand {
+  return {
+    description: `Duplicate ${templates.length} planned group${templates.length !== 1 ? 's' : ''}`,
+    execute: async () => {
+      await usePlannedStore.getState().bulkUpdateTemplates(templates);
+    },
+    undo: async () => {
+      await Promise.all(templates.map((template) => usePlannedStore.getState().removeTemplate(template.id)));
+    },
+  };
+}
+
 export function createEditPlannedCommand(
   oldTemplate: PlannedTemplateRow,
   newTemplate: PlannedTemplateRow,
@@ -166,6 +191,21 @@ export function createEditPlannedCommand(
   };
 }
 
+export function createBulkEditPlannedCommand(
+  oldTemplates: PlannedTemplateRow[],
+  newTemplates: PlannedTemplateRow[],
+): UndoCommand {
+  return {
+    description: `Bulk edit: ${newTemplates.length} planned group${newTemplates.length !== 1 ? 's' : ''}`,
+    execute: async () => {
+      await usePlannedStore.getState().bulkUpdateTemplates(newTemplates);
+    },
+    undo: async () => {
+      await usePlannedStore.getState().bulkUpdateTemplates(oldTemplates);
+    },
+  };
+}
+
 export function createDeletePlannedCommand(template: PlannedTemplateRow): UndoCommand {
   return {
     description: `Delete planned: ${template.description}`,
@@ -174,6 +214,18 @@ export function createDeletePlannedCommand(template: PlannedTemplateRow): UndoCo
     },
     undo: async () => {
       await usePlannedStore.getState().restoreTemplate(template);
+    },
+  };
+}
+
+export function createBulkDeletePlannedCommand(templates: PlannedTemplateRow[]): UndoCommand {
+  return {
+    description: `Delete ${templates.length} planned group${templates.length !== 1 ? 's' : ''}`,
+    execute: async () => {
+      await Promise.all(templates.map((template) => usePlannedStore.getState().removeTemplate(template.id)));
+    },
+    undo: async () => {
+      await usePlannedStore.getState().bulkUpdateTemplates(templates);
     },
   };
 }
@@ -601,5 +653,18 @@ export function createRevertToDraftCommand(
         await usePlannedStore.getState().removeTemplate(templateAfterRevert.id);
       }
     },
+  };
+}
+
+/** Applies the exact server-held draft. Undo is an atomic, version-checked batch. */
+export function createReconciliationImportCommand(approval: import('../../shared/reconciliation-types').ReconciliationApproval): UndoCommand {
+  const refresh = async () => {
+    await Promise.all([useTransactionStore.getState().silentRefresh(), usePlannedStore.getState().silentRefresh()]);
+  };
+  return {
+    id: `reconciliation:${approval.id}`,
+    description: 'Import bank statement',
+    execute: async () => { await window.api.approveAiProposal(approval); await refresh(); },
+    undo: async () => { await window.api.undoAiImport(approval.id); await refresh(); },
   };
 }

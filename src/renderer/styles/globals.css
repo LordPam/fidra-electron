@@ -180,22 +180,100 @@
     font-family: var(--font-body);
   }
 
-  /* Active sidebar nav link */
-  .sidebar-nav-active {
-    background-color: color-mix(in oklch, var(--color-fidra-teal) 18%, transparent);
+  /* Native macOS vibrancy is visible only through the window chrome. The
+   * navigation pane and every ledger surface remain opaque. */
+  html.mac-vibrancy,
+  html.mac-vibrancy body,
+  html.mac-vibrancy #root {
+    background-color: transparent;
   }
-  .sidebar-nav-active::before {
-    content: '';
-    position: absolute;
-    left: -8px;
-    top: 8px;
-    bottom: 8px;
-    width: 3px;
-    border-radius: 0 4px 4px 0;
-    background-color: var(--color-fidra-teal);
+  .mac-frameless {
+    --app-chrome-tint: color-mix(in srgb, var(--color-surface-base) 44%, transparent);
+    background-color: transparent;
   }
-  .dark .sidebar-nav-active {
-    background-color: color-mix(in oklch, var(--color-fidra-teal) 22%, transparent);
+  .dark .mac-frameless {
+    --app-chrome-tint: color-mix(in srgb, var(--color-surface-base) 56%, transparent);
+  }
+  .mac-frameless .app-sidebar-shell {
+    background-color: transparent;
+  }
+  .mac-frameless .app-chrome-material,
+  .mac-frameless .app-view-header {
+    background-color: var(--app-chrome-tint);
+  }
+  .mac-frameless .app-main-shell {
+    background: linear-gradient(
+      to bottom,
+      transparent 0,
+      transparent 52px,
+      var(--color-surface-base) 52px,
+      var(--color-surface-base) 100%
+    );
+  }
+  .mac-frameless .view-enter > .bg-surface-base {
+    background-color: transparent;
+  }
+
+  /* The sidebar has two visual layers: an icon rail and a quieter label pane. */
+  .sidebar-row-icon,
+  .sidebar-row-label {
+    transition: color 150ms ease, background-color 150ms ease;
+  }
+  .sidebar-row:hover .sidebar-row-icon,
+  .sidebar-row:hover .sidebar-row-label {
+    color: var(--color-foreground);
+    background-color: color-mix(in oklch, var(--color-foreground) 5%, transparent);
+  }
+  .sidebar-nav-active .sidebar-row-icon {
+    color: var(--color-foreground);
+    background-color: color-mix(in oklch, var(--color-foreground) 10%, transparent);
+  }
+  .sidebar-nav-active .sidebar-row-label {
+    color: var(--color-foreground);
+    background-color: color-mix(in oklch, var(--color-foreground) 6%, transparent);
+  }
+  .sidebar-nav-active .sidebar-row-label > span {
+    font-weight: 600;
+  }
+
+  /*
+   * Window drag handles. The macOS window is frameless (`titleBarStyle:
+   * hiddenInset`), so the app itself has to say which surfaces move the window.
+   * Applied to the view headers and the sidebar's logo row; every interactive
+   * descendant is opted back out, or it would stop receiving clicks.
+   */
+  .app-drag {
+    -webkit-app-region: drag;
+  }
+  .app-drag button,
+  .app-drag a,
+  .app-drag input,
+  .app-drag textarea,
+  .app-drag select,
+  .app-drag label,
+  .app-drag [role='button'],
+  .app-drag [role='combobox'],
+  .app-drag [role='tab'],
+  .app-drag [role='slider'],
+  .app-drag .no-drag {
+    -webkit-app-region: no-drag;
+  }
+
+  /* The current-view title owns the macOS title band. The sidebar reserves the
+   * matching 52px as a blank drag surface for the traffic lights, then begins
+   * its brand and navigation below it. */
+  .mac-frameless .app-view-header {
+    height: 52px;
+    min-height: 52px;
+    padding-top: 0;
+    padding-bottom: 0;
+  }
+
+  @media (prefers-reduced-transparency: reduce) {
+    .mac-frameless .app-chrome-material,
+    .mac-frameless .app-view-header {
+      background-color: var(--color-surface-base);
+    }
   }
 
   /* Transition helpers */

@@ -18,7 +18,7 @@ import {
 } from '@/components/ui/select';
 import { ComboboxInput } from '@/components/ComboboxInput';
 import { Checkbox } from '@/components/ui/checkbox';
-import { ArrowRightLeft } from 'lucide-react';
+import { AlertTriangle, ArrowRightLeft } from 'lucide-react';
 import type { PlannedTemplateRow } from '../../shared/ipc-types';
 import { isPositiveAmount, toAmountString } from '../../shared/money';
 
@@ -34,6 +34,7 @@ interface EditPlannedDialogProps {
   descriptionSuggestions: string[];
   partySuggestions: string[];
   activitySuggestions: string[];
+  affectsMultipleInstances?: boolean;
   onSave: (original: PlannedTemplateRow, updated: PlannedTemplateRow) => void;
 }
 
@@ -56,6 +57,7 @@ export function EditPlannedDialog({
   descriptionSuggestions,
   partySuggestions,
   activitySuggestions,
+  affectsMultipleInstances = false,
   onSave,
 }: EditPlannedDialogProps) {
   const [mode, setMode] = useState<PlannedMode>('expense');
@@ -176,6 +178,13 @@ export function EditPlannedDialog({
         <DialogHeader>
           <DialogTitle>Edit Planned Transaction</DialogTitle>
         </DialogHeader>
+
+        {affectsMultipleInstances && (
+          <div className="flex gap-2 rounded-md border border-fidra-warning/40 bg-fidra-warning/10 p-3 text-xs text-fidra-warning" role="alert">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+            <p>This group has multiple linked occurrences. Your changes will propagate to every occurrence in the group.</p>
+          </div>
+        )}
 
         <div className="flex flex-col gap-3 py-2">
           {/* Type toggle — branded teal */}

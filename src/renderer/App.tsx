@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { HashRouter, Routes, Route, useNavigate, useLocation } from 'react-router-dom';
+import { AiProposalNotice } from '@/components/AiProposalNotice';
 import { Sidebar } from '@/components/Sidebar';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import DashboardView from '@/views/DashboardView';
@@ -26,6 +27,7 @@ import { SyncToast } from '@/components/SyncToast';
 import { UpdateToast } from '@/components/UpdateToast';
 import { useAttachmentSignal } from '@/stores/attachment-signal';
 import type { ImportPersonSummary } from '../shared/ipc-types';
+import { isMacFrameless } from '@/lib/platform';
 
 const ROUTES = ['/', '/transactions', '/planned', '/activities', '/invoices', '/reports', '/settings'];
 
@@ -238,7 +240,7 @@ function AnimatedMain() {
   const location = useLocation();
   const currentSheet = useSheetStore((s) => s.currentSheet);
   return (
-    <main className="flex-1 overflow-hidden">
+    <main className="app-main-shell flex-1 overflow-hidden">
       <div key={`${location.pathname}::${currentSheet}`} className="view-enter h-full">
         <Routes>
           <Route path="/" element={<ErrorBoundary><DashboardView /></ErrorBoundary>} />
@@ -257,6 +259,12 @@ function AnimatedMain() {
 export function App() {
   const [startupOverlay, setStartupOverlay] = useState<'wizard' | 'chooser' | null | 'loading'>('loading');
   const { showGate, pending: authPending, personnelEmpty } = useAuthGate();
+  const macFrameless = isMacFrameless();
+
+  useEffect(() => {
+    document.documentElement.classList.toggle('mac-vibrancy', macFrameless);
+    return () => document.documentElement.classList.remove('mac-vibrancy');
+  }, [macFrameless]);
 
   const showFileChooser = useCallback(() => {
     setStartupOverlay('chooser');
@@ -284,7 +292,7 @@ export function App() {
         <AuthWiring />
         <ThemeWatcher />
         <UpdateToast />
-        <div className="flex h-screen items-center justify-center bg-surface" />
+        <div className="flex h-screen items-center justify-center bg-surface-base" />
       </>
     );
   }
@@ -335,12 +343,13 @@ export function App() {
       <AuthWiring />
       <ThemeWatcher />
       <GlobalKeyboardNav />
+      <AiProposalNotice />
       <LocalSyncWiring />
       <LocalSyncConflictOverlay />
       <SyncToast />
       <UpdateToast />
       <WhileAwayWiring />
-      <div className="flex h-screen overflow-hidden">
+      <div className={`flex h-screen overflow-hidden ${macFrameless ? 'mac-frameless' : ''}`}>
         <Sidebar />
         <AnimatedMain />
       </div>

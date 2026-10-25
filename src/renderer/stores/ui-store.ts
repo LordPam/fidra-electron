@@ -16,6 +16,7 @@ interface UiState {
   addFormWidth: number;
   showPlanned: boolean;
   horizonDays: number;
+  sidebarCollapsed: boolean;
   dashboardPeriod: DashboardPeriod;
   theme: ThemeMode;
   reportOrgName: string;
@@ -31,6 +32,7 @@ interface UiState {
   setAddFormWidth: (width: number) => void;
   toggleShowPlanned: () => void;
   setHorizonDays: (days: number) => void;
+  toggleSidebarCollapsed: () => void;
   setDashboardPeriod: (period: DashboardPeriod) => void;
   setTheme: (theme: ThemeMode) => void;
   setReportOrgName: (name: string) => void;
@@ -53,6 +55,7 @@ function persistPrefs(state: UiState): void {
     showPlanned: state.showPlanned,
     filteredBalanceMode: state.filteredBalanceMode,
     theme: state.theme,
+    sidebarCollapsed: state.sidebarCollapsed,
   });
 }
 
@@ -67,6 +70,7 @@ export const useUiStore = create<UiState>((set, get) => ({
   addFormWidth: 240,
   showPlanned: false,
   horizonDays: 90,
+  sidebarCollapsed: false,
   dashboardPeriod: '90days',
   theme: 'system',
   reportOrgName: '',
@@ -98,6 +102,10 @@ export const useUiStore = create<UiState>((set, get) => ({
     persistPrefs(get());
   },
   setHorizonDays: (days: number) => set({ horizonDays: Math.max(7, Math.min(365, days)) }),
+  toggleSidebarCollapsed: () => {
+    set((state) => ({ sidebarCollapsed: !state.sidebarCollapsed }));
+    persistPrefs(get());
+  },
   setDashboardPeriod: (period: DashboardPeriod) => set({ dashboardPeriod: period }),
   setTheme: (theme) => {
     set({ theme });
@@ -139,6 +147,7 @@ export const useUiStore = create<UiState>((set, get) => ({
         showPlanned: prefs.showPlanned ?? false,
         filteredBalanceMode: prefs.filteredBalanceMode ?? false,
         theme: prefs.theme ?? 'system',
+        sidebarCollapsed: prefs.sidebarCollapsed ?? false,
       });
     } catch {
       // Settings file not available yet — keep defaults

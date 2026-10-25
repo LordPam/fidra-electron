@@ -1,5 +1,5 @@
-import type { PlannedTemplateRow, TransactionRow } from '../../shared/ipc-types';
-import { fromPence, parsePence, toPence } from '../../shared/money';
+import type { PlannedTemplateRow, TransactionRow } from './ipc-types';
+import { fromPence, parsePence, toPence } from './money';
 
 const NAMESPACE = '6ba7b812-9dad-11d1-80b4-00c04fd430c8';
 

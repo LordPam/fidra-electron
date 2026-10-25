@@ -6,6 +6,8 @@ This page explains where Fidra stores its main database, attachments, and sync-r
 
 Your ledger lives in a single database file, usually with a `.fdra` extension.
 
+**Start a ledger** on the welcome screen chooses `~/.fidra/accounts/Accounts.fdra` automatically, with a new numbered filename when needed. On Windows, the root is `%USERPROFILE%\.fidra\accounts\`. Existing ledgers stay in their chosen locations. **Settings → This device** lists retained ledgers and their attachment directory; resetting or uninstalling through Fidra preserves those files and backups.
+
 Example:
 
 ```text

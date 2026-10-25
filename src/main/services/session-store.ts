@@ -19,18 +19,26 @@ function getSessionPath(serverId: string): string {
 }
 
 export class SessionStore {
+  private static readonly memory = new Map<string, AuthSession>();
+  static clearMemory(): void { SessionStore.memory.clear(); }
   saveSession(serverId: string, session: AuthSession): void {
+    this.deleteSession(serverId);
+    SessionStore.memory.set(serverId, structuredClone(session));
     const json = JSON.stringify(session);
+    const legacyPath = getSessionPath(serverId) + '.json';
+    if (fs.existsSync(legacyPath)) fs.unlinkSync(legacyPath);
     if (safeStorage.isEncryptionAvailable()) {
       const encrypted = safeStorage.encryptString(json);
-      fs.writeFileSync(getSessionPath(serverId), encrypted);
+      fs.writeFileSync(getSessionPath(serverId), encrypted, { mode: 0o600 });
     } else {
-      // Fallback: store as plain text (dev mode or unsupported platform)
-      fs.writeFileSync(getSessionPath(serverId) + '.json', json, 'utf-8');
+      // Remain signed in for this process, but never persist a plaintext key.
+      return;
     }
   }
 
   loadSession(serverId: string): AuthSession | null {
+    const cached = SessionStore.memory.get(serverId);
+    if (cached) return structuredClone(cached);
     try {
       const encPath = getSessionPath(serverId);
       const plainPath = encPath + '.json';
@@ -38,10 +46,12 @@ export class SessionStore {
       if (safeStorage.isEncryptionAvailable() && fs.existsSync(encPath)) {
         const encrypted = fs.readFileSync(encPath);
         const json = safeStorage.decryptString(encrypted);
-        return JSON.parse(json) as AuthSession;
+        const session = JSON.parse(json) as AuthSession;
+        SessionStore.memory.set(serverId, structuredClone(session));
+        return session;
       } else if (fs.existsSync(plainPath)) {
-        const json = fs.readFileSync(plainPath, 'utf-8');
-        return JSON.parse(json) as AuthSession;
+        // Retire the former plaintext fallback without reading its credentials.
+        fs.unlinkSync(plainPath);
       }
     } catch (e) {
       console.warn(`[SESSION-STORE] Failed to load session for ${serverId}:`, e);
@@ -50,6 +60,7 @@ export class SessionStore {
   }
 
   deleteSession(serverId: string): void {
+    SessionStore.memory.delete(serverId);
     const encPath = getSessionPath(serverId);
     const plainPath = encPath + '.json';
     try { fs.unlinkSync(encPath); } catch { /* ignore */ }

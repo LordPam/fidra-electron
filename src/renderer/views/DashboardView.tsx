@@ -8,7 +8,7 @@ import { useUndoStore } from '@/stores/undo-store';
 import { useUiStore } from '@/stores/ui-store';
 import { useAuthStore } from '@/stores/auth-store';
 import { computeTotal, computePendingTotal } from '@/services/balance';
-import { expandTemplate, getOverdueDate, getDueTodayDate } from '@/services/forecast';
+import { expandTemplate, getOverdueDate, getDueTodayDate } from '../../shared/forecast';
 import { createBulkEditCommand } from '@/services/undo';
 import { formatCurrency, formatDate } from '@/lib/format';
 import { computeDailyBalances, groupByMonth, toISODate, getFYStart, getFYEnd } from '@/lib/chart-utils';
@@ -262,7 +262,7 @@ export default function DashboardView() {
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <header className="flex items-center gap-3 px-6 py-3 border-b border-border-subtle bg-surface-raised shrink-0">
+      <header className="app-drag app-view-header flex items-center gap-3 px-6 py-3 border-b border-border-subtle bg-surface-raised shrink-0">
         <h1 className="text-xl font-display font-semibold">
           {currentPersonnel
             ? `Welcome back, ${currentPersonnel.name.split(' ')[0]}`

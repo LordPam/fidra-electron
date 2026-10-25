@@ -6,7 +6,7 @@ import {
   getOverdueDate,
   getDueTodayDate,
   getNextDueDate,
-} from '../forecast';
+} from '../../../shared/forecast';
 import type { PlannedTemplateRow } from '../../../shared/ipc-types';
 
 /** Every function here reads "today" from the clock, so it has to be pinned. */

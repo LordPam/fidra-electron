@@ -1,3 +1,6 @@
+import { registerPersonalAiHandlers } from './personal-ai';
+import { registerInvitationHandlers } from './invitations';
+import { registerDeviceHandlers } from './device';
 import { registerAppHandlers } from './app';
 import { registerTransactionHandlers } from './transactions';
 import { registerSheetHandlers } from './sheets';
@@ -17,6 +20,9 @@ import { registerCsvImportHandlers } from './csv-import';
 
 export function registerAllHandlers(): void {
   registerAppHandlers();
+  registerDeviceHandlers();
+  registerInvitationHandlers();
+  registerPersonalAiHandlers();
   registerTransactionHandlers();
   registerSheetHandlers();
   registerCategoryHandlers();

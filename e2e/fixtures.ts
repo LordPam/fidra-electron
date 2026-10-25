@@ -28,9 +28,11 @@ export interface FidraFixtures {
   userHome: string;
   /** Anything the main process printed to stderr, for asserting a clean boot. */
   mainErrors: string[];
+  startInSetup: boolean;
 }
 
 export const test = base.extend<FidraFixtures>({
+  startInSetup: [false, { option: true }],
   userHome: async ({}, use) => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'fidra-e2e-'));
     await use(dir);
@@ -68,12 +70,16 @@ export const test = base.extend<FidraFixtures>({
     await app.close().catch(() => { /* already gone */ });
   },
 
-  window: async ({ app }, use) => {
+  window: async ({ app, startInSetup }, use) => {
     const window = await app.firstWindow();
     await window.waitForLoadState('domcontentloaded');
     // The renderer boots its stores over IPC; wait for the shell to be interactive
     // rather than racing the first paint.
     await window.waitForSelector('body', { state: 'attached' });
+    if (!startInSetup) {
+      await window.getByRole('button', { name: /Start a ledger/ }).click();
+      await window.getByRole('heading', { name: 'Dashboard' }).waitFor();
+    }
     await use(window);
   },
 });

@@ -1,3 +1,4 @@
+import { toAmountString, toPence } from '../../shared/money';
 import type { TransactionRow } from '../../shared/ipc-types';
 import type { ParsedCsvRow, DuplicateMatch } from '../../shared/csv-import-types';
 
@@ -57,13 +58,13 @@ export class DuplicateDetector {
 
     for (const tx of existingTransactions) {
       // Exact key: date + amount + normalized description
-      const exactKey = `${tx.date}|${tx.amount}|${normalizeDescription(tx.description)}`;
+      const exactKey = `${tx.type}|${tx.date}|${toAmountString(tx.amount) ?? tx.amount}|${normalizeDescription(tx.description)}`;
       const arr = this.exactIndex.get(exactKey) ?? [];
       arr.push(tx);
       this.exactIndex.set(exactKey, arr);
 
       // Date + amount key
-      const daKey = `${tx.date}|${tx.amount}`;
+      const daKey = `${tx.type}|${tx.date}|${toAmountString(tx.amount) ?? tx.amount}`;
       const daArr = this.dateAmountIndex.get(daKey) ?? [];
       daArr.push(tx);
       this.dateAmountIndex.set(daKey, daArr);
@@ -79,7 +80,7 @@ export class DuplicateDetector {
   }
 
   check(parsed: ParsedCsvRow): DuplicateMatch {
-    if (!parsed.date || parsed.amount == null) {
+    if (!parsed.date || parsed.amount == null || !parsed.type) {
       return { matchType: 'none', matchedTransactionIds: [], confidence: 0, reason: '' };
     }
 
@@ -87,7 +88,7 @@ export class DuplicateDetector {
 
     // Layer 1: Exact match (date + amount + description)
     if (parsed.description) {
-      const exactKey = `${parsed.date}|${amountStr}|${normalizeDescription(parsed.description)}`;
+      const exactKey = `${parsed.type}|${parsed.date}|${amountStr}|${normalizeDescription(parsed.description)}`;
       const exact = this.exactIndex.get(exactKey);
       if (exact && exact.length > 0) {
         return {
@@ -100,7 +101,7 @@ export class DuplicateDetector {
     }
 
     // Layer 2: Content match (same date + same amount)
-    const daKey = `${parsed.date}|${amountStr}`;
+    const daKey = `${parsed.type}|${parsed.date}|${amountStr}`;
     const content = this.dateAmountIndex.get(daKey);
     if (content && content.length > 0) {
       return {
@@ -136,6 +137,7 @@ export class DuplicateDetector {
     const results: { tx: TransactionRow; score: number; reasons: string[] }[] = [];
 
     for (const tx of this.allTransactions) {
+      if (tx.type !== parsed.type) continue;
       const txDate = new Date(tx.date);
       const daysDiff = Math.abs((parsedDate.getTime() - txDate.getTime()) / (1000 * 60 * 60 * 24));
       if (daysDiff > this.fuzzyDateWindowDays) continue;
@@ -144,7 +146,7 @@ export class DuplicateDetector {
       let weightedScore = 0;
 
       // Amount match (35%)
-      if (tx.amount === amountStr) {
+      if (toPence(tx.amount) === toPence(amountStr)) {
         weightedScore += 0.35;
         reasons.push('same amount');
       } else {

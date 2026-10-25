@@ -16,9 +16,10 @@ import { useViewZoom } from '@/hooks/useViewZoom';
 import { useSheetFiltered } from '@/hooks/useSheetFiltered';
 import { searchTransactions } from '@/services/search';
 import { computeTotal, computeRunningBalances, computePendingTotal } from '@/services/balance';
-import { expandTemplate, projectBalance, type PlannedInstance } from '@/services/forecast';
+import { expandTemplate, projectBalance, type PlannedInstance } from '../../shared/forecast';
 import {
   createAddTransactionCommand,
+  createBulkAddTransactionsCommand,
   createEditTransactionCommand,
   createEditTransferCommand,
   createDeleteTransactionCommand,
@@ -396,20 +397,32 @@ export default function TransactionsView() {
     [execute],
   );
 
-  const handleDuplicate = useCallback(
-    (transaction: TransactionRow) => {
+  const handleDuplicateTransactions = useCallback(
+    async (toDuplicate: TransactionRow[]) => {
+      const realTransactions = toDuplicate.filter((transaction) => transaction.status !== 'planned');
+      if (realTransactions.length === 0) return;
+
       const now = new Date().toISOString();
-      const duplicate: TransactionRow = {
+      const duplicates = realTransactions.map((transaction) => ({
         ...transaction,
         id: crypto.randomUUID(),
+        linked_id: null,
         version: 1,
         created_at: now,
         modified_at: null,
         modified_by: null,
-      };
-      execute(createAddTransactionCommand(duplicate));
+      }));
+      await execute(createBulkAddTransactionsCommand(duplicates));
+      setSelectedIds(Object.fromEntries(duplicates.map((transaction) => [transaction.id, true])));
     },
     [execute],
+  );
+
+  const handleDuplicate = useCallback(
+    (transaction: TransactionRow) => {
+      void handleDuplicateTransactions([transaction]);
+    },
+    [handleDuplicateTransactions],
   );
 
   const handleApprove = useCallback(
@@ -504,6 +517,13 @@ export default function TransactionsView() {
       // Also guard against focus inside a form (e.g. Select triggers are <button> not <input>)
       // Include Radix portalled content (Select/Combobox dropdowns render outside the form DOM)
       if (document.activeElement?.closest('form, [role="dialog"], [role="listbox"], [data-radix-popper-content-wrapper]')) return;
+
+      // Cmd+D / Ctrl+D: duplicate selected real transactions as one undoable action.
+      if (isMod && e.key.toLowerCase() === 'd') {
+        e.preventDefault();
+        void handleDuplicateTransactions(selectedTransactions);
+        return;
+      }
 
       // ArrowDown / ArrowUp: navigate rows in display order
       if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
@@ -639,8 +659,10 @@ export default function TransactionsView() {
         return;
       }
 
-      // Delete: delete selected
-      if (e.key === 'Delete') {
+      // Delete and Cmd/Ctrl+Delete: delete selected. Keep the established bare
+      // Delete shortcut while adding the cross-platform modifier convention.
+      if (e.key === 'Delete' || (isMod && e.key === 'Backspace')) {
+        if (isMod) e.preventDefault();
         const selected = Object.keys(selectedIds).filter((id) => selectedIds[id]);
         if (selected.length > 0) {
           const toDelete = transactions.filter((t) => selected.includes(t.id));
@@ -687,7 +709,7 @@ export default function TransactionsView() {
     return () => window.removeEventListener('keydown', handler);
   }, [
     selectedIds, transactions, searchFiltered,
-    handleDeleteTransactions, handleApprove, handleReject, handleEdit, handleBulkEdit,
+    handleDeleteTransactions, handleDuplicateTransactions, handleApprove, handleReject, handleEdit, handleBulkEdit,
     selectedTransactions, attachmentPanelTxId, showPlanned,
   ]);
 
@@ -861,7 +883,7 @@ export default function TransactionsView() {
   return (
     <div className="flex flex-col h-full bg-surface-base">
       {/* Header */}
-      <header className="flex items-center justify-between px-6 py-3 border-b border-border-subtle bg-surface-raised">
+      <header className="app-drag app-view-header flex items-center justify-between px-6 py-3 border-b border-border-subtle bg-surface-raised">
         <div className="flex items-center gap-4">
           <h1 className="text-xl font-display font-semibold text-foreground">Transactions</h1>
         </div>

@@ -11,23 +11,28 @@ import { useUndoStore } from '@/stores/undo-store';
 import { useViewZoom } from '@/hooks/useViewZoom';
 import { useSheetFiltered } from '@/hooks/useSheetFiltered';
 
-import { expandTemplate, createInstance, getNextDueDate, getOverdueDate, type PlannedInstance } from '@/services/forecast';
+import { expandTemplate, createInstance, getNextDueDate, getOverdueDate, type PlannedInstance } from '../../shared/forecast';
 import type { ExpandedTemplate } from '@/domain/models';
 import { getUniqueValues } from '@/lib/autocomplete';
 import { formatCurrency, formatDate } from '@/lib/format';
 import {
   createAddPlannedCommand,
+  createBulkAddPlannedCommand,
+  createBulkDeletePlannedCommand,
+  createBulkEditPlannedCommand,
   createEditPlannedCommand,
   createDeletePlannedCommand,
   createConvertPlannedCommand,
   createAddTransferCommand,
+  createAddTransactionCommand,
 } from '@/services/undo';
 import { cn } from '@/lib/utils';
 
 import { AddPlannedDialog } from '@/dialogs/AddPlannedDialog';
 import { EditPlannedDialog } from '@/dialogs/EditPlannedDialog';
+import { BulkEditPlannedDialog } from '@/dialogs/BulkEditPlannedDialog';
+import { PlannedGroupWarningDialog, type PlannedGroupAction } from '@/dialogs/PlannedGroupWarningDialog';
 import { EditTransactionDialog } from '@/dialogs/EditTransactionDialog';
-import { createAddTransactionCommand } from '@/services/undo';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -52,6 +57,7 @@ import {
 import { ZoomControls } from '@/components/ZoomControls';
 import { useUndoRedoShortcuts } from '@/hooks/useUndoRedoShortcuts';
 import { toAmount } from '../../shared/money';
+import { groupPlannedByActivity, plannedGroupHasMultipleInstances, UNASSIGNED_ACTIVITY } from '@/services/planned-groups';
 
 const HORIZON_DAYS = 180;
 
@@ -86,6 +92,15 @@ export default function PlannedView() {
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
+  const [selectedTemplateIds, setSelectedTemplateIds] = useState<Set<string>>(new Set());
+  const selectionAnchorRef = useRef<string | null>(null);
+  const [selectedInstance, setSelectedInstance] = useState<{ templateId: string; instanceDate: string } | null>(null);
+  const [showBulkEditDialog, setShowBulkEditDialog] = useState(false);
+  const [groupWarning, setGroupWarning] = useState<{
+    action: PlannedGroupAction;
+    template: PlannedTemplateRow;
+    instanceDate: string;
+  } | null>(null);
   const [linkedInvoiceTemplateIds, setLinkedInvoiceTemplateIds] = useState<Set<string>>(new Set());
   const [showConvertDialog, setShowConvertDialog] = useState(false);
   const [convertingTransaction, setConvertingTransaction] = useState<TransactionRow | null>(null);
@@ -117,6 +132,7 @@ export default function PlannedView() {
     const state = location.state as { selectTemplateId?: string } | null;
     if (state?.selectTemplateId) {
       setSelectedTemplateId(state.selectTemplateId);
+      setSelectedTemplateIds(new Set([state.selectTemplateId]));
       // Clear state so it doesn't re-select on re-render
       window.history.replaceState({}, '');
     }
@@ -156,6 +172,29 @@ export default function PlannedView() {
         instances.length > 0 || nextDue !== null || overdueDate !== null
       );
   }, [sheetFiltered, horizon]);
+
+  const activityGroups = useMemo(
+    () => groupPlannedByActivity(expanded, (entry) => entry.template),
+    [expanded],
+  );
+  const orderedExpanded = useMemo(
+    () => activityGroups.flatMap((group) => group.items),
+    [activityGroups],
+  );
+
+  const selectedTemplates = useMemo(
+    () => orderedExpanded
+      .filter(({ template }) => selectedTemplateIds.has(template.id))
+      .map(({ template }) => template),
+    [orderedExpanded, selectedTemplateIds],
+  );
+
+  const multiInstanceSelectionCount = useMemo(
+    () => orderedExpanded.filter(({ template, instances }) =>
+      selectedTemplateIds.has(template.id) && plannedGroupHasMultipleInstances(template, instances.length)
+    ).length,
+    [orderedExpanded, selectedTemplateIds],
+  );
 
   // Summary stats for the balance card
   const plannedSummary = useMemo(() => {
@@ -212,6 +251,55 @@ export default function PlannedView() {
     });
   };
 
+  const clearSelection = useCallback(() => {
+    setSelectedTemplateId(null);
+    setSelectedTemplateIds(new Set());
+    setSelectedInstance(null);
+    selectionAnchorRef.current = null;
+  }, []);
+
+  const selectTemplate = useCallback((templateId: string, event?: React.MouseEvent) => {
+    setSelectedInstance(null);
+    setSelectedTemplateId(templateId);
+
+    if (event?.shiftKey && selectionAnchorRef.current) {
+      const anchorIndex = orderedExpanded.findIndex(({ template }) => template.id === selectionAnchorRef.current);
+      const targetIndex = orderedExpanded.findIndex(({ template }) => template.id === templateId);
+      if (anchorIndex >= 0 && targetIndex >= 0) {
+        const start = Math.min(anchorIndex, targetIndex);
+        const end = Math.max(anchorIndex, targetIndex);
+        setSelectedTemplateIds(new Set(orderedExpanded.slice(start, end + 1).map(({ template }) => template.id)));
+        return;
+      }
+    }
+
+    if (event && (event.metaKey || event.ctrlKey)) {
+      setSelectedTemplateIds((previous) => {
+        const next = new Set(previous);
+        if (next.has(templateId)) {
+          next.delete(templateId);
+          setSelectedTemplateId(next.values().next().value ?? null);
+        } else {
+          next.add(templateId);
+          setSelectedTemplateId(templateId);
+        }
+        return next;
+      });
+      selectionAnchorRef.current = templateId;
+      return;
+    }
+
+    setSelectedTemplateIds(new Set([templateId]));
+    selectionAnchorRef.current = templateId;
+  }, [orderedExpanded]);
+
+  const selectInstance = useCallback((templateId: string, instanceDate: string) => {
+    setSelectedTemplateId(templateId);
+    setSelectedTemplateIds(new Set([templateId]));
+    setSelectedInstance({ templateId, instanceDate });
+    selectionAnchorRef.current = templateId;
+  }, []);
+
   const handleAdd = useCallback(async (template: PlannedTemplateRow) => {
     await execute(createAddPlannedCommand(template));
   }, [execute]);
@@ -220,35 +308,68 @@ export default function PlannedView() {
     execute(createEditPlannedCommand(original, updated));
   }, [execute]);
 
-  const handleDelete = useCallback(async (template: PlannedTemplateRow) => {
-    const idx = expanded.findIndex((ex) => ex.template.id === template.id);
+  const handleDeleteTemplates = useCallback(async (toDelete: PlannedTemplateRow[]) => {
+    if (toDelete.length === 0) return;
     setDeletingTemplateData((prev) => {
       const next = new Map(prev);
-      next.set(template.id, { template, index: idx >= 0 ? idx : 0 });
+      for (const template of toDelete) {
+        const idx = orderedExpanded.findIndex((entry) => entry.template.id === template.id);
+        next.set(template.id, { template, index: idx >= 0 ? idx : 0 });
+      }
       return next;
     });
-    await execute(createDeletePlannedCommand(template));
-    setSelectedTemplateId(null);
+    if (toDelete.length === 1) await execute(createDeletePlannedCommand(toDelete[0]));
+    else await execute(createBulkDeletePlannedCommand(toDelete));
+    clearSelection();
     setTimeout(() => {
       setDeletingTemplateData((prev) => {
         const next = new Map(prev);
-        next.delete(template.id);
+        for (const template of toDelete) next.delete(template.id);
         return next;
       });
     }, 400);
-  }, [execute, expanded]);
+  }, [clearSelection, execute, orderedExpanded]);
 
-  const handleDuplicate = useCallback(async (template: PlannedTemplateRow) => {
-    const dup: PlannedTemplateRow = {
+  const handleDelete = useCallback(async (template: PlannedTemplateRow) => {
+    await handleDeleteTemplates([template]);
+  }, [handleDeleteTemplates]);
+
+  const handleDuplicateTemplates = useCallback(async (toDuplicate: PlannedTemplateRow[]) => {
+    if (toDuplicate.length === 0) return;
+    const now = new Date().toISOString();
+    const duplicates = toDuplicate.map((template) => ({
       ...template,
       id: crypto.randomUUID(),
       skipped_dates: '[]',
       fulfilled_dates: '[]',
       version: 1,
-      created_at: new Date().toISOString(),
-    };
-    await execute(createAddPlannedCommand(dup));
+      created_at: now,
+    }));
+    if (duplicates.length === 1) await execute(createAddPlannedCommand(duplicates[0]));
+    else await execute(createBulkAddPlannedCommand(duplicates));
+    setSelectedTemplateId(duplicates[0].id);
+    setSelectedTemplateIds(new Set(duplicates.map((template) => template.id)));
+    setSelectedInstance(null);
   }, [execute]);
+
+  const handleDuplicate = useCallback(async (template: PlannedTemplateRow) => {
+    await handleDuplicateTemplates([template]);
+  }, [handleDuplicateTemplates]);
+
+  const handleBulkEditSave = useCallback(async (
+    originals: PlannedTemplateRow[],
+    updated: PlannedTemplateRow[],
+  ) => {
+    await execute(createBulkEditPlannedCommand(originals, updated));
+  }, [execute]);
+
+  const requestInstanceGroupAction = useCallback((
+    action: PlannedGroupAction,
+    template: PlannedTemplateRow,
+    instanceDate: string,
+  ) => {
+    setGroupWarning({ action, template, instanceDate });
+  }, []);
 
   const handleConvert = useCallback(async (_template: PlannedTemplateRow, instance: PlannedInstance) => {
     const txSettings = await window.api.getTransactionSettings();
@@ -377,50 +498,84 @@ export default function PlannedView() {
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       const isMod = e.metaKey || e.ctrlKey;
+      const active = document.activeElement as HTMLElement | null;
+      const tag = (active?.tagName ?? '').toUpperCase();
+      const isInputFocused = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
 
-      if (isMod && e.key === 'n') {
+      if (isMod && e.key.toLowerCase() === 'n' && !isInputFocused) {
         e.preventDefault();
         setShowAddDialog(true);
         return;
       }
 
-      const isInputFocused = document.activeElement?.tagName === 'INPUT' ||
-        document.activeElement?.tagName === 'TEXTAREA' ||
-        document.activeElement?.tagName === 'SELECT';
       if (isInputFocused) return;
+      if (active?.closest('form, [role="dialog"], [role="listbox"], [data-radix-popper-content-wrapper]')) return;
+
+      if (isMod && e.key.toLowerCase() === 'a') {
+        e.preventDefault();
+        setSelectedTemplateIds(new Set(orderedExpanded.map(({ template }) => template.id)));
+        setSelectedTemplateId(orderedExpanded[0]?.template.id ?? null);
+        setSelectedInstance(null);
+        return;
+      }
+
+      if (isMod && e.key.toLowerCase() === 'd') {
+        e.preventDefault();
+        if (selectedInstance) {
+          const entry = orderedExpanded.find(({ template }) => template.id === selectedInstance.templateId);
+          if (entry) requestInstanceGroupAction('duplicate', entry.template, selectedInstance.instanceDate);
+        } else {
+          void handleDuplicateTemplates(selectedTemplates);
+        }
+        return;
+      }
+
+      if (isMod && (e.key === 'Delete' || e.key === 'Backspace')) {
+        e.preventDefault();
+        if (selectedInstance) {
+          const entry = orderedExpanded.find(({ template }) => template.id === selectedInstance.templateId);
+          if (entry) requestInstanceGroupAction('delete', entry.template, selectedInstance.instanceDate);
+        } else {
+          void handleDeleteTemplates(selectedTemplates);
+        }
+        return;
+      }
 
       if (e.key === 'Escape') {
-        setSelectedTemplateId(null);
+        clearSelection();
         return;
       }
 
       // Arrow keys: navigate between templates (skip when Cmd/Ctrl held)
       if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && !isMod) {
         e.preventDefault();
-        if (expanded.length === 0) return;
+        if (orderedExpanded.length === 0) return;
 
         const currentIdx = selectedTemplateId
-          ? expanded.findIndex((ex) => ex.template.id === selectedTemplateId)
+          ? orderedExpanded.findIndex((ex) => ex.template.id === selectedTemplateId)
           : -1;
 
         let nextIdx: number;
         if (e.key === 'ArrowDown') {
-          nextIdx = currentIdx < 0 ? 0 : Math.min(currentIdx + 1, expanded.length - 1);
+          nextIdx = currentIdx < 0 ? 0 : Math.min(currentIdx + 1, orderedExpanded.length - 1);
         } else {
           nextIdx = currentIdx < 0 ? 0 : Math.max(currentIdx - 1, 0);
         }
 
-        setSelectedTemplateId(expanded[nextIdx].template.id);
+        const nextId = orderedExpanded[nextIdx].template.id;
+        setSelectedTemplateId(nextId);
+        setSelectedTemplateIds(new Set([nextId]));
+        setSelectedInstance(null);
+        selectionAnchorRef.current = nextId;
         return;
       }
 
       if (e.key === 'e' || e.key === 'E') {
-        if (selectedTemplateId) {
-          const tmpl = templates.find((t) => t.id === selectedTemplateId);
-          if (tmpl) {
-            setEditingTemplate(tmpl);
-            setShowEditDialog(true);
-          }
+        if (selectedTemplates.length > 1) {
+          setShowBulkEditDialog(true);
+        } else if (selectedTemplates.length === 1) {
+          setEditingTemplate(selectedTemplates[0]);
+          setShowEditDialog(true);
         }
         return;
       }
@@ -428,17 +583,32 @@ export default function PlannedView() {
 
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [selectedTemplateId, templates, expanded]);
+  }, [
+    clearSelection,
+    handleDeleteTemplates,
+    handleDuplicateTemplates,
+    orderedExpanded,
+    requestInstanceGroupAction,
+    selectedInstance,
+    selectedTemplateId,
+    selectedTemplates,
+  ]);
 
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <header className="flex items-center justify-between px-6 py-3 border-b border-border-subtle bg-surface-raised">
+      <header className="app-drag app-view-header flex items-center justify-between px-6 py-3 border-b border-border-subtle bg-surface-raised">
         <div className="flex items-center gap-4">
           <h1 className="text-xl font-display font-semibold">Planned</h1>
         </div>
 
         <div className="flex items-center gap-1">
+          {selectedTemplates.length > 1 && (
+            <Button variant="outline" size="sm" onClick={() => setShowBulkEditDialog(true)}>
+              <Pencil className="h-4 w-4 mr-1" />
+              Edit {selectedTemplates.length} Groups
+            </Button>
+          )}
           <Button size="sm" onClick={() => setShowAddDialog(true)}>
             <Plus className="h-4 w-4 mr-1" />
             Add Planned
@@ -467,7 +637,7 @@ export default function PlannedView() {
         ) : (
           <div
             className="flex-1 overflow-auto rounded-xl border border-border-subtle bg-[#EEEEE9] dark:bg-[#2A2D32]"
-            onClick={() => setSelectedTemplateId(null)}
+            onClick={clearSelection}
           >
             <div style={plannedTableZoom !== 1 ? { zoom: plannedTableZoom } : undefined}>
             <table className="w-full text-sm font-body">
@@ -489,38 +659,60 @@ export default function PlannedView() {
                   // Merge ghost rows at their original positions
                   const colCount = showSheetColumn ? 7 : 6;
                   type RenderItem = { type: 'live'; entry: ExpandedTemplate; idx: number } | { type: 'ghost'; template: PlannedTemplateRow };
-                  const items: RenderItem[] = expanded.map((entry, idx) => ({ type: 'live' as const, entry, idx }));
+                  const items: RenderItem[] = orderedExpanded.map((entry, idx) => ({ type: 'live' as const, entry, idx }));
                   const ghosts = Array.from(deletingTemplateData.values()).sort((a, b) => a.index - b.index);
                   let offset = 0;
                   for (const { template, index } of ghosts) {
-                    if (expanded.some((ex) => ex.template.id === template.id)) continue;
+                    if (orderedExpanded.some((ex) => ex.template.id === template.id)) continue;
                     const insertAt = Math.min(index + offset, items.length);
                     items.splice(insertAt, 0, { type: 'ghost', template });
                     offset++;
                   }
+                  let previousActivity: string | null = null;
                   return items.map((item) => {
+                    const itemTemplate = item.type === 'ghost' ? item.template : item.entry.template;
+                    const activity = itemTemplate.activity?.trim() || UNASSIGNED_ACTIVITY;
+                    const showActivityHeader = activity !== previousActivity;
+                    previousActivity = activity;
                     if (item.type === 'ghost') {
                       const tmpl = item.template;
                       return (
-                        <tr key={`deleting-${tmpl.id}`} data-row-deleting="" className="border-b border-border-subtle">
-                          <td colSpan={colCount} className="whitespace-nowrap px-4 py-3">
-                            <div className="flex items-center gap-4">
-                              <span className="text-foreground font-medium">{tmpl.description}</span>
-                              <span className={cn('font-mono tabular-nums ml-auto', tmpl.type === 'income' ? 'text-fidra-positive' : 'text-fidra-negative')}>
-                                {formatCurrency(tmpl.amount)}
-                              </span>
-                            </div>
-                          </td>
-                        </tr>
+                        <React.Fragment key={`deleting-${tmpl.id}`}>
+                          {showActivityHeader && (
+                            <tr className="bg-fidra-teal/10" data-activity-group={activity}>
+                              <td colSpan={colCount} className="px-4 py-2 font-display text-xs font-semibold text-fidra-teal">{activity}</td>
+                            </tr>
+                          )}
+                          <tr data-row-deleting="" className="border-b border-border-subtle">
+                            <td colSpan={colCount} className="whitespace-nowrap px-4 py-3">
+                              <div className="flex items-center gap-4">
+                                <span className="text-foreground font-medium">{tmpl.description}</span>
+                                <span className={cn('font-mono tabular-nums ml-auto', tmpl.type === 'income' ? 'text-fidra-positive' : 'text-fidra-negative')}>
+                                  {formatCurrency(tmpl.amount)}
+                                </span>
+                              </div>
+                            </td>
+                          </tr>
+                        </React.Fragment>
                       );
                     }
                     const { entry: { template, instances, nextDue, overdueDate }, idx } = item;
                   const isExpanded = expandedIds.has(template.id);
-                  const isSelected = selectedTemplateId === template.id;
+                  const isSelected = selectedTemplateIds.has(template.id);
                   const isOverdue = overdueDate !== null;
 
                   return (
                     <React.Fragment key={template.id}>
+                      {showActivityHeader && (
+                        <tr className="bg-fidra-teal/10" data-activity-group={activity}>
+                          <td colSpan={colCount} className="px-4 py-2 font-display text-xs font-semibold text-fidra-teal">
+                            <span>{activity}</span>
+                            <span className="ml-2 font-body font-normal text-muted-foreground">
+                              {activityGroups.find((group) => group.activity === activity)?.items.length ?? 0} {activityGroups.find((group) => group.activity === activity)?.items.length === 1 ? 'group' : 'groups'}
+                            </span>
+                          </td>
+                        </tr>
+                      )}
                       {/* Template row */}
                       <ContextMenu>
                         <ContextMenuTrigger asChild>
@@ -534,7 +726,14 @@ export default function PlannedView() {
                             {...(isSelected ? { 'data-row-selected': '', 'data-row-focused': '' } : {})}
                             onClick={(e) => {
                               e.stopPropagation();
-                              setSelectedTemplateId(template.id);
+                              selectTemplate(template.id, e);
+                            }}
+                            onContextMenu={() => {
+                              if (!selectedTemplateIds.has(template.id)) {
+                                setSelectedTemplateId(template.id);
+                                setSelectedTemplateIds(new Set([template.id]));
+                                setSelectedInstance(null);
+                              }
                             }}
                             onDoubleClick={() => {
                               setEditingTemplate(template);
@@ -546,7 +745,7 @@ export default function PlannedView() {
                               onClick={(e) => {
                                 if (instances.length > 0) {
                                   e.stopPropagation();
-                                  setSelectedTemplateId(template.id);
+                                  selectTemplate(template.id, e);
                                   toggleExpanded(template.id);
                                 }
                               }}
@@ -581,11 +780,20 @@ export default function PlannedView() {
                           </tr>
                         </ContextMenuTrigger>
                         <ContextMenuContent>
-                          <ContextMenuItem onClick={() => { setEditingTemplate(template); setShowEditDialog(true); }}>
-                            <Pencil className="h-3.5 w-3.5 mr-2" /> Edit
+                          <ContextMenuItem onClick={() => {
+                            if (selectedTemplateIds.has(template.id) && selectedTemplates.length > 1) {
+                              setShowBulkEditDialog(true);
+                            } else {
+                              setEditingTemplate(template);
+                              setShowEditDialog(true);
+                            }
+                          }}>
+                            <Pencil className="h-3.5 w-3.5 mr-2" /> {selectedTemplateIds.has(template.id) && selectedTemplates.length > 1 ? `Bulk Edit (${selectedTemplates.length})` : 'Edit'}
                           </ContextMenuItem>
-                          <ContextMenuItem onClick={() => handleDuplicate(template)}>
-                            <Copy className="h-3.5 w-3.5 mr-2" /> Duplicate
+                          <ContextMenuItem onClick={() => selectedTemplateIds.has(template.id) && selectedTemplates.length > 1
+                            ? handleDuplicateTemplates(selectedTemplates)
+                            : handleDuplicate(template)}>
+                            <Copy className="h-3.5 w-3.5 mr-2" /> Duplicate{selectedTemplateIds.has(template.id) && selectedTemplates.length > 1 ? ` (${selectedTemplates.length})` : ''}
                           </ContextMenuItem>
                           {instances.length > 0 && (
                             <ContextMenuItem onClick={() => handleConvert(template, instances[0])}>
@@ -603,75 +811,104 @@ export default function PlannedView() {
                             </ContextMenuItem>
                           )}
                           <ContextMenuSeparator />
-                          <ContextMenuItem className="text-destructive" onClick={() => handleDelete(template)}>
-                            <Trash2 className="h-3.5 w-3.5 mr-2" /> Delete
+                          <ContextMenuItem className="text-destructive" onClick={() => selectedTemplateIds.has(template.id) && selectedTemplates.length > 1
+                            ? handleDeleteTemplates(selectedTemplates)
+                            : handleDelete(template)}>
+                            <Trash2 className="h-3.5 w-3.5 mr-2" /> Delete{selectedTemplateIds.has(template.id) && selectedTemplates.length > 1 ? ` (${selectedTemplates.length})` : ''}
                           </ContextMenuItem>
                         </ContextMenuContent>
                       </ContextMenu>
 
                       {/* Instance rows */}
-                      {isExpanded && instances.map((inst) => (
-                        <tr
-                          key={inst.transaction.id}
-                          className="border-b border-border-subtle bg-surface-inset/50 hover:bg-fidra-teal/5 cursor-default"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <td className="px-4 py-2" />
-                          <td className="px-4 py-2 text-muted-foreground pl-10">
-                            {formatDate(inst.instanceDate)}
-                          </td>
-                          <td className="px-4 py-2" />
-                          <td className={cn(
-                            'px-4 py-2 text-right tabular-nums font-mono',
-                            template.type === 'income' ? 'text-fidra-positive/70' : 'text-fidra-negative/70',
-                          )}>
-                            {formatCurrency(inst.transaction.amount)}
-                          </td>
-                          {showSheetColumn && <td className="px-4 py-2" />}
-                          <td className="px-4 py-2 text-muted-foreground text-xs">{capitalise(inst.transaction.type)}</td>
-                          <td className="px-4 py-2">
-                            <div className="flex items-center gap-1">
-                              <span className="inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium bg-fidra-teal/15 text-fidra-teal">
-                                Planned
-                              </span>
-                              {inst.instanceDate < today && (
-                                <span className="inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium bg-fidra-warning/15 text-fidra-warning">
-                                  Overdue
-                                </span>
-                              )}
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-6 w-6 p-0"
-                                title="Convert to actual transaction"
-                                onClick={(e) => { e.stopPropagation(); handleConvert(template, inst); }}
+                      {isExpanded && instances.map((inst) => {
+                        const isInstanceSelected = selectedInstance?.templateId === template.id && selectedInstance.instanceDate === inst.instanceDate;
+                        return (
+                          <ContextMenu key={inst.transaction.id}>
+                            <ContextMenuTrigger asChild>
+                              <tr
+                                data-planned-instance={inst.instanceDate}
+                                {...(isInstanceSelected ? { 'data-row-selected': '', 'data-row-focused': '' } : {})}
+                                className="border-b border-border-subtle bg-surface-inset/50 hover:bg-fidra-teal/5 cursor-pointer"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  selectInstance(template.id, inst.instanceDate);
+                                }}
+                                onDoubleClick={() => {
+                                  setEditingTemplate(template);
+                                  setShowEditDialog(true);
+                                }}
                               >
-                                <ArrowRightLeft className="h-3 w-3" />
-                              </Button>
-                              {template.type === 'income' && (
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="h-6 w-6 p-0"
-                                  title={linkedInvoiceTemplateIds.has(template.id) ? 'View invoice' : 'Create invoice from this instance'}
-                                  onClick={(e) => { e.stopPropagation(); handleCreateInvoice(template, inst.instanceDate); }}
-                                >
-                                  <FileText className="h-3 w-3" />
-                                </Button>
-                              )}
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-6 w-6 p-0 text-destructive"
-                                title="Skip this occurrence"
-                                onClick={(e) => { e.stopPropagation(); handleSkipInstance(template, inst.instanceDate); }}
-                              >
-                                <X className="h-3 w-3" />
-                              </Button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
+                                <td className="px-4 py-2" />
+                                <td className="px-4 py-2 text-muted-foreground pl-10">
+                                  {formatDate(inst.instanceDate)}
+                                </td>
+                                <td className="px-4 py-2" />
+                                <td className={cn(
+                                  'px-4 py-2 text-right tabular-nums font-mono',
+                                  template.type === 'income' ? 'text-fidra-positive/70' : 'text-fidra-negative/70',
+                                )}>
+                                  {formatCurrency(inst.transaction.amount)}
+                                </td>
+                                {showSheetColumn && <td className="px-4 py-2" />}
+                                <td className="px-4 py-2 text-muted-foreground text-xs">{capitalise(inst.transaction.type)}</td>
+                                <td className="px-4 py-2">
+                                  <div className="flex items-center gap-1">
+                                    <span className="inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium bg-fidra-teal/15 text-fidra-teal">
+                                      Planned
+                                    </span>
+                                    {inst.instanceDate < today && (
+                                      <span className="inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium bg-fidra-warning/15 text-fidra-warning">
+                                        Overdue
+                                      </span>
+                                    )}
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-6 w-6 p-0"
+                                      title="Convert to actual transaction"
+                                      onClick={(e) => { e.stopPropagation(); handleConvert(template, inst); }}
+                                    >
+                                      <ArrowRightLeft className="h-3 w-3" />
+                                    </Button>
+                                    {template.type === 'income' && (
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-6 w-6 p-0"
+                                        title={linkedInvoiceTemplateIds.has(template.id) ? 'View invoice' : 'Create invoice from this instance'}
+                                        onClick={(e) => { e.stopPropagation(); handleCreateInvoice(template, inst.instanceDate); }}
+                                      >
+                                        <FileText className="h-3 w-3" />
+                                      </Button>
+                                    )}
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-6 w-6 p-0 text-destructive"
+                                      title="Skip this occurrence"
+                                      onClick={(e) => { e.stopPropagation(); handleSkipInstance(template, inst.instanceDate); }}
+                                    >
+                                      <X className="h-3 w-3" />
+                                    </Button>
+                                  </div>
+                                </td>
+                              </tr>
+                            </ContextMenuTrigger>
+                            <ContextMenuContent>
+                              <ContextMenuItem onClick={() => { setEditingTemplate(template); setShowEditDialog(true); }}>
+                                <Pencil className="h-3.5 w-3.5 mr-2" /> Edit Linked Group
+                              </ContextMenuItem>
+                              <ContextMenuItem onClick={() => requestInstanceGroupAction('duplicate', template, inst.instanceDate)}>
+                                <Copy className="h-3.5 w-3.5 mr-2" /> Duplicate Linked Group
+                              </ContextMenuItem>
+                              <ContextMenuSeparator />
+                              <ContextMenuItem className="text-destructive" onClick={() => requestInstanceGroupAction('delete', template, inst.instanceDate)}>
+                                <Trash2 className="h-3.5 w-3.5 mr-2" /> Delete Linked Group
+                              </ContextMenuItem>
+                            </ContextMenuContent>
+                          </ContextMenu>
+                        );
+                      })}
                     </React.Fragment>
                   );
                   });
@@ -777,7 +1014,30 @@ export default function PlannedView() {
         descriptionSuggestions={descriptionSuggestions}
         partySuggestions={partySuggestions}
         activitySuggestions={activitySuggestions}
+        affectsMultipleInstances={editingTemplate ? (() => {
+          const entry = orderedExpanded.find(({ template }) => template.id === editingTemplate.id);
+          return entry ? plannedGroupHasMultipleInstances(entry.template, entry.instances.length) : false;
+        })() : false}
         onSave={handleEdit}
+      />
+      <BulkEditPlannedDialog
+        open={showBulkEditDialog}
+        onOpenChange={setShowBulkEditDialog}
+        templates={selectedTemplates}
+        multiInstanceGroupCount={multiInstanceSelectionCount}
+        onSave={handleBulkEditSave}
+      />
+      <PlannedGroupWarningDialog
+        open={groupWarning !== null}
+        onOpenChange={(open) => { if (!open) setGroupWarning(null); }}
+        action={groupWarning?.action ?? 'duplicate'}
+        template={groupWarning?.template ?? null}
+        instanceDate={groupWarning?.instanceDate ?? null}
+        onConfirm={async () => {
+          if (!groupWarning) return;
+          if (groupWarning.action === 'duplicate') await handleDuplicate(groupWarning.template);
+          else await handleDelete(groupWarning.template);
+        }}
       />
       <EditTransactionDialog
         open={showConvertDialog}

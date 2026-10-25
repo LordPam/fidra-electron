@@ -43,6 +43,8 @@ The markdown docs should complement those pages with:
 11. [Treasurer Handover](workflows/treasurer-handover.md)
 12. [Troubleshooting and Recovery](operations/troubleshooting-and-recovery.md)
 
+13. [Updating Fidra](operations/app-updates.md)
+
 ## Current Docs
 
 ### Setup
@@ -66,6 +68,7 @@ The markdown docs should complement those pages with:
 
 ### Operations
 
+- [Updating Fidra](operations/app-updates.md)
 - [Backups and Restore](operations/backups-and-restore.md)
 - [Troubleshooting and Recovery](operations/troubleshooting-and-recovery.md)
 

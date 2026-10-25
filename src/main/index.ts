@@ -1,7 +1,9 @@
 import { app, BrowserWindow, session, dialog } from 'electron';
 import path from 'node:path';
 import fs from 'node:fs';
-import started from 'electron-squirrel-startup';
+import { squirrelEvent, runSquirrelHelper } from './services/squirrel-lifecycle';
+import { resetOpenDeviceState } from './ipc/device';
+import { personalAiBridge } from './services/ai-runtime';
 
 // ─── Startup diagnostic log (written to file since no terminal in Finder) ───
 const DIAG_LOG = path.join(
@@ -18,26 +20,36 @@ function diag(msg: string): void {
 }
 diag(`Process started — argv: ${process.argv.join(' ')}`);
 import { WindowManager, setWindowManager, getWindowManager } from './window/window-manager';
-import { loadGlobalSettings } from './window/global-settings';
+import { loadGlobalSettings, saveGlobalSettings } from './window/global-settings';
 import { registerAllHandlers } from './ipc/register-all';
 import { buildMenu } from './menu/app-menu';
 
-diag(`electron-squirrel-startup = ${started}`);
-if (started) {
-  diag('Quitting due to squirrel startup');
-  app.quit();
-}
-
-import { checkForUpdates } from './services/update-checker';
+import { openStartupWindow } from './services/startup';
+import { initializeUpdateChecks } from './services/update-checker';
 
 // Single instance lock (Windows/Linux deep link handling)
+const installerEvent = squirrelEvent(process.platform, process.argv);
 const gotTheLock = app.requestSingleInstanceLock();
+if (installerEvent) {
+  void app.whenReady().then(() => runSquirrelHelper(installerEvent, gotTheLock)).catch((error: unknown) => {
+    console.warn('[INSTALLER] Financial files were kept; device cleanup needs attention:', String(error));
+  }).finally(() => app.quit());
+}
 diag(`Single instance lock acquired: ${gotTheLock}`);
-if (!gotTheLock) {
+if (!gotTheLock && !installerEvent) {
   diag('Quitting — another instance has the lock');
   app.quit();
 } else {
-  app.on('second-instance', () => {
+  app.on('second-instance', (_event, args) => {
+    if (squirrelEvent(process.platform, args) === '--squirrel-uninstall') {
+      personalAiBridge.stop();
+      if (getWindowManager().isPreparingOperation) return;
+      void resetOpenDeviceState().catch((error: unknown) => {
+        for (const ctx of getWindowManager().getAllContexts()) if (ctx.isClosed) getWindowManager().reopenWindowDatabase(ctx.window.webContents.id);
+        dialog.showErrorBox('Finish your work before closing Fidra', String(error));
+      });
+      return;
+    }
     // Focus existing window
     const allWindows = BrowserWindow.getAllWindows();
     if (allWindows.length > 0) {
@@ -54,13 +66,10 @@ process.on('unhandledRejection', (reason) => {
   console.error('[MAIN] Unhandled rejection:', reason);
 });
 
-function getDefaultDbPath(): string {
-  return path.join(app.getPath('userData'), 'fidra.db');
-}
-
 declare const MAIN_WINDOW_VITE_DEV_SERVER_URL: string | undefined;
 
 app.on('ready', async () => {
+  if (installerEvent || !gotTheLock) return;
   diag('app.ready fired');
   // ─── Content Security Policy ────────────────────────────────────
   const isDev = !!MAIN_WINDOW_VITE_DEV_SERVER_URL;
@@ -97,27 +106,22 @@ app.on('ready', async () => {
 
   try {
     const settings = loadGlobalSettings();
-    const dbPath = settings.lastFile ?? getDefaultDbPath();
-    diag(`Creating window for: ${dbPath}`);
-    try {
-      const ctx = await getWindowManager().createWindow(dbPath);
-      if (ctx) getWindowManager().markStartupComplete(ctx.window.webContents.id);
-    } catch (e) {
-      // If the saved lastFile can't be opened (e.g. iCloud not materialised,
-      // file moved/deleted), fall back to the default database path.
-      const fallback = getDefaultDbPath();
-      if (dbPath !== fallback) {
-        diag(`Failed to open ${dbPath}, falling back to ${fallback}: ${e instanceof Error ? e.message : String(e)}`);
-        const ctx = await getWindowManager().createWindow(fallback);
-        if (ctx) getWindowManager().markStartupComplete(ctx.window.webContents.id);
-      } else {
-        throw e;
-      }
-    }
+    await openStartupWindow();
     diag('Window created successfully');
 
-    // Check for updates after a short delay so the window is fully loaded
-    setTimeout(checkForUpdates, 5000);
+    const reopenPaths = settings.updateReopenPaths;
+    if (Array.isArray(reopenPaths)) {
+      for (const reopenPath of [...new Set(reopenPaths)].slice(0, 20)) {
+        if (typeof reopenPath !== 'string' || !path.isAbsolute(reopenPath) || !fs.existsSync(reopenPath)) continue;
+        await getWindowManager().createWindow(reopenPath).then((ctx) => {
+          if (ctx) getWindowManager().markStartupComplete(ctx.window.webContents.id);
+        }).catch((error: unknown) => diag(`Could not reopen update window: ${String(error)}`));
+      }
+      const currentSettings = loadGlobalSettings();
+      delete currentSettings.updateReopenPaths;
+      saveGlobalSettings(currentSettings);
+    }
+    initializeUpdateChecks();
   } catch (e) {
     const msg = e instanceof Error ? e.stack ?? e.message : String(e);
     diag(`FAILED to create window: ${msg}`);
@@ -133,26 +137,8 @@ app.on('window-all-closed', () => {
 
 app.on('activate', async () => {
   if (BrowserWindow.getAllWindows().length === 0) {
-    try {
-      const settings = loadGlobalSettings();
-      const dbPath = settings.lastFile ?? getDefaultDbPath();
-      try {
-        const ctx = await getWindowManager().createWindow(dbPath);
-        if (ctx) getWindowManager().markStartupComplete(ctx.window.webContents.id);
-      } catch (e) {
-        const fallback = getDefaultDbPath();
-        if (dbPath !== fallback) {
-          diag(`activate: fallback to ${fallback}: ${e instanceof Error ? e.message : String(e)}`);
-          const ctx = await getWindowManager().createWindow(fallback);
-          if (ctx) getWindowManager().markStartupComplete(ctx.window.webContents.id);
-        } else {
-          throw e;
-        }
-      }
-    } catch (e) {
-      const msg = e instanceof Error ? e.stack ?? e.message : String(e);
-      diag(`activate: FAILED: ${msg}`);
-      dialog.showErrorBox('Fidra Startup Error', msg);
-    }
+    await openStartupWindow().catch((error: unknown) => {
+      dialog.showErrorBox('Fidra Startup Error', String(error));
+    });
   }
 });

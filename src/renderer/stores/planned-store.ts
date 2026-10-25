@@ -80,7 +80,10 @@ export const usePlannedStore = create<PlannedState>((set, get) => ({
       const results = await window.api.bulkSavePlannedTemplates(data);
       const resultMap = new Map(results.map((r) => [r.id, r]));
       set((state) => ({
-        templates: state.templates.map((t) => resultMap.get(t.id) ?? t),
+        templates: [
+          ...state.templates.map((t) => resultMap.get(t.id) ?? t),
+          ...results.filter((result) => !state.templates.some((template) => template.id === result.id)),
+        ].sort((a, b) => a.start_date.localeCompare(b.start_date)),
         _generation: state._generation + 1,
       }));
       return results;

@@ -531,6 +531,7 @@ export function createDemoDataState(): DemoDataState {
       showPlanned: true,
       filteredBalanceMode: false,
       theme: 'light',
+      sidebarCollapsed: false,
       reportOrgName: 'SubAqua Club',
     },
     fyStartMonth: 8,

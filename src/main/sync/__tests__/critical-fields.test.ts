@@ -30,6 +30,7 @@ describe('critical-fields', () => {
       expect(isCriticalField('planned_templates', 'type')).toBe(true);
       expect(isCriticalField('planned_templates', 'frequency')).toBe(true);
       expect(isCriticalField('planned_templates', 'target_sheet')).toBe(true);
+      expect(isCriticalField('planned_templates', 'fulfilled_dates')).toBe(true);
     });
 
     test('planned_templates non-critical fields', () => {

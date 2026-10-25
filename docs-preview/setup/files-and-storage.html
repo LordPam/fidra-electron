@@ -69,6 +69,14 @@
         <h2 id="the-main-database-file">The Main Database File</h2>
         <p>Your ledger lives in a single database file, usually with a
         <code>.fdra</code> extension.</p>
+        <p><strong>Start a ledger</strong> on the welcome screen chooses
+        <code>~/.fidra/accounts/Accounts.fdra</code> automatically, with
+        a new numbered filename when needed. On Windows, the root is
+        <code>%USERPROFILE%\.fidra\accounts\</code>. Existing ledgers
+        stay in their chosen locations. <strong>Settings → This
+        device</strong> lists retained ledgers and their attachment
+        directory; resetting or uninstalling through Fidra preserves
+        those files and backups.</p>
         <p>Example:</p>
         <pre class="text"><code>finances.fdra</code></pre>
         <p>Fidra uses SQLite in WAL mode. That means extra SQLite files

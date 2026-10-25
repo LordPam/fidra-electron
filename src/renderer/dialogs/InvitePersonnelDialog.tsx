@@ -1,3 +1,4 @@
+import type { FidraInvitation } from '../../shared/invitation-types';
 import { useState } from 'react';
 import {
   Dialog,
@@ -9,7 +10,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Loader2, Copy, Check } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { useAuthStore } from '@/stores/auth-store';
 import type { PersonnelRole } from '../../shared/auth-types';
 
@@ -21,6 +22,7 @@ interface InvitePersonnelDialogProps {
 export function InvitePersonnelDialog({ open, onOpenChange }: InvitePersonnelDialogProps) {
   const { localInviteMember } = useAuthStore();
 
+  const [invitation, setInvitation] = useState<FidraInvitation | null>(null);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [role, setRole] = useState<PersonnelRole>('member');
@@ -35,6 +37,7 @@ export function InvitePersonnelDialog({ open, onOpenChange }: InvitePersonnelDia
     setRole('member');
     setError('');
     setInviteCode(null);
+    setInvitation(null);
     setCopied(false);
   };
 
@@ -61,6 +64,7 @@ export function InvitePersonnelDialog({ open, onOpenChange }: InvitePersonnelDia
         setError(result.error ?? 'Invite failed.');
       } else {
         setInviteCode(result.inviteCode ?? null);
+        setInvitation(result.invitation ?? null);
       }
     } catch (e) {
       setSaving(false);
@@ -92,15 +96,16 @@ export function InvitePersonnelDialog({ open, onOpenChange }: InvitePersonnelDia
 
         {inviteCode ? (
           <div className="space-y-3">
-            <p className="text-sm text-muted-foreground">
-              Share this invite code with <strong>{name}</strong>. They&apos;ll use it to join the shared database.
-            </p>
-            <div className="flex items-center gap-2 rounded-md bg-muted px-3 py-2">
-              <code className="flex-1 font-mono text-sm tracking-wider">{inviteCode}</code>
-              <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={handleCopy}>
-                {copied ? <Check className="h-3.5 w-3.5 text-green-600" /> : <Copy className="h-3.5 w-3.5" />}
-              </Button>
-            </div>
+            <p className="text-sm text-muted-foreground">Share the invitation file privately with <strong>{name}</strong>, along with access to the team's shared OneDrive folder. They can open it from Join a team in Fidra. It expires after seven days.</p>
+            {invitation && <Button disabled={saving} onClick={async () => {
+              setSaving(true); setError('');
+              try { await window.api.saveInvitation(invitation); } catch (error) { setError(String(error)); }
+              finally { setSaving(false); }
+            }}>Save invitation to share</Button>}
+            <details className="text-xs"><summary>Copy an access code instead</summary>
+              <div className="mt-2 break-all font-mono select-all">{inviteCode}</div>
+              <Button variant="ghost" size="sm" onClick={handleCopy}>{copied ? 'Copied' : 'Copy code'}</Button>
+            </details>
           </div>
         ) : (
           <div className="space-y-3">

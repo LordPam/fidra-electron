@@ -92,9 +92,10 @@ export function FileChooserDialog({ onDismiss }: FileChooserDialogProps) {
   const hasContent = recentFiles.length > 0;
 
   return (
-    <div className="flex h-screen w-full bg-surface">
+    <div className="flex h-screen w-full bg-surface-base">
+      <div className="app-drag fixed inset-x-0 top-0 h-10" aria-hidden="true" />
       {/* Left panel — branding + actions */}
-      <div className="flex w-64 shrink-0 flex-col border-r border-border bg-surface-raised p-6">
+      <div className="flex w-64 shrink-0 flex-col border-r border-border bg-surface-raised p-6 pt-12">
         <div className="flex items-center gap-2.5">
           <img src={logoLight} alt="Fidra" className="h-8 w-8 object-contain dark:hidden" />
           <img src={logoDark} alt="Fidra" className="hidden h-8 w-8 object-contain dark:block" />
@@ -132,7 +133,7 @@ export function FileChooserDialog({ onDismiss }: FileChooserDialogProps) {
       </div>
 
       {/* Right panel — recent files */}
-      <div className="flex flex-1 flex-col p-8">
+      <div className="flex flex-1 flex-col p-8 pt-12">
         <div className="mb-6">
           <h1 className="font-display text-xl font-semibold text-foreground">
             Recent Databases

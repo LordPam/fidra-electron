@@ -1,14 +1,15 @@
 import { useEffect, useState } from 'react';
 import { FolderSync } from 'lucide-react';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from '@/components/ui/tooltip';
 import { useLocalSyncStore } from '@/stores/local-sync-store';
 import { LocalSyncSetupDialog } from '@/dialogs/LocalSyncSetupDialog';
+import {
+  SidebarIcon,
+  SidebarRow,
+  SidebarLabel,
+  sidebarRowClasses,
+} from '@/components/SidebarRow';
 
-export function LocalSyncIndicator() {
+export function LocalSyncIndicator({ collapsed = true }: { collapsed?: boolean }) {
   const enabled = useLocalSyncStore((s) => s.enabled);
   const state = useLocalSyncStore((s) => s.state);
   const pendingConflicts = useLocalSyncStore((s) => s.pendingConflicts);
@@ -52,26 +53,37 @@ export function LocalSyncIndicator() {
 
   return (
     <>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <button
-            type="button"
-            className="relative flex h-10 w-10 items-center justify-center rounded-md text-fidra-slate transition-fidra hover:bg-fidra-teal/10 hover:text-foreground"
-            onClick={() => setDialogOpen(true)}
-          >
-            <FolderSync className="h-5 w-5" />
-            <span className={`absolute right-1.5 top-1.5 h-2 w-2 rounded-full ${dotColor}`} />
-            {pendingConflicts > 0 && (
-              <span className="absolute -right-0.5 -top-0.5 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-orange-500 px-0.5 text-[9px] font-bold text-black">
+      <SidebarRow collapsed={collapsed} label={tooltipText}>
+        <button
+          type="button"
+          className={sidebarRowClasses(collapsed, 'text-fidra-slate')}
+          onClick={() => setDialogOpen(true)}
+          title={collapsed ? undefined : tooltipText}
+        >
+          <SidebarIcon>
+            <FolderSync className="h-[18px] w-[18px]" />
+            {collapsed && (
+              <span className={`absolute right-1 top-1 h-2 w-2 rounded-full ring-2 ring-surface-base ${dotColor}`} />
+            )}
+            {collapsed && pendingConflicts > 0 && (
+              <span className="absolute -right-1 -top-1 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-orange-500 px-0.5 text-[9px] font-bold text-black">
                 {pendingConflicts > 99 ? '99+' : pendingConflicts}
               </span>
             )}
-          </button>
-        </TooltipTrigger>
-        <TooltipContent side="right" className="font-display text-xs">
-          {tooltipText}
-        </TooltipContent>
-      </Tooltip>
+          </SidebarIcon>
+          <SidebarLabel collapsed={collapsed}>Local Sync</SidebarLabel>
+          {!collapsed && (
+            <span className="absolute right-4 top-1/2 flex -translate-y-1/2 items-center gap-1.5">
+              {pendingConflicts > 0 && (
+                <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-orange-500 px-1 text-[10px] font-bold text-black">
+                  {pendingConflicts > 99 ? '99+' : pendingConflicts}
+                </span>
+              )}
+              <span className={`h-2 w-2 rounded-full ${dotColor}`} />
+            </span>
+          )}
+        </button>
+      </SidebarRow>
       <LocalSyncSetupDialog open={dialogOpen} onOpenChange={setDialogOpen} />
     </>
   );

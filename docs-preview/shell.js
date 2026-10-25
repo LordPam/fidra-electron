@@ -33,6 +33,7 @@ const DOCS_SECTIONS = [
   {
     title: "Operations",
     items: [
+      { title: "Updating Fidra", href: "operations/app-updates.html" },
       { title: "Backups and Restore", href: "operations/backups-and-restore.html" },
       { title: "Troubleshooting and Recovery", href: "operations/troubleshooting-and-recovery.html" }
     ]

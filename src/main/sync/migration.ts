@@ -4,7 +4,6 @@
  * Entry point: joinLocalSync — new peer joins an existing Local Sync group
  * via snapshot. Creates a NEW database file (sync mode is immutable per file).
  */
-import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
@@ -13,7 +12,7 @@ import { openDatabase, getAttachmentStoragePath } from '../database/connection';
 import { initializeCrr } from './crr-schema';
 import { applySnapshot } from './compaction';
 import { findLatestSnapshot, isBundleFile, parseBundleFilename, readBundleFile } from './bundle-io';
-import { unpackBundle, type CrChangesetRow } from './bundle-format';
+import { unpackBundle } from './bundle-format';
 import { BundleIntegrityError, BundleCryptoError } from './bundle-crypto';
 import { BundleFormatError } from './bundle-format';
 import { initializeDeviceIdentity } from './device-identity';
@@ -23,12 +22,14 @@ export interface MigrationResult {
   success: boolean;
   newDbPath?: string;
   error?: string;
+  retryable?: boolean;
 }
 
 interface JoinLocalSyncOpts {
   syncFolder: string;
   passphrase: string;
   newDbPath: string;
+  afterImport?: (db: Database.Database) => void;
 }
 
 /**
@@ -38,7 +39,11 @@ interface JoinLocalSyncOpts {
 export function joinLocalSync(opts: JoinLocalSyncOpts): MigrationResult {
   const { syncFolder, passphrase, newDbPath } = opts;
 
+  let stagingDirectory: string | undefined;
+  let createdDatabaseId: string | undefined;
   try {
+    if (!path.isAbsolute(newDbPath)) return { success: false, error: 'Choose an absolute location for the new ledger.' };
+    if (fs.existsSync(newDbPath)) return { success: false, error: 'A file already exists at this location. Choose another name; existing files are never replaced when joining.' };
     // Validate sync folder
     fs.accessSync(syncFolder, fs.constants.R_OK);
 
@@ -47,12 +52,16 @@ export function joinLocalSync(opts: JoinLocalSyncOpts): MigrationResult {
     if (!snapshot) {
       return {
         success: false,
-        error: 'No snapshot found. Ask an existing team member to create a snapshot first.',
+        error: 'No snapshot found. Waiting for the team data to arrive through OneDrive.', retryable: true,
       };
     }
 
     // Create fresh database (schema DDL + migrations run automatically)
-    const { db } = openDatabase(newDbPath);
+    stagingDirectory = fs.mkdtempSync(path.join(path.dirname(newDbPath), '.fidra-join-'));
+    const stagedPath = path.join(stagingDirectory, 'ledger.fdra');
+    const { db, databaseId } = openDatabase(stagedPath);
+    createdDatabaseId = databaseId;
+    fs.chmodSync(stagedPath, 0o600);
 
     try {
       // Register CRR tables
@@ -118,17 +127,25 @@ export function joinLocalSync(opts: JoinLocalSyncOpts): MigrationResult {
 
       // Ensure device identity exists (per-database, stored in sync_meta)
       initializeDeviceIdentity(db, os.hostname());
+      opts.afterImport?.(db);
+      db.pragma('wal_checkpoint(TRUNCATE)');
     } finally {
       db.close();
     }
 
+    // Same-filesystem hard link publishes a complete closed DB without replacing
+    // an existing destination, including a file created during the import.
+    fs.linkSync(stagedPath, newDbPath);
+    try { fs.rmSync(stagingDirectory, { recursive: true, force: true }); } catch { /* Published ledger is complete; stale staging can be removed later. */ }
+    stagingDirectory = undefined;
     syncLog('info', 'joinLocalSync completed', { newDbPath, syncFolder });
     return { success: true, newDbPath };
   } catch (e) {
     const error = e instanceof Error ? e.message : String(e);
     syncLog('error', 'joinLocalSync failed', { error });
     // Clean up partial file on failure
-    try { fs.unlinkSync(newDbPath); } catch { /* ignore */ }
+    if (stagingDirectory) fs.rmSync(stagingDirectory, { recursive: true, force: true });
+    if (createdDatabaseId) fs.rmSync(getAttachmentStoragePath(createdDatabaseId), { recursive: true, force: true });
     return { success: false, error };
   }
 }

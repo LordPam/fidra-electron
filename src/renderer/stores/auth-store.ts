@@ -26,7 +26,7 @@ interface AuthState {
   // Local Sync auth actions
   localSignIn: (email: string, password: string) => Promise<boolean>;
   localCreateFirstAdmin: (name: string, email: string, password: string, syncPassphrase: string) => Promise<{ success: boolean; error?: string }>;
-  localInviteMember: (name: string, email: string, role: PersonnelRole) => Promise<{ success: boolean; inviteCode?: string; error?: string }>;
+  localInviteMember: (name: string, email: string, role: PersonnelRole) => Promise<{ success: boolean; invitation?: import('../../shared/invitation-types').FidraInvitation; inviteCode?: string; error?: string }>;
   localChangePassword: (oldPassword: string, newPassword: string) => Promise<{ success: boolean; error?: string }>;
   localReconnect: (syncFolder: string) => Promise<{ success: boolean; error?: string }>;
   localSignOut: () => Promise<void>;

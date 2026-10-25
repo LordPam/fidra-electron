@@ -4,6 +4,7 @@ export type SettingScope = 'org' | 'device';
 
 /** Keys that are organisation-scoped and should be synced via Local Sync. */
 export const ORG_KEYS: ReadonlySet<string> = new Set([
+  'localSync.groupId',
   'profile.name',
   'profile.initials',
   'fy_start_month',

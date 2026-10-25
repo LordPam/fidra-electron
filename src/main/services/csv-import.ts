@@ -83,9 +83,8 @@ export function analyzeForImport(ctx: WindowContext, request: CsvAnalyzeRequest)
     applyMapping(row, i + request.skipRows, request.columnMapping, request.amountMode, request.signConvention, request.dateFormat, request.decimalSeparator),
   );
 
-  // Load existing transactions for duplicate detection (all sheets — a duplicate
-  // on a different sheet is still a duplicate)
-  const existingTransactions = ctx.repos.transactions.getAll();
+  // Each sheet represents the bank account selected for this import.
+  const existingTransactions = ctx.repos.transactions.getAll(request.targetSheet);
   const detector = new DuplicateDetector(existingTransactions);
 
   // Load or create Bayesian model
@@ -127,6 +126,10 @@ export function analyzeForImport(ctx: WindowContext, request: CsvAnalyzeRequest)
 // ─── Commit Import ───────────────────────────────────────────────────
 
 export function commitImport(ctx: WindowContext, request: CsvCommitRequest): CsvImportResult {
+  return ctx.sqlite.transaction(() => commitImportRows(ctx, request))();
+}
+
+function commitImportRows(ctx: WindowContext, request: CsvCommitRequest): CsvImportResult {
   assertSheetsExist(ctx.sqlite, [{ label: 'target sheet', sheet: request.targetSheet }]);
 
   const includedRows = request.rows.filter((r) => r.include);
@@ -139,13 +142,16 @@ export function commitImport(ctx: WindowContext, request: CsvCommitRequest): Csv
 
     const p = row.parsed;
     const overrides = row.userOverrides;
-    const type = overrides.type ?? p.type ?? row.prediction.type ?? 'expense';
+    const type = overrides.type ?? p.type;
+    if (!p.date || p.amount === null || !Number.isFinite(p.amount) || p.amount <= 0 || !type || p.parseErrors.length) {
+      throw new Error(`Statement row ${p.rowIndex + 1} has unresolved financial fields. Correct the source or exclude this row before importing.`);
+    }
 
     return {
       id,
-      date: p.date ?? now.split('T')[0],
+      date: p.date,
       description: overrides.description ?? p.description ?? '',
-      amount: (p.amount ?? 0).toFixed(2),
+      amount: p.amount.toFixed(2),
       type,
       status: resolveStatus(type, overrides.status ?? request.defaultStatus),
       sheet: request.targetSheet,
@@ -161,6 +167,17 @@ export function commitImport(ctx: WindowContext, request: CsvCommitRequest): Csv
       modified_by: null,
     };
   });
+
+  const currentDetector = new DuplicateDetector(ctx.repos.transactions.getAll(request.targetSheet));
+  const sourceRows = new Set<number>();
+  for (const row of includedRows) {
+    if (sourceRows.has(row.parsed.rowIndex)) throw new Error('A source statement row appears more than once in this import. Review it again.');
+    sourceRows.add(row.parsed.rowIndex);
+    const current = currentDetector.check({ ...row.parsed, type: row.userOverrides.type ?? row.parsed.type });
+    if (current.matchedTransactionIds.some((id) => !row.duplicateMatch.matchedTransactionIds.includes(id))) {
+      throw new Error('The ledger changed after this import preview. Analyse the statement again to check for duplicates.');
+    }
+  }
 
   if (transactions.length > 0) {
     // Imported rows are assembled here rather than arriving over IPC as rows, so

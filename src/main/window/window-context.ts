@@ -1,4 +1,6 @@
 import path from 'node:path';
+import { ReconciliationService } from '../services/reconciliation';
+import fs from 'node:fs';
 import type { BrowserWindow } from 'electron';
 import type Database from 'better-sqlite3';
 import { TransactionRepo } from '../repositories/transaction-repo';
@@ -25,8 +27,11 @@ export class WindowContext {
   readonly dbPath: string;
   readonly databaseId: string;
   readonly sqlite: Database.Database;
+  readonly reconciliation: ReconciliationService;
   readonly window: BrowserWindow;
 
+  temporaryDirectory: string | null = null;
+  startupMode: 'wizard' | 'chooser' | 'restore' = 'restore';
   private _closed = false;
   get isClosed(): boolean { return this._closed; }
 
@@ -67,6 +72,7 @@ export class WindowContext {
     this.dbPath = dbPath;
     this.databaseId = databaseId;
     this.sqlite = sqlite;
+    this.reconciliation = new ReconciliationService(sqlite);
 
     this.transactionRepo = new TransactionRepo(sqlite);
     this.plannedRepo = new PlannedRepo(sqlite);
@@ -191,6 +197,7 @@ export class WindowContext {
   }
 
   async close(): Promise<void> {
+    if (this._closed) return;
     this._closed = true;
     if (this._retentionTimer) {
       clearInterval(this._retentionTimer);
@@ -209,6 +216,7 @@ export class WindowContext {
       }
     } catch { /* never block shutdown */ }
     this.sqlite.close();
+    if (this.temporaryDirectory) fs.rmSync(this.temporaryDirectory, { recursive: true, force: true });
     console.log(`[WINDOW ${this.dbName}] Closed`);
   }
 }

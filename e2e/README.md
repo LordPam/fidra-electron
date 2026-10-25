@@ -42,10 +42,12 @@ fixture.** `smoke.e2e.ts` asserts the sandbox is real before anything else runs.
 Each test gets a fresh install: no settings, no database, no sheets. The app creates
 a "General" sheet on first run and lands on the Dashboard.
 
-Navigation links in the sidebar are icon-only `<a>` elements with no accessible name,
-so they must be addressed by href — `a[href="#/transactions"]` (the app uses
-HashRouter). Giving those links `aria-label`s would make both tests and screen readers
-better off.
+Address navigation links by href — `a[href="#/transactions"]` (the app uses
+HashRouter) or by their `aria-label`. The visible label disappears when the sidebar
+is collapsed, but the accessible name remains stable in both states.
+
+Expansion also means a plain `getByText('Dashboard')` matches the nav label *and* the
+view heading. Use `getByRole('heading', …)` when you mean the view.
 
 `mainErrors` collects main-process stderr, so a test can assert the app did not log an
 error while doing the thing under test — cheap and catches a lot.
@@ -60,3 +62,7 @@ happened:
 ```bash
 npx playwright show-trace test-results/<test-name>/trace.zip
 ```
+
+## Update checks
+
+`updates.e2e.ts` covers persistent update controls, process-wide status, the manual-only preference, unfinished-transaction protection, invoice-save flushing, and reopening ledger windows after an update handoff. The tests inject status/preparation events and use only the fixture's temporary ledgers. They never download, install, or publish a release.

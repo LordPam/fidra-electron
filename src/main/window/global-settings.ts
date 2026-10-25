@@ -20,7 +20,7 @@ function defaultSettings(): GlobalSettings {
     lastOpenedAt: null,
     alwaysShowFileChooser: false,
     firstRunComplete: false,
-    uiPreferences: { tableZoom: 0.8, plannedTableZoom: 0.8, activitiesTableZoom: 0.8, showPlanned: false, filteredBalanceMode: false, theme: 'system' },
+    uiPreferences: { tableZoom: 0.8, plannedTableZoom: 0.8, activitiesTableZoom: 0.8, showPlanned: false, filteredBalanceMode: false, theme: 'system', sidebarCollapsed: false },
   };
 }
 
@@ -43,9 +43,13 @@ export function loadGlobalSettings(): GlobalSettings {
       delete parsed.zoom;
     }
 
+    const defaults = defaultSettings();
     const merged: GlobalSettings = {
-      ...defaultSettings(),
+      ...defaults,
       ...parsed,
+      // uiPreferences gains keys over time; a settings file written by an older
+      // build would otherwise shadow the whole object and drop the new ones.
+      uiPreferences: { ...defaults.uiPreferences, ...parsed.uiPreferences },
     };
     // If the sentinel file exists, always honour it (survives JSON corruption cycles)
     if (!merged.firstRunComplete && isFirstRunSentinelPresent()) {
@@ -63,7 +67,7 @@ export function loadGlobalSettings(): GlobalSettings {
   }
 }
 
-export function saveGlobalSettings(settings: GlobalSettings): void {
+export function saveGlobalSettings(settings: GlobalSettings, requireSuccess = false): void {
   const dir = getSettingsDir();
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
@@ -81,6 +85,7 @@ export function saveGlobalSettings(settings: GlobalSettings): void {
       fs.writeFileSync(settingsPath, JSON.stringify(toWrite, null, 2), 'utf-8');
     } catch (e2) {
       console.error('[global-settings] Direct write also failed:', e2 instanceof Error ? e2.message : String(e2));
+      if (requireSuccess) throw e2;
     }
   }
 }

@@ -26,6 +26,8 @@ const CRITICAL_FIELDS: Record<string, ReadonlySet<string>> = {
     'type',
     'frequency',
     'target_sheet',
+    // Reconciliation must not silently lose another device's fulfilment.
+    'fulfilled_dates',
   ]),
   invoices: new Set([
     'subtotal',

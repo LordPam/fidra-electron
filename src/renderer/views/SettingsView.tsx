@@ -1,3 +1,14 @@
+import { PersonalAiSettings } from '@/components/PersonalAiSettings';
+import type { AiBridgeState, AiClient, AiConnectionPermissions } from '../../shared/ai-bridge-types';
+import type { ReconciliationScope, ReconciliationApproval } from '../../shared/reconciliation-types';
+import { usePlannedStore } from '@/stores/planned-store';
+import { useSheetStore } from '@/stores/sheet-store';
+import { useUndoStore } from '@/stores/undo-store';
+import { createReconciliationImportCommand } from '@/services/undo';
+import { DeviceSettings } from '@/components/DeviceSettings';
+import type { DeviceDataInfo } from '../../shared/device-types';
+import { UpdateSettings } from '@/components/UpdateSettings';
+import { useUpdateGuard } from '@/services/update-preparation';
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuthStore } from '@/stores/auth-store';
 import { useUiStore } from '@/stores/ui-store';
@@ -60,11 +71,47 @@ export default function SettingsView() {
   const setReportOrgName = useUiStore((s) => s.setReportOrgName);
   const [aboutInfo, setAboutInfo] = useState<{ version: string; description: string; logPath: string } | null>(null);
 
+  const [deviceInfo, setDeviceInfo] = useState<DeviceDataInfo | null>(null);
+  const [deviceBusy, setDeviceBusy] = useState(false);
+  const [deviceError, setDeviceError] = useState<string | null>(null);
+  useEffect(() => { window.api.getDeviceDataInfo().then(setDeviceInfo).catch((error: unknown) => setDeviceError(String(error))); }, []);
+  const resetDevice = async (action: 'reset' | 'uninstall') => {
+    setDeviceBusy(true); setDeviceError(null);
+    try { const result = await window.api.resetDevice(action); if (result.error) setDeviceError(result.error); }
+    catch (error) { setDeviceError(String(error)); }
+    finally { setDeviceBusy(false); }
+  };
+
+  const undoableImportId = useUndoStore((state) => state.undoStack.at(-1)?.id?.replace(/^reconciliation:/, '') ?? null);
+  const aiPlanned = usePlannedStore((state) => state.templates);
+  useEffect(() => { void usePlannedStore.getState().loadAll(); }, []);
+  const aiSheets = useSheetStore((state) => state.sheets);
+  const [aiState, setAiState] = useState<AiBridgeState>({ connections: [], proposals: [], statements: [] });
+  const [aiBusy, setAiBusy] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
+  const refreshAi = useCallback(async () => { setAiState(await window.api.getAiBridgeState()); }, []);
+  useEffect(() => {
+    const refresh = () => { refreshAi().catch((error: unknown) => setAiError(String(error))); };
+    const unsubscribe = window.api.onAiChanged(refresh); refresh();
+    const timer = setInterval(refresh, 30000);
+    return () => { unsubscribe(); clearInterval(timer); };
+  }, [refreshAi]);
+  const runAi = async (action: () => Promise<unknown>) => {
+    setAiBusy(true); setAiError(null);
+    try { await action(); await refreshAi(); } catch (error) { setAiError(String(error)); }
+    finally { setAiBusy(false); }
+  };
+  const connectAi = (client: AiClient, scope: ReconciliationScope, permissions: AiConnectionPermissions) => { void runAi(() => window.api.connectAi(client, scope, permissions)); };
+  const approveAi = (approval: ReconciliationApproval) => { void runAi(() => useUndoStore.getState().execute(createReconciliationImportCommand(approval))); };
+
   // Profile state
   const [profileName, setProfileName] = useState('');
   const [profileInitials, setProfileInitials] = useState('');
   const [profileSaved, setProfileSaved] = useState(false);
   const [profileLoaded, setProfileLoaded] = useState(false);
+  const [savedProfile, setSavedProfile] = useState({ name: '', initials: '' });
+  useUpdateGuard(() => profileLoaded && (profileName.trim() !== savedProfile.name || profileInitials.trim() !== savedProfile.initials)
+    ? 'Save your profile changes in Settings before continuing.' : null);
 
   // Organisation name
   const [orgNameInput, setOrgNameInput] = useState('');
@@ -134,6 +181,7 @@ export default function SettingsView() {
     });
     window.api.getAboutInfo().then(setAboutInfo);
     window.api.getProfile().then((p) => {
+      setSavedProfile(p);
       setProfileName(p.name);
       setProfileInitials(p.initials);
       setProfileLoaded(true);
@@ -155,6 +203,7 @@ export default function SettingsView() {
 
   const saveProfile = useCallback(async () => {
     await window.api.saveProfile({ name: profileName.trim(), initials: profileInitials.trim().slice(0, 3) });
+    setSavedProfile({ name: profileName.trim(), initials: profileInitials.trim().slice(0, 3) });
     setProfileSaved(true);
     setTimeout(() => setProfileSaved(false), 2000);
   }, [profileName, profileInitials]);
@@ -167,7 +216,7 @@ export default function SettingsView() {
 
   return (
     <div className="flex flex-col h-full">
-      <header className="flex items-center justify-between px-6 py-3 border-b border-border-subtle bg-surface-raised">
+      <header className="app-drag app-view-header flex items-center justify-between px-6 py-3 border-b border-border-subtle bg-surface-raised">
         <h1 className="text-xl font-display font-semibold">Settings</h1>
       </header>
       <main className="flex-1 overflow-auto p-6 space-y-4">
@@ -469,6 +518,22 @@ export default function SettingsView() {
             </CardContent>
           </Card>
         </div>
+
+        <PersonalAiSettings state={aiState} sheets={aiSheets} plannedTemplates={aiPlanned} ledgerName={reportOrgName || dbPath?.split(/[\\/]/).pop() || 'this ledger'} undoableImportId={undoableImportId} onUndo={() => { void runAi(() => useUndoStore.getState().undo()); }} busy={aiBusy} error={aiError} onConnect={connectAi} onApprove={approveAi}
+          onDisconnect={(id) => { void runAi(() => window.api.disconnectAi(id)); }}
+          onExport={(id) => { void runAi(() => window.api.exportAiConnection(id)); }}
+          onExportContext={(id) => { void runAi(() => window.api.exportAiContext(id)); }}
+          onOpenProposal={() => { void runAi(() => window.api.openAiProposal()); }}
+          onSelectStatement={async () => {
+            setAiBusy(true); setAiError(null);
+            try { const selected = await window.api.selectAiStatement(); await refreshAi(); return selected; }
+            catch (error) { setAiError(String(error)); return null; }
+            finally { setAiBusy(false); }
+          }}
+          onDiscard={(id) => { void runAi(() => window.api.discardAiProposal(id)); }} />
+        <UpdateSettings />
+        <DeviceSettings info={deviceInfo} busy={deviceBusy} error={deviceError} onReset={(action) => void resetDevice(action)}
+          onShowFiles={() => { window.api.showFinancialFiles().catch((error: unknown) => setDeviceError(String(error))); }} />
 
         {/* Row 4: Backup & Restore */}
         <Card>

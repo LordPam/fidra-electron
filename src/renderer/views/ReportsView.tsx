@@ -2,7 +2,7 @@ import { useMemo, useState, useCallback } from 'react';
 import { useTransactionStore } from '@/stores/transaction-store';
 import { useSheetStore } from '@/stores/sheet-store';
 import { usePlannedStore } from '@/stores/planned-store';
-import { expandTemplate } from '@/services/forecast';
+import { expandTemplate } from '../../shared/forecast';
 import { computeTotal, computePendingTotal } from '@/services/balance';
 import {
   computeDailyBalances,
@@ -249,7 +249,7 @@ export default function ReportsView() {
 
   return (
     <div className="flex flex-col h-full">
-      <header className="flex items-center gap-3 px-6 py-3 border-b border-border-subtle bg-surface-raised shrink-0">
+      <header className="app-drag app-view-header flex items-center gap-3 px-6 py-3 border-b border-border-subtle bg-surface-raised shrink-0">
         <h1 className="text-xl font-display font-semibold">Reports</h1>
         {sheetName && (
           <span className="text-xs text-muted-foreground bg-muted/50 px-2 py-0.5 rounded">

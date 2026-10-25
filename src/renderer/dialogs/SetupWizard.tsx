@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { FilePlus, FolderOpen, ArrowLeft, FolderSync, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { JoinLocalSyncDialog } from './JoinLocalSyncDialog';
@@ -10,7 +10,9 @@ interface SetupWizardProps {
 }
 
 export function SetupWizard({ onComplete }: SetupWizardProps) {
-  const [step, setStep] = useState(0);
+  const [accounts, setAccounts] = useState<{ path: string; databaseId: string }[]>([]);
+  useEffect(() => { window.api.getDeviceDataInfo().then((info) => setAccounts(info.accounts)).catch(() => undefined); }, []);
+  const [step, setStep] = useState(1);
   const [joinSyncOpen, setJoinSyncOpen] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -21,7 +23,7 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
 
   const handleCreateNew = async () => {
     setErrorMessage(null);
-    const result = await window.api.createNewDb();
+    const result = await window.api.createNewDb({ chooseLocation: false });
     if (result.error) {
       setErrorMessage(`Failed to create database: ${result.error}`);
       return;
@@ -45,7 +47,8 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
 
   if (step === 0) {
     return (
-      <div className="flex h-screen w-full items-center justify-center bg-surface">
+      <div className="flex h-screen w-full items-center justify-center bg-surface-base">
+        <div className="app-drag fixed inset-x-0 top-0 h-10" aria-hidden="true" />
         <div className="flex flex-col items-center gap-6 px-8">
           <div className="flex h-24 w-24 items-center justify-center">
             <img src={logoLight} alt="Fidra" className="h-24 w-24 object-contain dark:hidden" />
@@ -72,18 +75,27 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
   }
 
   return (
-    <div className="flex h-screen w-full items-center justify-center bg-surface">
+    <div className="flex h-screen w-full items-center justify-center bg-surface-base">
+      <div className="app-drag fixed inset-x-0 top-0 h-10" aria-hidden="true" />
       <div className="w-full max-w-md space-y-5 px-8">
         <div>
           <h1 className="font-display text-xl font-semibold text-foreground">
-            Choose Your Database
+            Welcome to Fidra
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Fidra stores your financial data in a database file.
-            Create a new one, open an existing file, or join a sync group.
+            Start fresh, continue with saved accounts, or join your team.
           </p>
         </div>
 
+        {accounts.length > 0 && <div className="space-y-2">
+          <p className="text-sm font-medium">Continue with saved accounts</p>
+          {accounts.map((account) => <button key={account.path} className="w-full rounded-lg border border-border p-3 text-left text-sm break-all hover:border-fidra-gold"
+            onClick={async () => {
+              const result = await window.api.switchToFile(account.path);
+              if (!result.success) setErrorMessage(result.error ?? 'Could not open this ledger.');
+              else await handleComplete();
+            }}>{account.path.split(/[\\/]/).pop()}<span className="block text-xs text-muted-foreground">{account.path}</span></button>)}
+        </div>}
         <button
           className="flex w-full items-center gap-4 rounded-lg border border-border bg-surface-raised p-4 text-left transition-fidra hover:border-fidra-gold"
           onClick={handleCreateNew}
@@ -92,7 +104,7 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
             <FilePlus className="h-5 w-5" />
           </div>
           <div>
-            <div className="font-medium text-foreground">Create New Database</div>
+            <div className="font-medium text-foreground">Start a ledger</div>
             <div className="text-xs text-muted-foreground">
               Start fresh with a new financial ledger
             </div>
@@ -107,7 +119,7 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
             <FolderOpen className="h-5 w-5" />
           </div>
           <div>
-            <div className="font-medium text-foreground">Open Existing Database</div>
+            <div className="font-medium text-foreground">Open a ledger</div>
             <div className="text-xs text-muted-foreground">
               Continue with an existing Fidra database file
             </div>
@@ -122,7 +134,7 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
             <FolderSync className="h-5 w-5" />
           </div>
           <div>
-            <div className="font-medium text-foreground">Join Local Sync Group</div>
+            <div className="font-medium text-foreground">Join a team</div>
             <div className="text-xs text-muted-foreground">
               Join a team already sharing data via a shared folder
             </div>

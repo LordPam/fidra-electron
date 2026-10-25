@@ -69,6 +69,12 @@
         <h2 id="what-to-expect">What to Expect</h2>
         <p>Fidra is distributed directly rather than through the Mac App
         Store or Microsoft Store.</p>
+        <p>The current distribution target has no Apple Developer
+        ID/notarization or Windows publisher certificate. Publisher
+        signing is deferred. Setup, invitations, reset and personal AI
+        access still work without it; a warning-free installation cannot
+        be promised. Mac builds retain an ad-hoc bundle signature, and
+        update downloads have separate Fidra verification.</p>
         <p>That means first-run verification can be stricter than for
         store-installed apps, especially when:</p>
         <ul>
@@ -186,12 +192,10 @@
         <h2 id="this-page-is-about-first-run-trust-not-updates">This
         Page Is About First-Run Trust, Not Updates</h2>
         <p>These notes are about the first install experience.</p>
-        <p>Once Fidra has:</p>
-        <ul>
-        <li>stronger signing/notarization on macOS</li>
-        <li>stronger reputation or signing on Windows</li>
-        </ul>
-        <p>the warning experience can become less prominent.</p>
+        <p>Publisher signing is not currently planned as a prerequisite.
+        Each unsigned update may prompt again, especially on Windows.
+        Fidra's own update verification checks the download but does not
+        remove operating-system warnings.</p>
       </article>
 
       <nav class="doc-pagination" aria-label="Page navigation" data-doc-pagination></nav>

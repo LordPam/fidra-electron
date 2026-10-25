@@ -1,3 +1,4 @@
+import { useUpdateGuard } from '@/services/update-preparation';
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -68,6 +69,9 @@ export function AddTransactionForm({
   const [counterpartSheet, setCounterpartSheet] = useState('');
   const [pendingFiles, setPendingFiles] = useState<PendingFile[]>([]);
   const [showDetails, setShowDetails] = useState(false);
+  useUpdateGuard(() => amount || description || category || party || reference || activity || notes || pendingFiles.length
+    ? 'Save or clear the unfinished transaction in Transactions first.' : null);
+
   const [fieldErrors, setFieldErrors] = useState<Record<string, boolean>>({});
   const amountRef = useRef<HTMLInputElement>(null);
 

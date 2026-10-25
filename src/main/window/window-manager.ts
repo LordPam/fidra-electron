@@ -5,6 +5,7 @@ import { BrowserWindow, dialog } from 'electron';
 import { openDatabase } from '../database/connection';
 import { acquireDbLock, releaseDbLock } from '../database/db-lock';
 import { WindowContext } from './window-context';
+import { rememberAccount } from '../services/account-catalog';
 import { SessionStore, dbPathToSessionId } from '../services/session-store';
 import { addRecentFile, loadGlobalSettings, saveGlobalSettings } from './global-settings';
 import { isCloudSyncedPath } from '../../shared/cloud-folder-detect';
@@ -21,6 +22,12 @@ export class WindowManager {
   private readonly contexts = new Map<number, WindowContext>();
   private readonly dbPathIndex = new Map<string, number>();
   private readonly startupCompleted = new Set<number>();
+  private updatePreparing = false;
+
+  get isPreparingOperation(): boolean { return this.updatePreparing; }
+
+  /** Keep the set of ledgers fixed while all windows prepare an installer handoff. */
+  setUpdatePreparing(value: boolean): void { this.updatePreparing = value; }
 
   /** Mark a webContents ID as having completed startup (skip file chooser on reload). */
   markStartupComplete(wcId: number): void {
@@ -72,7 +79,8 @@ export class WindowManager {
     return true;
   }
 
-  async createWindow(dbPath: string): Promise<WindowContext | null> {
+  async createWindow(dbPath: string, options: { startupMode?: 'wizard' | 'chooser' | 'restore'; temporaryDirectory?: string } = {}): Promise<WindowContext | null> {
+    if (this.updatePreparing) throw new Error('Fidra is preparing an update. Try opening the ledger again afterwards.');
     const normalized = path.resolve(dbPath);
 
     // If already open, focus and return existing context
@@ -117,6 +125,23 @@ export class WindowManager {
       minHeight: 600,
       show: false,
       title: `Fidra — ${path.basename(normalized)}`,
+      // macOS: drop the title bar strip and let the content run to the top,
+      // keeping the traffic lights floating over the sidebar. Drag regions are
+      // supplied by the renderer (`.app-drag`), so the window stays movable.
+      // Left framed on Windows/Linux, where `hidden` would also remove the
+      // minimise/maximise/close controls.
+      ...(process.platform === 'darwin'
+        ? {
+            titleBarStyle: 'hiddenInset' as const,
+            trafficLightPosition: { x: 14, y: 14 },
+            // `under-window` is deliberately more revealing than the dense
+            // sidebar material. Vibrancy already makes the web contents
+            // transparent where CSS permits it, so this stays a normal native
+            // window (retaining resize behaviour and the system shadow).
+            vibrancy: 'under-window' as const,
+            visualEffectState: 'followWindow' as const,
+          }
+        : {}),
       webPreferences: {
         preload: path.join(__dirname, 'preload.js'),
         contextIsolation: true,
@@ -146,13 +171,18 @@ export class WindowManager {
     win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
 
     const ctx = new WindowContext(win, normalized, databaseId, sqlite);
+    ctx.startupMode = options.startupMode ?? 'restore';
+    ctx.temporaryDirectory = options.temporaryDirectory ?? null;
     const wcId = win.webContents.id;
 
     this.contexts.set(wcId, ctx);
     this.dbPathIndex.set(normalized, wcId);
 
     // Track in recent files
-    addRecentFile(normalized);
+    if (!ctx.temporaryDirectory) {
+      try { rememberAccount(normalized, databaseId); } catch (error) { console.warn('[ACCOUNTS] Could not update the recovery index:', String(error)); }
+      addRecentFile(normalized);
+    }
 
     // Clean up on close
     win.on('closed', () => {
@@ -300,6 +330,7 @@ export class WindowManager {
 
   /** Returns true if the window will reload (caller's JS context will be destroyed). */
   async switchWindowToFile(webContentsId: number, dbPath: string): Promise<boolean> {
+    if (this.updatePreparing) return false;
     const normalized = path.resolve(dbPath);
     const ctx = this.contexts.get(webContentsId);
     if (!ctx) throw new Error('No context for this window');
@@ -315,15 +346,6 @@ export class WindowManager {
 
     const win = ctx.window;
     const oldDbPath = ctx.dbPath;
-
-    // Tear down old context (but NOT the window)
-    releaseDbLock(oldDbPath);
-    ctx.stopLocalSyncServices();
-    ctx.sqlite.close();
-
-    // Clean up indexes
-    this.contexts.delete(webContentsId);
-    this.dbPathIndex.delete(oldDbPath);
 
     // Create new context for the same window
     const { db: sqlite, databaseId } = openDatabase(normalized);
@@ -355,11 +377,20 @@ export class WindowManager {
     // Warn if the database is in a cloud-synced folder
     warnIfCloudSyncedPath(normalized, win);
 
+    // Tear down old context (but NOT the window)
+    releaseDbLock(oldDbPath);
+    await ctx.close();
+
+    // Clean up indexes
+    this.contexts.delete(webContentsId);
+    this.dbPathIndex.delete(oldDbPath);
+
     const newCtx = new WindowContext(win, normalized, databaseId, sqlite);
 
     this.contexts.set(webContentsId, newCtx);
     this.dbPathIndex.set(normalized, webContentsId);
 
+    try { rememberAccount(normalized, databaseId); } catch (error) { console.warn('[ACCOUNTS] Could not update the recovery index:', String(error)); }
     addRecentFile(normalized);
     win.setTitle(`Fidra — ${path.basename(normalized)}`);
 
@@ -423,8 +454,6 @@ export class WindowManager {
       closeTasks.push(ctx.close());
     }
     await Promise.all(closeTasks);
-    this.contexts.clear();
-    this.dbPathIndex.clear();
   }
 
   getAllContexts(): WindowContext[] {
