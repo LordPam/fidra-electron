@@ -4,6 +4,8 @@ Assessment: 2026-10-24. Runtime implementation is now present. The findings belo
 
 ## Owner decisions
 
+- Latest clarification (2026-10-25): install from ChatGPT's Plugins tab, approve access once as a Fidra administrator, and retain the installation and approved permissions. Exporting packages/context/proposals and hourly manual reconnection are development/fallback mechanics, not the requested product journey. The current implementation is incomplete against this requirement. See `plan-ai-plugin-product.md` for the superseding design, authorization gaps and OpenAI directory-distribution dependency.
+
 - Latest clarification (2026-10-24): the primary flow is a direct desktop extension. The user attaches a statement in ChatGPT and asks it to reconcile and add missing entries. An explicitly add-enabled scoped connection may apply from the conversation; ambiguity questions stay in chat. Native per-batch approval is the draft-only/fallback route, not a requirement for all imports. This supersedes the original always-native-approval design below.
 
 - Financial files and attachments survive removal by default. Provide a separate device reset.

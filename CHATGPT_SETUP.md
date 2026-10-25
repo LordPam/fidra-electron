@@ -1,5 +1,7 @@
 # Install the Fidra trial in ChatGPT desktop
 
+**Development-only instructions.** The owner clarified on 25 October 2026 that the product must install from ChatGPT's Plugins tab with persistent, administrator-approved access. The manual export steps below do not satisfy that requirement. See [the superseding product plan](plan-ai-plugin-product.md). The current build does not yet implement durable admin-only authorization or public-directory installation.
+
 This is a private local plugin, with an MCP connection and bundled reconciliation instructions. It is intended for ChatGPT desktop conversations that run locally. Actual ChatGPT installation and conversation acceptance still need to be completed; the automated connector tests do not establish those results.
 
 ## 1. Open the current Fidra build

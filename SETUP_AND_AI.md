@@ -36,6 +36,8 @@ Invitation expiry and token deletion do not instantly revoke a group key already
 
 ## Personal AI
 
+**Product requirement corrected, 2026-10-25:** installation must begin in ChatGPT's Plugins tab, request Fidra administrator approval, and retain approved access without manual exports or hourly setup. The current trial described below does not meet that requirement: grants are temporary and grant creation is not admin-only. See [the superseding product plan](plan-ai-plugin-product.md). Guarded reconciliation tools remain reusable; public directory listing is not implemented or approved.
+
 For the user-assisted ChatGPT trial, follow [the installation walkthrough](CHATGPT_SETUP.md).
 
 In **Settings → Personal AI**, select accounts, dates, optional context fields and bank statements explicitly. Dates, amounts, direction and account names are part of the selected ledger context. A local connection still sends selected tool results to the chosen AI provider.
