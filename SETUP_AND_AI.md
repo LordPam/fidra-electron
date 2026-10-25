@@ -56,7 +56,7 @@ A maintainer-only builder (`npm run build:ai-plugin`) creates a platform-specifi
 
 ## Acceptance still required before release
 
-Automated verification for the replacement connection: 530 unit tests across 49 files, 30 full real-Electron scenarios and all three final personal-AI scenarios pass. TypeScript, targeted lint, bundled skill validation, Mac packaging, demo build and packaged-runtime initialization/tool discovery pass. Financial tests use synthetic isolated data; Electron tests substitute secure storage and do not exercise real Keychain consent. Actual provider conversations, native installed-plugin credential prompts and Windows execution remain unverified.
+Automated verification for the replacement connection: 530 unit tests across 49 files, 30 full real-Electron scenarios and all three final personal-AI scenarios pass. TypeScript, targeted lint, bundled skill validation, Mac packaging, demo build and macOS/Windows CI package builds and runtime/native-binding/initialization/tool-discovery checks pass. Financial tests use synthetic isolated data; Electron tests substitute secure storage and do not exercise real Keychain consent. Actual provider conversations, native installed-plugin credential prompts and Windows installed-client behavior remain unverified.
 
 - Fresh downloaded DMG installation, Gatekeeper approval, supported uninstall and reinstall on a clean Mac user account.
 - Windows Setup.exe installation, SmartScreen behavior, Squirrel install/update/uninstall events, retained files, multi-window reset and reinstall on real Windows.

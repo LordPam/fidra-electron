@@ -17,6 +17,8 @@ try {
     fs.mkdirSync(path.dirname(file), { recursive: true });
     fs.writeFileSync(file, await item.async('nodebuffer'), { mode: Number(item.unixPermissions ?? 0o600) & 0o777 });
   }
+  assert(fs.readFileSync(path.join(root, 'runtime/LICENSE'), 'utf8').includes('Permission'));
+  assert(fs.existsSync(path.join(root, 'LICENSE')));
   const metadata = JSON.parse(fs.readFileSync(path.join(root, 'BUILD.json'), 'utf8'));
   assert.equal(metadata.platform, process.platform); assert.equal(metadata.arch, process.arch);
   const runtime = path.join(root, 'runtime', process.platform === 'win32' ? 'node.exe' : 'node');

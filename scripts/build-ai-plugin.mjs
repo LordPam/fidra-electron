@@ -32,6 +32,10 @@ try {
   for (const name of ['setup', 'fidra-reconcile']) zip.file(`skills/${name}/SKILL.md`, fs.readFileSync(path.join(root, 'resources/ai-bridge/skills', name, 'SKILL.md')));
   const runtimeName = process.platform === 'win32' ? 'node.exe' : 'node';
   zip.file(`runtime/${runtimeName}`, fs.readFileSync(runtime), { unixPermissions: 0o100755 });
+  const runtimeLicense = [path.join(path.dirname(runtime), 'LICENSE'), path.join(path.dirname(runtime), '..', 'LICENSE'), path.join(path.dirname(runtime), 'LICENSE.txt')].find((file) => fs.existsSync(file));
+  if (!runtimeLicense) throw new Error('The official runtime license and third-party notices are required.');
+  zip.file('runtime/LICENSE', fs.readFileSync(runtimeLicense));
+  zip.file('LICENSE', fs.readFileSync(path.join(root, 'resources/ai-bridge/LICENSE')));
   function addPackage(name) {
     const directory = path.dirname(require.resolve(`${name}/package.json`));
     const pkg = JSON.parse(fs.readFileSync(path.join(directory, 'package.json')));
