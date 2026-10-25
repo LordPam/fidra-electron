@@ -253,16 +253,16 @@ const config: ForgeConfig = {
         }
       }
 
-      // 3. Remove intermediate packaged app directories so Spotlight
-      //    doesn't index them (the DMG/ZIP in out/make/ is the real output)
+      // 3. Remove only this build's intermediate app directories. Other output
+      //    folders can contain a private plugin source that must remain in place.
       const outBase = path.resolve(__dirname, 'out');
-      if (fs.existsSync(outBase)) {
-        for (const entry of fs.readdirSync(outBase)) {
-          const full = path.join(outBase, entry);
-          if (entry !== 'make' && fs.statSync(full).isDirectory()) {
-            fs.removeSync(full);
-            console.log('[CLEANUP] Removed intermediate build:', entry);
-          }
+      const appName = projectPkg.productName ?? projectPkg.name;
+      for (const result of makeResults) {
+        const entry = `${appName}-${result.platform}-${result.arch}`;
+        const full = path.join(outBase, entry);
+        if (path.dirname(full) === outBase && fs.existsSync(full) && fs.lstatSync(full).isDirectory()) {
+          fs.removeSync(full);
+          console.log('[CLEANUP] Removed intermediate build:', entry);
         }
       }
 
