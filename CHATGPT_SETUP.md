@@ -1,6 +1,19 @@
 # Connect Fidra to ChatGPT
 
-The intended installation starts in ChatGPT desktop’s Plugins tab. Public directory availability is pending OpenAI’s approval for local MCP distribution; Fidra is not currently listed. The exported ZIP/context-file trial workflow has been removed from the app.
+Use the private Fidra source for a one-time desktop installation. Public-directory publication is optional and has its own OpenAI approval requirements. The connection and remembered administrator permissions are the same in both routes.
+
+## One-time private installation
+
+1. Get the matching **Fidra-private.zip** package for your computer and unzip its **Fidra** folder into a permanent local location.
+2. On the development Mac, double-click **Add Fidra source.command** in that folder. It uses the installed official Codex command to register the source. This step grants no ledger access.
+3. Restart ChatGPT desktop, open **Plugins / Plugins Directory**, choose the **Fidra** source and install **Fidra**.
+4. Run the installed plugin's setup, then approve the matching request inside Fidra as described below.
+
+The source-registration command is already available on this Mac. An alternative is to enter the extracted Fidra folder in Terminal/PowerShell and run `codex plugin marketplace add .`. OpenAI also documents project-local catalogs; the included `.agents/plugins/marketplace.json` supports that route where the desktop client discovers the project source. Actual source discovery and installation on your account still need checking. [Official local-plugin instructions](https://developers.openai.com/plugins/build/plugins)
+
+Do not attach the ZIP to a chat or export ledger context. The ZIP contains the plugin itself, its own runtime and instructions. It has no financial data or connection credential. The retired per-user context/proposal-file workflow is not part of installation.
+
+## Approve and use Fidra
 
 Once the plugin is installed:
 

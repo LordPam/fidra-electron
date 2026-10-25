@@ -19,6 +19,27 @@ try {
   }
   assert(fs.readFileSync(path.join(root, 'runtime/LICENSE'), 'utf8').includes('Permission'));
   assert(fs.existsSync(path.join(root, 'LICENSE')));
+  const privateArchive = path.join(path.dirname(path.resolve(archive)), 'Fidra-private.zip');
+  const privateZip = await JSZip.loadAsync(fs.readFileSync(privateArchive));
+  const marketplace = JSON.parse(await privateZip.file('Fidra/.agents/plugins/marketplace.json').async('string'));
+  assert.equal(marketplace.name, 'fidra-desktop');
+  assert.equal(marketplace.plugins[0].source.path, './');
+  assert.equal(marketplace.plugins[0].name, 'fidra');
+  assert(privateZip.file('Fidra/plugin.json') && privateZip.file('Fidra/INSTALL.md'));
+  if (process.platform === 'darwin') assert(Number(privateZip.file('Fidra/Add Fidra source.command').unixPermissions) & 0o111);
+  assert((await privateZip.file('Fidra/server/server.cjs').async('string')).includes('createAdapter'));
+  if (process.platform === 'darwin') {
+    // Exercise registration quoting without touching the host's real settings.
+    const source = path.join(root, 'private source with spaces');
+    const fakeBin = path.join(root, 'fake-bin'); const calls = path.join(root, 'registration-args.txt');
+    fs.mkdirSync(source); fs.mkdirSync(fakeBin);
+    const launcher = path.join(source, 'Add Fidra source.command');
+    fs.writeFileSync(launcher, await privateZip.file('Fidra/Add Fidra source.command').async('nodebuffer'));
+    fs.writeFileSync(path.join(fakeBin, 'codex'), '#!/bin/sh\nprintf \'%s\\n\' "$@" > "$FIDRA_SOURCE_TEST_LOG"\n', { mode: 0o755 });
+    execFileSync('/bin/zsh', [launcher], { input: '\n', encoding: 'utf8', timeout: 10_000,
+      env: { ...process.env, PATH: `${fakeBin}:/usr/bin:/bin`, FIDRA_SOURCE_TEST_LOG: calls } });
+    assert.deepEqual(fs.readFileSync(calls, 'utf8').trim().split('\n'), ['plugin', 'marketplace', 'add', source]);
+  }
   const metadata = JSON.parse(fs.readFileSync(path.join(root, 'BUILD.json'), 'utf8'));
   assert.equal(metadata.platform, process.platform); assert.equal(metadata.arch, process.arch);
   const runtime = path.join(root, 'runtime', process.platform === 'win32' ? 'node.exe' : 'node');

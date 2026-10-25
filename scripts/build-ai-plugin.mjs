@@ -53,4 +53,28 @@ try {
   const destination = path.join(output, 'Fidra-plugin.zip');
   fs.writeFileSync(destination, await zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE', platform: 'UNIX' }));
   console.log(destination);
+  const privateZip = new JSZip();
+  for (const file of Object.values(zip.files)) {
+    if (!file.dir) privateZip.file(`Fidra/${file.name}`, file.async('nodebuffer'), { unixPermissions: file.unixPermissions ?? 0o100644 });
+  }
+  privateZip.file('Fidra/.agents/plugins/marketplace.json', JSON.stringify({
+    name: 'fidra-desktop', interface: { displayName: 'Fidra' },
+    plugins: [{ name: 'fidra', source: { source: 'local', path: './' }, policy: { installation: 'AVAILABLE', authentication: 'ON_INSTALL' }, category: 'Productivity' }],
+  }, null, 2));
+  privateZip.file('Fidra/INSTALL.md', fs.readFileSync(path.join(root, 'resources/ai-bridge/PRIVATE_INSTALL.md')));
+  if (process.platform === 'darwin') privateZip.file('Fidra/Add Fidra source.command', fs.readFileSync(path.join(root, 'resources/ai-bridge/add-private-source.command')), { unixPermissions: 0o100755 });
+  const privateDestination = path.join(output, 'Fidra-private.zip');
+  fs.writeFileSync(privateDestination, await privateZip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE', platform: 'UNIX' }));
+  // A ready-to-review local copy. Replace generated files atomically, retaining
+  // unrelated files and avoiding stale macOS signatures on overwritten binaries.
+  const privateDirectory = path.join(output, 'Fidra-private');
+  for (const file of Object.values(privateZip.files)) {
+    if (file.dir) continue;
+    const target = path.join(privateDirectory, file.name);
+    fs.mkdirSync(path.dirname(target), { recursive: true });
+    const temporaryFile = `${target}.${crypto.randomUUID()}.tmp`;
+    fs.writeFileSync(temporaryFile, await file.async('nodebuffer'), { mode: Number(file.unixPermissions ?? 0o100644) & 0o777, flag: 'wx' });
+    fs.renameSync(temporaryFile, target);
+  }
+  console.log(privateDestination);
 } finally { fs.rmSync(temporary, { recursive: true, force: true }); }

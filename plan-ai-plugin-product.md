@@ -35,7 +35,9 @@ The manual export/file-exchange UI and IPC have been removed. The main-process b
 
 Automated tests cover the broker and app. Actual ChatGPT installation, OS credential-store prompts in the installed plugin, real conversation behavior, Windows acceptance and directory publication remain unverified. Do not describe these as completed from passing connector tests.
 
-## Distribution dependency
+## Distribution options
+
+Owner accepted one-time private plugin installation on 25 October. The first route is a local source catalog and installation from the desktop Plugins Directory, followed by native Fidra administrator approval. Public listing is optional; private client discovery/install behavior remains to be verified.
 
 [OpenAI's desktop-only plugin documentation](https://developers.openai.com/plugins/deploy/desktop-only) currently limits public local-MCP submissions to approved partners. Directory listing requires that eligibility, review and publication; a local development marketplace does not supply it. Establish the distribution route before claiming users can find Fidra in the public Plugins tab. A remote HTTPS MCP integration has a different authentication and reachability architecture and must not be introduced silently.
 

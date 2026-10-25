@@ -30,5 +30,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: fidra-ai-plugin-${{ matrix.os }}
-          path: out/ai-plugin/*/Fidra-plugin.zip
+          path: |
+            out/ai-plugin/*/Fidra-plugin.zip
+            out/ai-plugin/*/Fidra-private.zip
           if-no-files-found: error
