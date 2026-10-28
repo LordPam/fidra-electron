@@ -89,6 +89,10 @@ jobs:
           else
             npx electron-forge make --arch=${{ matrix.arch }}
           fi
+      - name: Remove temporary signing key
+        if: always()
+        shell: bash
+        run: node -e 'require("fs").rmSync(require("path").join(process.env.RUNNER_TEMP, "fidra-update-private.pem"), {force:true})'
       - name: Smoke-test actual previous-version installer replacement
         shell: bash
         env:
@@ -114,10 +118,7 @@ jobs:
           name: desktop-failure-${{ matrix.platform }}-${{ matrix.arch }}
           path: test-results/
           if-no-files-found: ignore
-      - name: Remove temporary signing key
-        if: always()
-        shell: bash
-        run: node -e 'require("fs").rmSync(require("path").join(process.env.RUNNER_TEMP, "fidra-update-private.pem"), {force:true})'
+
 
   publish-release:
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')

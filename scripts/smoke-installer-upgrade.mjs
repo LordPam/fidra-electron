@@ -27,6 +27,7 @@ assert.equal(crypto.createHash('sha256').update(fs.readFileSync(candidate)).dige
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'fidra-installer-upgrade-'));
 const home = path.join(root, 'home'); fs.mkdirSync(home);
 const env = { ...process.env, HOME: home, USERPROFILE: home, FIDRA_E2E: '1' };
+for (const name of ['GH_TOKEN', 'GITHUB_TOKEN', 'FIDRA_UPDATE_PRIVATE_KEY_PATH']) delete env[name];
 const fidra = path.join(home, '.fidra'); fs.mkdirSync(path.join(fidra, 'accounts'), { recursive: true });
 const ledger = path.join(fidra, 'accounts', 'preserved.fdra');
 // A valid SQLite retention probe; it is deliberately not selected as the startup
@@ -36,10 +37,11 @@ const attachment = path.join(fidra, 'attachments', 'retention-probe', 'receipt.t
 const helper = path.join(fidra, 'ai-plugin/2.0.4'); fs.cpSync(pluginRoot, helper, { recursive: true });
 fs.copyFileSync('src/main/services/__tests__/fixtures/fidra-helper-2.0.4.cjs', path.join(helper, 'server/server.cjs'));
 const helperBefore = fs.readFileSync(path.join(helper, 'server/server.cjs'));
+const windowsBases = process.platform === 'win32' ? [...new Set([process.env.LOCALAPPDATA, path.join(home, 'AppData/Local')].filter(Boolean))] : [];
+const windowsNames = ['fidra_web', 'fidra-web', 'Fidra'];
 let installed;
 if (process.platform === 'win32') {
-  installed = path.join(process.env.LOCALAPPDATA, 'fidra_web');
-  assert(!fs.existsSync(installed), 'Refuse an existing runner installation');
+  for (const base of windowsBases) for (const name of windowsNames) assert(!fs.existsSync(path.join(base, name)), 'Refuse an existing runner installation');
 } else if (process.platform === 'darwin') installed = path.join(root, 'Fidra.app');
 else throw Error('Unsupported installer platform');
 async function install(file) {
@@ -60,13 +62,41 @@ async function install(file) {
     } finally { execFileSync('hdiutil', ['detach', mount], { stdio: 'pipe', timeout: 30_000 }); }
   }
 }
-function application(version) {
-  const base = process.platform === 'win32' ? path.join(installed, `app-${version}`) : path.join(installed, 'Contents');
+function registeredWindowsInstallRoot() {
+  try {
+    const output = execFileSync('reg', ['query', 'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\fidra_web', '/v', 'InstallLocation'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+    return /InstallLocation\s+REG_SZ\s+(.+)/.exec(output)?.[1].trim();
+  } catch { return undefined; }
+}
+async function application(version) {
+  let base;
+  if (process.platform === 'win32') {
+    // Squirrel's install root depends on the profile/known-folder APIs. Locate
+    // and verify the actual installed package instead of guessing that root.
+    const until = Date.now() + 60_000;
+    while (Date.now() < until && !base) {
+      const registered = registeredWindowsInstallRoot();
+      const roots = [...windowsBases.flatMap((directory) => windowsNames.map((name) => path.join(directory, name))), ...(registered ? [registered] : [])];
+      for (const installRoot of [...new Set(roots)]) {
+        const appRoot = path.join(installRoot, `app-${version}`);
+        if (!fs.existsSync(path.join(appRoot, 'resources/app.asar'))) continue;
+        if (installed) assert.equal(installRoot.toLowerCase(), installed.toLowerCase(), 'Upgrade must replace the same installation');
+        installed = installRoot; base = appRoot;
+      }
+      if (!base) await delay(500);
+    }
+    if (!base) {
+      const diagnostics = windowsBases.map((directory) => ({ directory, entries: fs.existsSync(directory) ? fs.readdirSync(directory).filter((name) => /fidra|squirrel/i.test(name)) : [] }));
+      const logs = windowsBases.flatMap((directory) => ['SquirrelTemp/SquirrelSetup.log', 'fidra_web/SquirrelSetup.log'].map((name) => path.join(directory, name))).filter(fs.existsSync).map((file) => ({ file, tail: fs.readFileSync(file, 'utf8').slice(-6000) }));
+      throw Error(`Installer did not produce version ${version}: ${JSON.stringify({ directories: diagnostics, registered: registeredWindowsInstallRoot(), logs })}`);
+    }
+  } else base = path.join(installed, 'Contents');
   const resources = path.join(base, process.platform === 'win32' ? 'resources' : 'Resources');
   const actual = JSON.parse(asar.extractFile(path.join(resources, 'app.asar'), 'package.json').toString());
   assert.equal(actual.version, version);
   return process.platform === 'win32' ? path.join(base, 'Fidra.exe') : path.join(base, 'MacOS/Fidra');
 }
+
 async function boot(executable) {
   const child = spawn(executable, [`--user-data-dir=${path.join(root, 'userData')}`, ...(process.platform === 'darwin' ? ['--use-mock-keychain'] : [])], { env, stdio: 'ignore' });
   let error; child.on('error', (value) => { error = value; });
@@ -95,9 +125,9 @@ function retained() {
   assert.equal(fs.readFileSync(attachment, 'utf8'), 'Preserve this synthetic attachment');
 }
 try {
-  await install(previous); await boot(application('0.1.23')); retained();
+  await install(previous); await boot(await application('0.1.23')); retained();
   assert.deepEqual(fs.readFileSync(path.join(helper, 'server/server.cjs')), helperBefore);
-  await install(candidate); await boot(application(pkg.version)); retained();
+  await install(candidate); await boot(await application(pkg.version)); retained();
   assert(fs.readFileSync(path.join(helper, 'server/server.cjs'), 'utf8').includes('Stable entry point'));
   const { digest } = JSON.parse(fs.readFileSync(path.join(helper, 'current.json'), 'utf8'));
   const catalog = JSON.parse(fs.readFileSync(path.join(helper, 'releases', digest, 'tools.json'), 'utf8'));

@@ -101,19 +101,24 @@ test('macOS title band keeps window controls, view title, and sidebar brand in s
   expect(titlebarColor).not.toBe(await panel.evaluate((element) => getComputedStyle(element).backgroundColor));
 });
 
-test('macOS window exposes native material only through translucent chrome', async ({ window }) => {
+test('macOS chrome respects normal and reduced-transparency preferences', async ({ window }) => {
   const platform = await window.evaluate(() => window.api.platform);
   if (platform !== 'darwin') test.skip();
-
-  const titlebarColor = await window.getByTestId('sidebar-titlebar').evaluate(
-    (element) => getComputedStyle(element).backgroundColor,
-  );
-  expect(titlebarColor).toMatch(/\/\s*0\.44\)|rgba\([^)]*,\s*0\.44\)/);
-  const panelColor = await window.getByTestId('sidebar-panel-surface').evaluate(
-    (element) => getComputedStyle(element).backgroundColor,
-  );
-  expect(panelColor).not.toBe(titlebarColor);
-  expect(panelColor).not.toMatch(/\/\s*0\.[0-9]+\)|rgba\([^)]*,\s*0\.[0-9]+\)/);
+  const session = await window.context().newCDPSession(window);
+  const chromeColor = () => window.getByTestId('sidebar-titlebar').evaluate((element) => getComputedStyle(element).backgroundColor);
+  try {
+    for (const preference of ['no-preference', 'reduce']) {
+      // Hosted macOS runners enable reduced transparency. Exercise both states
+      // explicitly instead of treating an accessibility preference as a defect.
+      await session.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-transparency', value: preference }] });
+      await expect.poll(() => window.evaluate(() => matchMedia('(prefers-reduced-transparency: reduce)').matches)).toBe(preference === 'reduce');
+      if (preference === 'no-preference') await expect.poll(chromeColor).toMatch(/\/\s*0\.44\)|rgba\([^)]*,\s*0\.44\)/);
+      else await expect.poll(chromeColor).not.toMatch(/\/\s*0\.[0-9]+\)|rgba\([^)]*,\s*0\.[0-9]+\)/);
+      const panelColor = await window.getByTestId('sidebar-panel-surface').evaluate((element) => getComputedStyle(element).backgroundColor);
+      expect(panelColor).not.toBe(await chromeColor());
+      expect(panelColor).not.toMatch(/\/\s*0\.[0-9]+\)|rgba\([^)]*,\s*0\.[0-9]+\)/);
+    }
+  } finally { await session.detach(); }
 });
 
 test('sheet selector is plain text without a floating card background', async ({ window }) => {
