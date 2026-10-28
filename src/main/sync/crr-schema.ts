@@ -1,5 +1,5 @@
 import type Database from 'better-sqlite3';
-import { crsqliteExtensionPath as extensionPath } from '../database/native-paths';
+import { loadCrSqlite } from '../database/crsqlite-lifecycle';
 
 /** All tables that participate in Local Sync (registered as CRRs). */
 export const SYNCED_TABLES = [
@@ -52,7 +52,7 @@ export function initializeCrr(db: Database.Database): void {
     return;
   }
 
-  db.loadExtension(extensionPath);
+  loadCrSqlite(db);
 
   for (const table of SYNCED_TABLES) {
     db.exec(`SELECT crsql_as_crr('${table}')`);

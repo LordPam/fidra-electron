@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import Database from 'better-sqlite3';
-import { crsqliteExtensionPath as extensionPath } from './native-paths';
+import { loadCrSqlite } from './crsqlite-lifecycle';
 import { isCrrInitialized } from '../sync/crr-schema';
 
 const SCHEMA_DDL = `
@@ -439,7 +439,7 @@ function migrateCrrDefaults(sqlite: Database.Database): void {
   // Load extension before any table rebuilds if CRRs are active —
   // DROP TABLE will fire CRR cleanup triggers that need the extension.
   if (crrActive) {
-    sqlite.loadExtension(extensionPath);
+    loadCrSqlite(sqlite);
   }
 
   // Helper to check if a table exists and needs migration (has NOT NULL cols without DEFAULT)
@@ -613,7 +613,7 @@ function migrateCrrPrimaryKeys(sqlite: Database.Database): void {
   // Load extension before any table rebuilds if CRRs are active —
   // DROP TABLE will fire CRR cleanup triggers that need the extension.
   if (crrActive) {
-    sqlite.loadExtension(extensionPath);
+    loadCrSqlite(sqlite);
   }
 
   // Helper: check if PK column has NOT NULL + DEFAULT
@@ -693,7 +693,7 @@ function migrateCrrUniqueConstraints(sqlite: Database.Database): void {
   // Load extension before any table rebuilds if CRRs are active —
   // DROP TABLE will fire CRR cleanup triggers that need the extension.
   if (crrActive) {
-    sqlite.loadExtension(extensionPath);
+    loadCrSqlite(sqlite);
   }
 
   // Helper: check if a table has a UNIQUE index besides the primary key
@@ -760,20 +760,23 @@ export interface OpenDatabaseResult {
 
 export function openDatabase(dbPath: string): OpenDatabaseResult {
   const sqlite = new Database(dbPath);
-  sqlite.pragma('journal_mode = WAL');
-  sqlite.pragma('foreign_keys = ON');
-  // Always load cr-sqlite extension. CRR triggers (if any) reference extension
-  // functions like crsql_internal_sync_bit — they must be available on every
-  // connection, even for Cloud Connect windows. Lightweight: just registers
-  // functions with this connection, no schema changes.
-  sqlite.loadExtension(extensionPath);
-  sqlite.exec(SCHEMA_DDL);
-  runMigrations(sqlite);
+  let ready = false;
+  try {
+    // Load before any SQL; teardown is attached to every close path, including
+    // initialization failure and restoring/reopening a standalone ledger.
+    loadCrSqlite(sqlite);
+    sqlite.pragma('journal_mode = WAL');
+    sqlite.pragma('foreign_keys = ON');
+    sqlite.exec(SCHEMA_DDL);
+    runMigrations(sqlite);
 
-  const databaseId = getOrCreateDatabaseId(sqlite);
-  migrateAttachmentsIfNeeded(dbPath, databaseId);
-
-  return { db: sqlite, databaseId };
+    const databaseId = getOrCreateDatabaseId(sqlite);
+    migrateAttachmentsIfNeeded(dbPath, databaseId);
+    ready = true;
+    return { db: sqlite, databaseId };
+  } finally {
+    if (!ready) sqlite.close();
+  }
 }
 
 /**

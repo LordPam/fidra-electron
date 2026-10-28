@@ -5,6 +5,7 @@ import path from 'node:path';
 import {
   ensureSyncFolderStructure,
   writeBundleAtomically,
+  writeSnapshotAtomically,
   readBundleFile,
   isBundleFile,
   parseBundleFilename,
@@ -64,10 +65,9 @@ describe('bundle-io', () => {
       ).toThrow('Invalid deviceId');
     });
 
-    test('blocks path separator in deviceId', () => {
-      expect(() =>
-        writeBundleAtomically(tmpDir, 'foo/bar', 1, Buffer.from('x')),
-      ).toThrow('Invalid deviceId');
+    test.each(['foo/bar', 'foo\\bar'])('blocks either platform’s separator in deviceId: %s', (deviceId) => {
+      expect(() => writeBundleAtomically(tmpDir, deviceId, 1, Buffer.from('x'))).toThrow('Invalid deviceId');
+      expect(() => writeSnapshotAtomically(tmpDir, deviceId, 1, Buffer.from('x'))).toThrow('Invalid deviceId');
     });
   });
 

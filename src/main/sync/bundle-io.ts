@@ -57,7 +57,7 @@ export function writeBundleAtomically(
   sequenceNumber: number,
   data: Buffer,
 ): string {
-  if (deviceId.includes('..') || deviceId.includes(path.sep)) {
+  if (deviceId.includes('..') || /[\\/]/.test(deviceId)) {
     throw new Error(`Invalid deviceId: ${deviceId}`);
   }
 
@@ -124,7 +124,7 @@ export function writeSnapshotAtomically(
   sequenceNumber: number,
   data: Buffer,
 ): string {
-  if (deviceId.includes('..') || deviceId.includes(path.sep)) {
+  if (deviceId.includes('..') || /[\\/]/.test(deviceId)) {
     throw new Error(`Invalid deviceId: ${deviceId}`);
   }
 

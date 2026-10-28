@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import Database from 'better-sqlite3';
-import { crsqliteExtensionPath } from '../../database/native-paths';
+import { loadCrSqlite } from '../../database/crsqlite-lifecycle';
 import { createBackup, restoreBackup } from '../backup-service';
 import { SettingsRepo } from '../../database/settings-repo';
 
@@ -35,8 +35,8 @@ const databaseId = crypto.randomUUID();
 /** Open the way `openDatabase` does — WAL plus the extension. */
 function open(): Database.Database {
   const handle = new Database(dbPath);
+  loadCrSqlite(handle);
   handle.pragma('journal_mode = WAL');
-  handle.loadExtension(crsqliteExtensionPath);
   return handle;
 }
 

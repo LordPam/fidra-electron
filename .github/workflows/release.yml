@@ -107,6 +107,13 @@ jobs:
             find out/make -type f \( -name "$asset" -o -name "fidra-update-$TARGET_PLATFORM-$TARGET_ARCH.json" \) -exec cp {} "$RUNNER_TEMP/candidate/" \;
           fi
           node scripts/smoke-installer-upgrade.mjs "$RUNNER_TEMP/previous/$asset" "$RUNNER_TEMP/candidate/$asset" "$RUNNER_TEMP/candidate/fidra-update-$TARGET_PLATFORM-$TARGET_ARCH.json" "out/ai-plugin/$TARGET_PLATFORM-$TARGET_ARCH/Fidra-private/Fidra"
+      - name: Retain isolated failure traces
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-failure-${{ matrix.platform }}-${{ matrix.arch }}
+          path: test-results/
+          if-no-files-found: ignore
       - name: Remove temporary signing key
         if: always()
         shell: bash

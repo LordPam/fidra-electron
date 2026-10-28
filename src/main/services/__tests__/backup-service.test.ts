@@ -68,10 +68,17 @@ describe('restoreBackup', () => {
       expect(fs.existsSync(`${dbPath}-wal`)).toBe(true);
 
       const result = await restoreBackup(db, dbPath, databaseId, backup.path, settingsRepo);
-      expect(result.success).toBe(true);
-
-      expect(fs.existsSync(`${dbPath}-wal`)).toBe(false);
-      expect(fs.existsSync(`${dbPath}-shm`)).toBe(false);
+      if (process.platform === 'win32') {
+        // Windows refuses replacement while an external holder owns the file.
+        // Verify safe refusal and that the holder's contents remain intact.
+        expect(result.success).toBe(false);
+        expect(result.dbClosed).toBe(true);
+        expect(holder.prepare('SELECT id FROM transactions ORDER BY id').all()).toEqual([{ id: 't1' }, { id: 't2' }]);
+      } else {
+        expect(result.success).toBe(true);
+        expect(fs.existsSync(`${dbPath}-wal`)).toBe(false);
+        expect(fs.existsSync(`${dbPath}-shm`)).toBe(false);
+      }
     } finally {
       try {
         holder.close();
