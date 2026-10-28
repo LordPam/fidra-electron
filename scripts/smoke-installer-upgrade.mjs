@@ -109,7 +109,10 @@ async function application(version) {
     }
   } else base = path.join(installed, 'Contents');
   const resources = path.join(base, process.platform === 'win32' ? 'resources' : 'Resources');
-  const actual = JSON.parse(asar.extractFile(path.join(resources, 'app.asar'), 'package.json').toString());
+  const archive = path.join(resources, 'app.asar');
+  // macOS replaces this same path; discard the previous install's cached offsets.
+  asar.uncache(archive);
+  const actual = JSON.parse(asar.extractFile(archive, 'package.json').toString());
   assert.equal(actual.version, version);
   return process.platform === 'win32' ? path.join(base, 'Fidra.exe') : path.join(base, 'MacOS/Fidra');
 }
