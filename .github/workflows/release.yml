@@ -1,6 +1,7 @@
 name: Release
 
 on:
+  workflow_dispatch:
   push:
     tags:
       - 'v*'
@@ -36,10 +37,15 @@ jobs:
         shell: bash
         env:
           RELEASE_TAG: ${{ github.ref_name }}
+          RELEASE_EVENT: ${{ github.event_name }}
         run: |
-          node -e 'const fs = require("fs"); const p = require("./package.json"); const l = require("./package-lock.json"); if (process.env.RELEASE_TAG !== "v" + p.version || l.version !== p.version) throw Error("Tag, package and lockfile versions must match"); if (!fs.existsSync("resources/update-public-key.pem")) throw Error("Configure the Fidra release verification key first")'
-      - name: Install dependencies
-        run: npm ci
+          node -e 'const fs = require("fs"); const p = require("./package.json"); const l = require("./package-lock.json"); if ((process.env.RELEASE_EVENT === "push" && process.env.RELEASE_TAG !== "v" + p.version) || l.version !== p.version) throw Error("Tag, package and lockfile versions must match"); if (!fs.existsSync("resources/update-public-key.pem")) throw Error("Configure the Fidra release verification key first")'
+      - name: Install dependencies with reviewed Node compatibility patch
+        shell: bash
+        run: |
+          npm ci --ignore-scripts
+          node scripts/prepare-native-install.mjs
+          npm rebuild
       - name: Check types and run tests
         run: |
           npx tsc --noEmit
@@ -73,10 +79,16 @@ jobs:
           UPDATE_KEY_B64: ${{ secrets.FIDRA_UPDATE_PRIVATE_KEY_B64 }}
         run: |
           node -e 'const fs = require("fs"); const path = require("path"); const crypto = require("crypto"); if (!process.env.UPDATE_KEY_B64) throw Error("Set FIDRA_UPDATE_PRIVATE_KEY_B64 before releasing"); const key = crypto.createPrivateKey(Buffer.from(process.env.UPDATE_KEY_B64, "base64")); if (!crypto.createPublicKey(key).equals(crypto.createPublicKey(fs.readFileSync("resources/update-public-key.pem")))) throw Error("Release signing key does not match the embedded public key"); const file = path.join(process.env.RUNNER_TEMP, "fidra-update-private.pem"); fs.writeFileSync(file, key.export({type:"pkcs8", format:"pem"}), {mode:0o600}); fs.appendFileSync(process.env.GITHUB_ENV, "FIDRA_UPDATE_PRIVATE_KEY_PATH=" + file + "\n")'
-      - name: Build installers and signed update metadata into a draft release
+      - name: Build installers and signed update metadata
+        shell: bash
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npx electron-forge publish --arch=${{ matrix.arch }}
+        run: |
+          if [ "${{ github.event_name }}" = push ]; then
+            npx electron-forge publish --arch=${{ matrix.arch }}
+          else
+            npx electron-forge make --arch=${{ matrix.arch }}
+          fi
       - name: Smoke-test actual previous-version installer replacement
         shell: bash
         env:
@@ -89,7 +101,11 @@ jobs:
           mkdir -p "$RUNNER_TEMP/previous" "$RUNNER_TEMP/candidate"
           if [ "$TARGET_PLATFORM" = darwin ]; then asset=Fidra-macOS-arm64.dmg; else asset=Fidra-Windows-Setup.exe; fi
           gh release download v0.1.23 --pattern "$asset" --dir "$RUNNER_TEMP/previous"
-          gh release download "$RELEASE_TAG" --pattern "$asset" --pattern "fidra-update-$TARGET_PLATFORM-$TARGET_ARCH.json" --dir "$RUNNER_TEMP/candidate"
+          if [ "${{ github.event_name }}" = push ]; then
+            gh release download "$RELEASE_TAG" --pattern "$asset" --pattern "fidra-update-$TARGET_PLATFORM-$TARGET_ARCH.json" --dir "$RUNNER_TEMP/candidate"
+          else
+            find out/make -type f \( -name "$asset" -o -name "fidra-update-$TARGET_PLATFORM-$TARGET_ARCH.json" \) -exec cp {} "$RUNNER_TEMP/candidate/" \;
+          fi
           node scripts/smoke-installer-upgrade.mjs "$RUNNER_TEMP/previous/$asset" "$RUNNER_TEMP/candidate/$asset" "$RUNNER_TEMP/candidate/fidra-update-$TARGET_PLATFORM-$TARGET_ARCH.json" "out/ai-plugin/$TARGET_PLATFORM-$TARGET_ARCH/Fidra-private/Fidra"
       - name: Remove temporary signing key
         if: always()
@@ -97,6 +113,7 @@ jobs:
         run: node -e 'require("fs").rmSync(require("path").join(process.env.RUNNER_TEMP, "fidra-update-private.pem"), {force:true})'
 
   publish-release:
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     needs: build
     runs-on: ubuntu-latest
     permissions:

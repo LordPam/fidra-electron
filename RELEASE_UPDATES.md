@@ -65,3 +65,6 @@ Unit tests cover signature/URL/platform validation, streaming corruption/interru
 ## 0.1.25 connection helper rollout
 
 The previously repaired, explicitly installed local helper is refreshed automatically by packaged Fidra startup. See `AI_PLUGIN.md`. Updating/reopening Fidra then restarting the AI desktop app refreshes this tool server without manual file replacement. Saved native grants remain narrow; additional permissions require native review. The separate private account-plugin release updates its packaged skills and portable adapter but is not assumed to update the pinned helper.
+
+
+For Node 22+ clean dependency installation, use `npm ci --ignore-scripts`, `node scripts/prepare-native-install.mjs`, then `npm rebuild`. The pinned CR-SQLite 0.16.3 install helper uses obsolete JSON import assertion syntax; the preparation script checks the pinned version and exact statement, replacing only package metadata loading before running the usual dependency lifecycle. Its native extension is unchanged. The release workflow performs this sequence. Manual dispatch builds and validates private candidates without publishing; only a matching tag push can publish after all gates pass.
