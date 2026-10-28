@@ -12,6 +12,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { execSync, execFileSync } from 'node:child_process';
 import fs from 'fs-extra';
+import { releaseInstallers } from './src/main/services/release-artifacts';
 
 // Native/external modules that Vite externalises and must be copied into the package
 const nativeModules = ['better-sqlite3', '@vlcn.io/crsqlite'];
@@ -182,10 +183,7 @@ const config: ForgeConfig = {
       if (process.env.FIDRA_UPDATE_PRIVATE_KEY_PATH) {
         const project = path.resolve(__dirname);
         const version = fs.readJsonSync(path.join(project, 'package.json')).version as string;
-        for (const result of makeResults) {
-          if (!['darwin', 'win32'].includes(result.platform)) continue;
-          const artifact = result.artifacts.find((file) => file.endsWith(result.platform === 'darwin' ? '.dmg' : '.exe'));
-          if (!artifact) throw new Error('Release is missing its installer artifact');
+        for (const { result, artifact } of releaseInstallers(makeResults)) {
           execFileSync(process.execPath, [path.join(project, 'scripts/create-update-release.mjs'),
             '--artifact', artifact, '--platform', result.platform, '--arch', result.arch,
             '--version', version, '--private-key', process.env.FIDRA_UPDATE_PRIVATE_KEY_PATH,

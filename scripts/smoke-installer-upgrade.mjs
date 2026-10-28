@@ -44,6 +44,22 @@ if (process.platform === 'win32') {
   for (const base of windowsBases) for (const name of windowsNames) assert(!fs.existsSync(path.join(base, name)), 'Refuse an existing runner installation');
 } else if (process.platform === 'darwin') installed = path.join(root, 'Fidra.app');
 else throw Error('Unsupported installer platform');
+function clearStoppedTestLocks(directory = root) {
+  // Forced test shutdown (including the old Squirrel first-run process) can
+  // leave advisory locks. Never remove a live process's lock or leave this
+  // disposable home; do not automate the native warning dialog.
+  for (const item of fs.readdirSync(directory, { withFileTypes: true })) {
+    const file = path.join(directory, item.name);
+    if (item.isDirectory()) clearStoppedTestLocks(file);
+    else if (item.isFile() && /\.(db|fdra)\.lock$/.test(item.name)) {
+      const lock = JSON.parse(fs.readFileSync(file, 'utf8'));
+      if (lock.hostname !== os.hostname() || !Number.isSafeInteger(lock.pid) || lock.pid <= 0) continue;
+      let stopped = false;
+      try { process.kill(lock.pid, 0); } catch (error) { stopped = error.code === 'ESRCH'; }
+      if (stopped) fs.rmSync(file);
+    }
+  }
+}
 async function install(file) {
   if (process.platform === 'win32') {
     execFileSync(file, ['--silent'], { env, timeout: 180_000, stdio: 'pipe' });
@@ -52,6 +68,7 @@ async function install(file) {
     // can reach here; stop that process before inspecting/replacing the package.
     try { execFileSync('taskkill', ['/IM', 'Fidra.exe', '/T', '/F'], { stdio: 'ignore' }); } catch { /* no auto-started app */ }
     await delay(500);
+    clearStoppedTestLocks();
   } else {
     const mount = path.join(root, crypto.randomUUID()); fs.mkdirSync(mount);
     execFileSync('hdiutil', ['attach', '-readonly', '-nobrowse', '-mountpoint', mount, file], { stdio: 'pipe', timeout: 60_000 });
@@ -117,6 +134,7 @@ async function boot(executable) {
       try { await exited; } finally { clearTimeout(timer); }
     }
     fs.rmSync(log, { force: true });
+    clearStoppedTestLocks();
   }
 }
 function retained() {
