@@ -21,6 +21,14 @@ function createAdapter({ client, credential, discoveryFile }) {
     return identity;
   }
   async function call(request) {
+    // Host MCP metadata (locale, session, progress) is not a Fidra argument.
+    // Remove only that envelope field before signing for older strict brokers;
+    // preserve the caller's object and all domain arguments for validation.
+    if (request.method === 'tools/call' && request.params && typeof request.params === 'object' && !Array.isArray(request.params)) {
+      const params = { ...request.params };
+      delete params._meta;
+      request = { ...request, params };
+    }
     const stat = fs.lstatSync(discoveryFile);
     if (!stat.isFile() || stat.isSymbolicLink() || stat.size > 4096) throw new Error('Open Fidra to connect.');
     const endpoint = JSON.parse(fs.readFileSync(discoveryFile, 'utf8'));
@@ -52,7 +60,7 @@ async function main() {
       if (!request || typeof request.method !== 'string') throw new Error('Invalid MCP request.');
       if (request.id === undefined) return;
       const result = request.method === 'initialize'
-        ? { jsonrpc: '2.0', id: request.id, result: { protocolVersion: ['2024-11-05', '2025-03-26', '2025-06-18'].includes(request.params?.protocolVersion) ? request.params.protocolVersion : '2025-06-18', capabilities: { tools: {} }, serverInfo: { name: 'fidra', version: '2.0.0' }, instructions: fs.readFileSync(path.join(__dirname, '..', 'skills', 'fidra-reconcile', 'SKILL.md'), 'utf8') } }
+        ? { jsonrpc: '2.0', id: request.id, result: { protocolVersion: ['2024-11-05', '2025-03-26', '2025-06-18'].includes(request.params?.protocolVersion) ? request.params.protocolVersion : '2025-06-18', capabilities: { tools: {} }, serverInfo: { name: 'fidra', version: '2.0.0' }, instructions: ['fidra-ledger', 'fidra-reconcile'].map((name) => fs.readFileSync(path.join(__dirname, '..', 'skills', name, 'SKILL.md'), 'utf8')).join('\n\n') } }
         : request.method === 'tools/list'
           ? { jsonrpc: '2.0', id: request.id, result: JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'tools.json'), 'utf8')) }
           : await adapter.call(request);
@@ -70,5 +78,5 @@ async function main() {
   });
   process.stdin.on('end', () => { if (buffer.trim()) chain = chain.then(() => dispatch(buffer)); });
 }
-module.exports = { createAdapter };
+module.exports = { createAdapter, main };
 if (require.main === module) main().catch(() => { process.stderr.write('Fidra could not open the operating system credential store. No plaintext fallback is used.\n'); process.exitCode = 1; });

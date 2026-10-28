@@ -5,6 +5,7 @@ import { Input } from './ui/input';
 import { useSheetStore } from '@/stores/sheet-store';
 import { useUndoStore } from '@/stores/undo-store';
 import type { AiBridgeState } from '../../shared/ai-bridge-types';
+import { applicationCapabilityDetails } from '../../shared/application-capabilities';
 
 export function PersonalAiSettings() {
   const [state, setState] = useState<AiBridgeState | null>(null);
@@ -21,9 +22,9 @@ export function PersonalAiSettings() {
     try { await action(); refresh(); } catch (e) { setError(String(e)); } finally { setBusy(false); }
   }
   return <Card>
-    <CardHeader><CardTitle>Connected AI apps</CardTitle><CardDescription>Manage administrator-approved access to this ledger.</CardDescription></CardHeader>
+    <CardHeader><CardTitle>Connected AI apps</CardTitle><CardDescription>Manage approved access to this ledger.</CardDescription></CardHeader>
     <CardContent className="space-y-4">
-      <p className="text-sm text-muted-foreground">Connect from the Fidra plugin in your AI app. A Fidra administrator chooses the accounts and actions it may use. Approved access is remembered; locking this computer or signing out pauses it.</p>
+      <p className="text-sm text-muted-foreground">Connect from the Fidra plugin in your AI app. The standalone ledger’s access owner, or a team administrator, chooses the accounts and actions it may use. Approved access is remembered; locking this computer or signing out pauses it.</p>
       <p className="text-xs text-muted-foreground">Fidra has not been published in ChatGPT’s plugin directory yet.</p>
       {state && !state.access.secureStorageAvailable && <p className="text-sm">Unlock your operating system credential store to manage persistent connections.</p>}
       {(state?.access.owner === 'setup' || state?.access.owner === 'locked') && <div className="space-y-3 rounded-lg border border-border p-3">
@@ -38,8 +39,9 @@ export function PersonalAiSettings() {
       {state?.access.owner === 'admin' && !state.access.authorizations.length && <p className="text-sm text-muted-foreground">No AI apps have access to this ledger.</p>}
       {state?.access.authorizations.map((connection) => <div key={connection.id} className="space-y-2 rounded-lg border border-border p-3 text-sm">
         <p className="font-medium">{connection.client === 'chatgpt' ? 'ChatGPT' : 'Claude'} · {connection.active ? 'Available' : 'Paused'}</p>
-        <p>{connection.policy.sheetIds.map((id) => sheets.find((sheet) => sheet.id === id)?.name ?? 'Removed account').join(', ')}</p>
+        <p>{connection.policy.permissions.allAccounts ? 'All current and future accounts, including ledger-wide operations' : connection.policy.sheetIds.map((id) => sheets.find((sheet) => sheet.id === id)?.name ?? 'Account details not loaded').join(', ')}</p>
         <p className="text-muted-foreground">{connection.policy.permissions.allowAdd ? 'May add pending entries and fulfil planned payments' : 'Read and prepare drafts'}{connection.policy.permissions.allowStatementUploads ? ' · May receive statements from chat' : ''}</p>
+        {!!connection.policy.permissions.capabilities.length && <ul className="list-disc pl-5 text-xs text-muted-foreground">{connection.policy.permissions.capabilities.map((capability) => <li key={capability}>{applicationCapabilityDetails[capability].label}</li>)}</ul>}
         <p className="text-xs text-muted-foreground">Approved by {connection.approvedBy} on {new Date(connection.approvedAt).toLocaleDateString()}</p>
         <Button size="sm" variant="outline" disabled={busy} onClick={() => { void run(() => window.api.revokeAiAccess(connection.id)); }}>Revoke access</Button>
       </div>)}

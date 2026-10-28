@@ -196,6 +196,10 @@ export interface ImportNotification {
 
 export interface BackupMetadata {
   id: string;
+  /** Missing on older backups, which remain available through native Fidra. */
+  databaseId?: string;
+  /** Private hash used to deduplicate external backup requests; never shared. */
+  requestKey?: string;
   createdAt: string;
   dbName: string;
   dbSize: number;
@@ -341,6 +345,10 @@ export interface IpcChannels {
   };
 
   // Activity Notes
+  'activities:applyChange': {
+    args: [change: import('./activity-change-types').ActivityChange];
+    result: import('./activity-change-types').ActivityChange;
+  };
   'activityNotes:getAll': {
     args: [];
     result: Record<string, string>;

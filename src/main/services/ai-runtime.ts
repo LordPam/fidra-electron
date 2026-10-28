@@ -6,6 +6,8 @@ import { AiAuthorizationStore } from './ai-authorization-store';
 import { retireLegacyAiConnections } from './ai-legacy-cleanup';
 import { AiAccessBroker } from './ai-access-broker';
 import { AiBridge } from './ai-bridge';
+import { aiToolCatalog } from './ai-tool-catalog';
+import { refreshInstalledAiHelper, helperPayloadFiles, type HelperPayload } from './ai-helper-update';
 import { getWindowManager } from '../window/window-manager';
 import { createBackup, getBackupSettings } from './backup-service';
 
@@ -41,3 +43,17 @@ export const personalAiAccess = new AiAccessBroker({
 });
 
 export function retireOldAiTrial(): void { retireLegacyAiConnections(path.join(os.homedir(), '.fidra', 'ai-connections')); }
+
+/** Only packaged, installed Fidra refreshes the separately installed helper.
+ * Development and E2E launches must never change the developer's connection. */
+export function refreshCompatibilityAiHelper(): void {
+  if (!app.isPackaged) return;
+  try {
+    const payload = Object.fromEntries(helperPayloadFiles.map((name) => [name, name === 'tools.json'
+      ? JSON.stringify(aiToolCatalog(personalAiBridge), null, 2)
+      : fs.readFileSync(path.join(aiBridgeResourceDirectory, name === 'server/server.cjs' ? 'server.cjs' : name), 'utf8')])) as HelperPayload;
+    refreshInstalledAiHelper(os.homedir(), fs.readFileSync(path.join(aiBridgeResourceDirectory, 'helper-bootstrap.cjs'), 'utf8'), payload);
+  } catch (error) {
+    console.warn('[AI] Connection helper refresh needs attention:', error instanceof Error ? error.message : String(error));
+  }
+}

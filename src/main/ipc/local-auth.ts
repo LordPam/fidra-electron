@@ -16,6 +16,7 @@ import type { LocalSyncStatus, ImportNotification } from '../../shared/ipc-types
 import type { LocalAuthStatus } from '../../shared/auth-types';
 import { syncLog, errorMessage } from '../sync/sync-log';
 import { SessionStore, dbPathToSessionId } from '../services/session-store';
+import { checkApplicationPermission } from '../services/application-access';
 
 export function registerLocalAuthHandlers(): void {
   ipcMain.handle('localAuth:signIn', (event, rawData: unknown) => {
@@ -107,10 +108,8 @@ export function registerLocalAuthHandlers(): void {
     const { name, email, role } = localAuthInviteMemberSchema.parse(rawData);
     const ctx = resolveContext(event);
 
-    // Only admins can invite
-    if (ctx.localAuthPersonnel?.role !== 'admin') {
-      return { success: false, error: 'Only admins can invite members' };
-    }
+    const access = checkApplicationPermission(ctx, 'teamAdministration');
+    if (!access.allowed) return { success: false, error: access.error };
 
     if (!ctx.localSyncPassphrase) {
       return { success: false, error: 'Sync passphrase not available' };
@@ -118,7 +117,7 @@ export function registerLocalAuthHandlers(): void {
 
     const existing = ctx.personnelRepo.getByEmail(email);
     if (existing && !existing.password_hash && (existing.name !== name || existing.role !== role)) return { success: false, error: 'This email has a pending invitation with different details. Use its existing name and role to reissue it.' };
-    const result = existing ? { success: true, record: existing } : ctx.localAuthService.inviteMember(name, email, role, ctx.localAuthPersonnel.id);
+    const result = existing ? { success: true, record: existing } : ctx.localAuthService.inviteMember(name, email, role, access.actor.id);
     if (!result.success || !result.record) return result;
     const syncFolder = ctx.settingsRepo.getSetting('localSync.syncFolder');
     const orchestrator = ctx.localSyncOrchestrator;

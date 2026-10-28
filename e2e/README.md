@@ -66,3 +66,22 @@ npx playwright show-trace test-results/<test-name>/trace.zip
 ## Update checks
 
 `updates.e2e.ts` covers persistent update controls, process-wide status, the manual-only preference, unfinished-transaction protection, invoice-save flushing, and reopening ledger windows after an update handoff. The tests inject status/preparation events and use only the fixture's temporary ledgers. They never download, install, or publish a release.
+
+## Shared application operations and AI permissions
+
+`activity-operations.e2e.ts` checks that native rename and Undo/Redo update transactions, schedules and notes together. `personal-ai.e2e.ts` includes a Settings-first renderer reload, explicit default-off capability choices, scoped reads, future-account consent and deduplicated backup creation. These tests use the same temporary ledgers as the other scenarios, with synthetic secure-storage crypto for AI approval; they never approve access to real accounts.
+
+### Packaged connector round trips
+
+Build a plugin with `FIDRA_PLUGIN_OUTPUT_DIR` set to a disposable output directory. Set `FIDRA_E2E_PLUGIN_ROOT` to its extracted `Fidra-private/Fidra` folder, then run `npx playwright test e2e/packaged-fidra.e2e.ts` after rebuilding the app. Without that environment variable, these artifact-dependent scenarios report a skip.
+
+These tests run the actual bundled Node runtime and unchanged stdio adapter against the fixture’s real Electron app. A test-only preload replaces only the OS credential-store interface, and the app uses synthetic secure-storage crypto. Neither test requests the developer’s Keychain. Inputs, signing, localhost transport, native permission UI, application services and returned data are real. Coverage includes narrow-account and ledger-wide consent, field/embedded-invoice filtering, backup retries, configured team sync, native revoke/lock/sign-out and forbidden arguments/operations. This does not establish OS credential prompts, Windows installation or a host-chat upgrade to the candidate.
+
+
+`packaged-fidra.e2e.ts` also restarts the old and refreshed helper with a synthetic on-disk test identity, verifying that an existing narrow approval survives and newly visible tools still deny unapproved access. `installed-helper.e2e.ts` additionally accepts `FIDRA_E2E_PACKAGED_EXECUTABLE`: it launches the actual packaged executable normally, with the fixture’s isolated home, and checks automatic helper refresh through its public interface. Release fuses remain enabled; no debugger is injected into the packaged app. Disposable macOS launches use Chromium’s `--use-mock-keychain` test switch, so they never require creation/unlocking of the real user’s Keychain. Actual OS credential prompts are outside this check.
+
+
+Set `FIDRA_E2E_CAPTURE_UI=1` to additionally export the update-panel review screenshot. This optional artifact is separate from functional acceptance: Chromium screenshot capture has timed out on macOS after all of that scenario’s UI assertions passed. Failure traces and screenshots configured globally remain enabled.
+
+
+Owner preference (2026-10-28): do not run these visible Electron scenarios on the owner’s active desktop. Use isolated GitHub runners. Local background service/type/lint/build checks are fine; do not assume a terminal background job hides or prevents application focus. The release workflow runs full macOS acceptance and packaged-helper scope/upgrade acceptance on Windows before publication.

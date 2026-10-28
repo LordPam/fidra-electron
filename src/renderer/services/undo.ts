@@ -1,3 +1,4 @@
+import type { ActivityChange } from '../../shared/activity-change-types';
 import type { TransactionRow, PlannedTemplateRow, AttachmentRow, SheetRow, InvoiceRow } from '../../shared/ipc-types';
 import { useTransactionStore } from '../stores/transaction-store';
 import { usePlannedStore } from '../stores/planned-store';
@@ -64,12 +65,12 @@ export function createEditTransferCommand(
   return {
     description: `Edit transfer: ${newExpense.description}`,
     execute: async () => {
-      await useTransactionStore.getState().updateTransaction(newExpense);
-      await useTransactionStore.getState().updateTransaction(newIncome);
+      await window.api.saveTransfer(newExpense, newIncome);
+      await useTransactionStore.getState().silentRefresh();
     },
     undo: async () => {
-      await useTransactionStore.getState().restoreTransaction(oldExpense);
-      await useTransactionStore.getState().restoreTransaction(oldIncome);
+      await window.api.saveTransfer(oldExpense, oldIncome);
+      await useTransactionStore.getState().silentRefresh();
     },
   };
 }
@@ -440,83 +441,46 @@ export function createSetCategoriesCommand(
 
 // Activity commands
 
-export function createRenameActivityCommand(
-  oldName: string,
-  newName: string,
-  oldTransactions: TransactionRow[],
-  newTransactions: TransactionRow[],
-  oldTemplates: PlannedTemplateRow[],
-  newTemplates: PlannedTemplateRow[],
-  oldNoteText: string | undefined,
-  onRefreshNotes: () => Promise<void>,
-): UndoCommand {
+function createActivityChangeCommand(description: string, initial: ActivityChange, refreshNotes: () => Promise<void>): UndoCommand {
+  let forward = initial;
+  let inverse: ActivityChange | null = null;
+  async function refresh() {
+    const results = await Promise.allSettled([useTransactionStore.getState().silentRefresh(), usePlannedStore.getState().silentRefresh(), useInvoiceStore.getState().loadAll(), refreshNotes()]);
+    if (results.some((result) => result.status === 'rejected')) console.warn('[activity] Change saved; a view needs refreshing.');
+  }
   return {
-    description: `Rename activity: ${oldName} → ${newName}`,
-    execute: async () => {
-      if (newTransactions.length > 0) {
-        await useTransactionStore.getState().bulkUpdate(newTransactions);
-      }
-      if (newTemplates.length > 0) {
-        await usePlannedStore.getState().bulkUpdateTemplates(newTemplates);
-      }
-      if (oldNoteText !== undefined) {
-        await window.api.saveActivityNote(newName, oldNoteText);
-        await window.api.deleteActivityNote(oldName);
-      }
-      await onRefreshNotes();
-    },
+    description,
+    execute: async () => { inverse = await window.api.applyActivityChange(forward); await refresh(); },
     undo: async () => {
-      if (oldTransactions.length > 0) {
-        await useTransactionStore.getState().bulkUpdate(oldTransactions);
-      }
-      if (oldTemplates.length > 0) {
-        await usePlannedStore.getState().bulkUpdateTemplates(oldTemplates);
-      }
-      if (oldNoteText !== undefined) {
-        await window.api.saveActivityNote(oldName, oldNoteText);
-        await window.api.deleteActivityNote(newName);
-      }
-      await onRefreshNotes();
+      if (!inverse) throw new Error('This activity change has not been applied.');
+      forward = await window.api.applyActivityChange(inverse); await refresh();
     },
   };
 }
 
-export function createDeleteActivityCommand(
-  activityName: string,
-  oldTransactions: TransactionRow[],
-  clearedTransactions: TransactionRow[],
-  oldTemplates: PlannedTemplateRow[],
-  clearedTemplates: PlannedTemplateRow[],
-  oldNoteText: string | undefined,
-  onRefreshNotes: () => Promise<void>,
+export function createRenameActivityCommand(
+  oldName: string, newName: string,
+  oldTransactions: TransactionRow[], oldTemplates: PlannedTemplateRow[],
+  oldNoteText: string | undefined, onRefreshNotes: () => Promise<void>,
 ): UndoCommand {
-  return {
-    description: `Delete activity: ${activityName}`,
-    execute: async () => {
-      if (clearedTransactions.length > 0) {
-        await useTransactionStore.getState().bulkUpdate(clearedTransactions);
-      }
-      if (clearedTemplates.length > 0) {
-        await usePlannedStore.getState().bulkUpdateTemplates(clearedTemplates);
-      }
-      if (oldNoteText !== undefined) {
-        await window.api.deleteActivityNote(activityName);
-      }
-      await onRefreshNotes();
-    },
-    undo: async () => {
-      if (oldTransactions.length > 0) {
-        await useTransactionStore.getState().bulkUpdate(oldTransactions);
-      }
-      if (oldTemplates.length > 0) {
-        await usePlannedStore.getState().bulkUpdateTemplates(oldTemplates);
-      }
-      if (oldNoteText !== undefined) {
-        await window.api.saveActivityNote(activityName, oldNoteText);
-      }
-      await onRefreshNotes();
-    },
-  };
+  return createActivityChangeCommand(`Rename activity: ${oldName} → ${newName}`, {
+    transactions: oldTransactions.map((row) => ({ id: row.id, version: row.version, expectedActivity: oldName, activity: newName })),
+    templates: oldTemplates.map((row) => ({ id: row.id, version: row.version, expectedActivity: oldName, activity: newName })),
+    notes: oldNoteText === undefined || oldName === newName ? [] : [
+      { name: oldName, expected: oldNoteText, text: null }, { name: newName, expected: null, text: oldNoteText },
+    ],
+  }, onRefreshNotes);
+}
+
+export function createDeleteActivityCommand(
+  activityName: string, oldTransactions: TransactionRow[], oldTemplates: PlannedTemplateRow[],
+  oldNoteText: string | undefined, onRefreshNotes: () => Promise<void>,
+): UndoCommand {
+  return createActivityChangeCommand(`Delete activity: ${activityName}`, {
+    transactions: oldTransactions.map((row) => ({ id: row.id, version: row.version, expectedActivity: activityName, activity: null })),
+    templates: oldTemplates.map((row) => ({ id: row.id, version: row.version, expectedActivity: activityName, activity: null })),
+    notes: oldNoteText === undefined ? [] : [{ name: activityName, expected: oldNoteText, text: null }],
+  }, onRefreshNotes);
 }
 
 export function createEditActivityNoteCommand(

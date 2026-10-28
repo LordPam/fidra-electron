@@ -9,6 +9,11 @@ import { AiAuthorizationStore, type AiAuthorization } from './ai-authorization-s
 import { aiAccessPolicySchema, type AiAccessRequest, type AiAccessState } from '../../shared/ai-access-types';
 import { reconciliationScopeSchema } from '../../shared/reconciliation-types';
 import { hashPassword, verifyPassword } from '../sync/key-wrap';
+import { aiLedgerReads, isAiLedgerRead } from './ai-ledger-reads';
+import { aiToolCatalog } from './ai-tool-catalog';
+import { aiPermittedAccounts } from './ai-operation-access';
+import { aiRunSync } from './ai-sync-operations';
+import { aiCreateBackup, aiReadBackups } from './ai-backup-operations';
 
 const publicKeySchema = z.string().max(200).refine((value) => {
   try { return createPublicKey({ key: Buffer.from(value, 'base64'), type: 'spki', format: 'der' }).asymmetricKeyType === 'ed25519'; }
@@ -143,7 +148,7 @@ export class AiAccessBroker {
       const options = call.name === 'connect_fidra' ? z.object({ newConnection: z.boolean().optional() }).strict().parse(args) : (z.object({}).strict().parse(args), {});
       const records = this.records(publicKey, client);
       const result = call.name === 'connect_fidra' ? (records.length && !('newConnection' in options && options.newConnection) ? { connected: true, instructions: 'Access is already approved. Use list_connections; paused access resumes when the authorised user returns.' } : { pending: this.request(publicKey, client), instructions: 'Compare this code with the native Fidra permission prompt. Only approve a request you initiated.' })
-        : records.map((item) => { const ctx = this.options.contexts().find((candidate) => this.allowed(item, candidate)); return { id: item.id, ledger: ctx ? path.basename(item.dbPath) : 'Approved ledger (paused)', active: !!ctx, accounts: ctx ? ctx.sheetRepo.getAll().filter((sheet) => item.policy.sheetIds.includes(sheet.id)).map(({ id, name }) => ({ id, name })) : [], permissions: item.policy.permissions, fields: item.policy.fields }; });
+        : records.map((item) => { const ctx = this.options.contexts().find((candidate) => this.allowed(item, candidate)); return { id: item.id, ledger: ctx ? path.basename(item.dbPath) : 'Approved ledger (paused)', active: !!ctx, accounts: ctx ? aiPermittedAccounts(ctx, { policy: item.policy, isCurrent: () => this.allowed(item, ctx) }).map(({ id, name }) => ({ id, name })) : [], permissions: item.policy.permissions, fields: item.policy.fields }; });
       return { content: [{ type: 'text', text: JSON.stringify(result) }] };
     }
     const records = this.records(publicKey, client);
@@ -151,11 +156,27 @@ export class AiAccessBroker {
     if (!record) throw new Error(records.length ? 'Choose an approved connectionId from list_connections.' : 'Use connect_fidra and obtain administrator approval first.');
     const ctx = this.options.contexts().find((candidate) => this.allowed(record, candidate));
     if (!ctx) throw new Error('Fidra access is paused. Open the approved ledger and sign in as the authorised administrator, or unlock its standalone owner.');
+    if (call.name === 'read_backups' || call.name === 'create_backup') {
+      const access = { policy: record.policy, isCurrent: () => this.allowed(record, ctx) };
+      const result = call.name === 'read_backups' ? aiReadBackups(ctx, access, args) : await aiCreateBackup(ctx, access, record.id, args);
+      return { content: [{ type: 'text', text: JSON.stringify(result) }] };
+    }
+    if (call.name === 'run_sync') {
+      const result = aiRunSync(ctx, { policy: record.policy, isCurrent: () => this.allowed(record, ctx) }, args);
+      return { content: [{ type: 'text', text: JSON.stringify(result) }] };
+    }
+    if (isAiLedgerRead(call.name)) {
+      const result = aiLedgerReads[call.name](ctx, { policy: record.policy, isCurrent: () => this.allowed(record, ctx) }, args);
+      const text = JSON.stringify(result);
+      if (Buffer.byteLength(text) > 4_000_000) throw new Error('Request a smaller page or date range.');
+      return { content: [{ type: 'text', text }] };
+    }
     let session = this.sessions.get(record.id);
     if (call.name === 'read_context') {
       const query = querySchema.parse(args);
-      const sheetIds = query.sheetIds ?? record.policy.sheetIds;
-      if (sheetIds.some((id) => !record.policy.sheetIds.includes(id))) throw new Error('That account is outside the approved permission.');
+      const permitted = aiPermittedAccounts(ctx, { policy: record.policy, isCurrent: () => this.allowed(record, ctx) }).map((sheet) => sheet.id);
+      const sheetIds = query.sheetIds ?? permitted;
+      if (sheetIds.some((id) => !permitted.includes(id))) throw new Error('That account is outside the approved permission.');
       const scope = reconciliationScopeSchema.parse({ from: query.from, to: query.to, sheetIds, fields: record.policy.fields });
       const key = JSON.stringify(scope);
       if (session && (session.context !== ctx || session.query !== key)) { this.options.bridge.revoke(session.id); session = undefined; }
@@ -210,14 +231,4 @@ export class AiAccessBroker {
     this.challenges.clear(); this.pending.clear();
     try { if (JSON.parse(fs.readFileSync(this.options.discoveryFile, 'utf8')).serverId === this.serverId) fs.rmSync(this.options.discoveryFile); } catch { /* already absent */ }
   }
-}
-
-export function aiToolCatalog(bridge: Pick<AiBridge, 'toolDefinitions'>): unknown {
-      const domain = bridge.toolDefinitions({ allowAdd: true, allowStatementUploads: true }) as { tools: { name: string; inputSchema: Record<string, unknown> }[] };
-      return { tools: [
-        { name: 'connect_fidra', description: 'Request first-time access. Show the verification code and ask a Fidra administrator to approve the matching request in Fidra. Installing alone grants no data access. Approved access persists.', inputSchema: { type: 'object', properties: { newConnection: { type: 'boolean', description: 'Request approval for an additional or moved ledger. Never expands existing access.' } }, additionalProperties: false }, annotations: { readOnlyHint: false, destructiveHint: false } },
-        { name: 'list_connections', description: 'List only this installation’s approved ledgers and connection status. Returns no transaction data.', inputSchema: { type: 'object', properties: {}, additionalProperties: false }, annotations: { readOnlyHint: true } },
-        ...domain.tools.map((tool) => ({ ...tool, inputSchema: tool.name === 'read_context' ? { type: 'object', properties: { connectionId: { type: 'string' }, from: { type: 'string', description: 'Requested start date, YYYY-MM-DD' }, to: { type: 'string', description: 'Requested end date, YYYY-MM-DD' }, sheetIds: { type: 'array', items: { type: 'string' } } }, required: ['from', 'to'], additionalProperties: false }
-          : { ...tool.inputSchema, properties: { ...(tool.inputSchema.properties as object), connectionId: { type: 'string' } } } })),
-      ] };
 }

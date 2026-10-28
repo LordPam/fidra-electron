@@ -16,3 +16,5 @@ After approval, call `list_connections` again. Summarize the permitted accounts 
 Installation and consent persist. Paused access means Fidra is closed, the computer is locked, the authorised user is signed out, or the standalone owner needs to unlock access. Ask the user to open/unlock Fidra; do not require package exports, context files, plugin reinstallation or hourly reconnection. Revoked permissions require a new administrator approval. Never expand scope automatically.
 
 When the user requests reconciliation, continue with `fidra-reconcile` and read only the account/date context needed for that request. Do not import or stage transactions solely to test setup. Do not claim a public-directory listing or actual client installation has been verified from a successful connector test.
+
+For supported ledger reads, backups and synchronization, continue with `fidra-ledger`. Check each capability in `list_connections`; new tools never expand an existing approval. If the installed app does not support a tool, explain that both Fidra and the plugin need matching updates.

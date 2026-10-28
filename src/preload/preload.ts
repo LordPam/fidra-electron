@@ -118,6 +118,8 @@ const api = {
     invoke('planned:delete', id),
 
   // Activity Notes
+  applyActivityChange: (change: import('../shared/activity-change-types').ActivityChange): Promise<import('../shared/activity-change-types').ActivityChange> =>
+    invoke('activities:applyChange', change),
   getActivityNotes: (): Promise<Record<string, string>> =>
     invoke('activityNotes:getAll'),
   saveActivityNote: (activity: string, notes: string): Promise<void> =>

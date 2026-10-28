@@ -4,11 +4,13 @@ import path from 'node:path';
 import { invitationSchema } from '../../shared/invitation-types';
 import { readInvitationFile, readInvitationIdentity } from '../sync/invitation';
 import { resolveContext } from './context-resolver';
+import { checkApplicationPermission } from '../services/application-access';
 
 export function registerInvitationHandlers(): void {
   ipcMain.handle('invitation:save', async (event, raw: unknown) => {
     const ctx = resolveContext(event);
-    if (ctx.localAuthPersonnel?.role !== 'admin') throw new Error('Only an administrator can save invitations.');
+    const access = checkApplicationPermission(ctx, 'teamAdministration');
+    if (!access.allowed) throw new Error(access.error);
     const invitation = invitationSchema.parse(raw);
     const result = await dialog.showSaveDialog(ctx.window, {
       title: 'Save invitation to share', defaultPath: `Join-${invitation.id.slice(0, 8)}.fidra-invite`,

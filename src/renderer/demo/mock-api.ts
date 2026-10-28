@@ -8,10 +8,11 @@ import type {
   TransactionRow,
 } from '../../shared/ipc-types';
 import { createDemoDataState } from './fixtures';
+import { activityChangeSchema, type ActivityChange } from '../../shared/activity-change-types';
 
 type DemoCurrentUser = { displayName: string; source: 'auth' | 'profile' | 'none' } | null;
 
-const noopUnsubscribe = () => {};
+const noopUnsubscribe = () => { /* Demo has no native event subscriptions. */ };
 
 function clone<T>(value: T): T {
   return structuredClone(value);
@@ -205,6 +206,28 @@ export function createDemoApi(): ElectronApi {
       return true;
     },
 
+    applyActivityChange: async (raw: ActivityChange): Promise<ActivityChange> => {
+      const input = activityChangeSchema.parse(raw);
+      const transactions = input.transactions.map((change) => {
+        const row = state.transactions.find((item) => item.id === change.id);
+        if (!row || row.version !== change.version || row.activity !== change.expectedActivity) throw new Error('An activity entry changed. Refresh before continuing.');
+        return { ...row, version: row.version + 1, activity: change.activity };
+      });
+      const templates = input.templates.map((change) => {
+        const row = state.plannedTemplates.find((item) => item.id === change.id);
+        if (!row || row.version !== change.version || row.activity !== change.expectedActivity) throw new Error('An activity plan changed. Refresh before continuing.');
+        return { ...row, version: row.version + 1, activity: change.activity };
+      });
+      for (const note of input.notes) if ((state.activityNotes[note.name] ?? null) !== note.expected) throw new Error('An activity note changed. Refresh before continuing.');
+      transactions.forEach(upsertTransaction); templates.forEach(upsertTemplate);
+      for (const note of input.notes) {
+        if (note.text === null) delete state.activityNotes[note.name];
+        else state.activityNotes[note.name] = note.text;
+      }
+      return { transactions: input.transactions.map((change) => ({ ...change, version: change.version + 1, expectedActivity: change.activity, activity: change.expectedActivity })),
+        templates: input.templates.map((change) => ({ ...change, version: change.version + 1, expectedActivity: change.activity, activity: change.expectedActivity })),
+        notes: input.notes.map((note) => ({ name: note.name, expected: note.text, text: note.expected })) };
+    },
     getActivityNotes: async () => clone(state.activityNotes),
 
     saveActivityNote: async (activity: string, notes: string) => {

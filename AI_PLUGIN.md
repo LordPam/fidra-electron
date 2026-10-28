@@ -33,3 +33,53 @@ Run `npm run build:ai-plugin` with `FIDRA_PLUGIN_NODE_RUNTIME` pointing to a che
 Automated tests use synthetic ledgers and in-memory credentials. Electron tests substitute a deterministic secure-storage implementation for approval/session operations inside the isolated test process. The owner reported transient Keychain warnings during separate packaged-app launch checks; the cause is unconfirmed and those live launches were stopped. Mocked approval storage does not establish the absence of operating-system prompts during native startup. Packaged-runtime smoke checks pass locally and in macOS/Windows CI, exercising initialization and offline tool discovery without requesting a stored installation key. These checks do not establish installed-plugin Keychain prompts, ChatGPT conversation behavior, Windows execution or public-directory availability.
 
 OpenAI public local-MCP publication currently requires approved-partner eligibility and review. The current platform artifacts are candidates for testing and distribution review. The final directory delivery/target-platform selection must be established with OpenAI before public release. Application publisher signing remains deferred by owner decision.
+
+## Local Codex launcher repair (26 October 2026)
+
+The account-installed 2.0.4 package is present, but this desktop client reports `No such file or directory` when starting the `${PLUGIN_ROOT}` launcher. Running the same bundled runtime and adapter by absolute path works. Version 2.0.4 also removes host MCP `_meta` from the tool-call envelope before signing for the installed app's strict broker; domain arguments and native access checks remain enforced.
+
+For this Mac, the selected package's code, runtime, native binding, catalog, skills and licenses were copied unchanged into `~/.fidra/ai-plugin/2.0.4/`. All 20 payload files were hash-checked against the installed package, including its recorded official Node runtime checksum. This folder contains plugin code only, with no copied approvals, credentials, statements or ledgers. It is independent of the plugin cache and the project build output.
+
+The bundled Codex CLI registered a direct `mcp_servers.fidra` entry in `~/.codex/config.toml`, using full paths to that folder's `runtime/node` and `server/server.cjs`. The existing private plugin remains installed for its skills. Its failing duplicate launcher is disabled using the supported plugin-scoped policy:
+
+```toml
+[plugins."fidra@created-by-me-remote".mcp_servers.fidra]
+enabled = false
+```
+
+No approval mode was relaxed. The original host settings are backed up as `~/.codex/config.toml.before-fidra-launcher-repair`. The same Codex binary used by the desktop app discovered all eight Fidra tools through `mcpServerStatus/list` from the saved configuration, without overrides or a model/chat run. The relocated connector's metadata-only `list_connections` check confirmed the same active approval and account/action scope, including compatibility with host `_meta`. No transaction history was read or changed.
+
+After the owner restarted Codex, the native `mcp__fidra__list_connections` tool succeeded directly in the existing chat and returned the same active approval and account/action scope. This verifies actual desktop-chat tool loading and approval reuse after restart, beyond the isolated discovery check. This is a machine-local compatibility repair, not a portable directory-package fix or Windows acceptance. Updating the account plugin does not update this separate pinned connector: future adapter updates must replace the local payload deliberately and recheck discovery. Once the client's bundled launcher works, remove the direct entry with `codex mcp remove fidra` and remove the plugin-scoped disable override to return to the normal bundled route. Keep the existing OS installation identity and Fidra approvals intact.
+
+
+## Application-operation expansion — source checkpoint, 26 October 2026
+
+The working source now has 61 shared application entry points and 26 native capability choices. Existing approvals acquire no new capabilities or future-account scope. The native approval dialog reads account choices directly when opened, including when Settings is the first mounted view.
+
+The generated catalogue has 19 tools: the original reconciliation/setup tools plus scoped domain reads, `run_sync` and `create_backup`. Sensitive settings, credential material and local paths are excluded; destructive administration and general ledger writes remain under implementation in `plan-ai-ledger-operations.md`. The extension does not expose raw repositories, SQL, generic IPC or row-restore calls.
+
+An isolated build in `/private/tmp/fidra-operations-plugin` passed archive inspection and bundled-runtime offline initialization/tool discovery with all 19 tools and three skills. The offline process used a temporary home, did not request credentials or connect to a ledger, and left that home empty. `FIDRA_PLUGIN_OUTPUT_DIR` supports this validation without overwriting an existing private plugin source. This is a development artifact using the current build version, not a release to install. The installed connector, pinned launcher and existing live approvals were not changed.
+
+The source passes 663 unit tests across 58 files, typecheck and catalogue/skill validation. The local app build and initial 14 real-Electron workflows passed. A final rerun passed 13 workflows and all transaction/balance assertions, but one stderr assertion captured a Chromium `blink.mojom.WidgetHost` message rejection; that exact test then passed three consecutive isolated repeats against the final build. The harness was not changed to suppress the message. All four approval/connection scenarios passed once more after the final consent wording clarification. Full ledger/admin coverage and matched release versions remain unfinished; no app/plugin publication or installation was performed.
+
+
+## Packaged-extension acceptance — 27 October 2026
+
+The live in-chat installed `list_connections` tool responds, but both saved approvals are paused. The installed tool inventory remains the original eight; the 19-tool candidate has not been installed or published. No financial history was requested from those approvals.
+
+Fresh isolated builds in `/private/tmp/fidra-oct27-plugin` and the local app output were tested. Archive inspection confirms 19 unique tools, the ledger skill, an unchanged adapter and the recorded bundled-runtime checksum. Two new scenarios in `e2e/packaged-fidra.e2e.ts` run that bundled runtime and actual stdio adapter through signed localhost requests into a real Electron window. They use temporary ledgers and synthetic native approvals, replace only the connector’s OS credential-store interface and the app’s secure-storage crypto, and never touch a real Keychain or financial file.
+
+Both packaged scenarios pass: account and field restrictions, withheld cross-account planned transfers, strict arguments, invoice JSON projection, category/activity/settings reads, personnel role limits and credential redaction, backup retry protection, native revocation, lock/unlock, configured team sync and sign-out. A standalone access owner cannot act as a team administrator. Arbitrary SQL and caller-supplied permission/sync-secret arguments are rejected. The native app test paths seed and inspect data through typed application IPC, without raw financial database edits.
+
+The fresh unit/integration run passes 663 tests across 58 files. Typecheck, added-test lint and whitespace checks pass. The full desktop run passed 30 of 34 scenarios; four failed, and worker cleanup also reported errors. Failures involved a multi-window reset page closure, a planned-dialog click timeout, startup readiness and invoice-test teardown. All four passed unchanged in a separate isolated rerun (16.4 seconds). The first run is retained as a failure, not presented as a clean full-suite pass; root cause is unconfirmed. The backlog tracks follow-up. No product assertions were suppressed and no speculative production fix was made.
+
+Test logs: `/private/tmp/fidra-oct27-unit-tests.log`, `/private/tmp/fidra-oct27-desktop-tests.log`, `/private/tmp/fidra-oct27-failed-recheck.log`. Mac development-candidate results do not establish Windows, actual host-chat candidate installation, real OS credential prompts or the still-unimplemented broader ledger/admin write coverage.
+
+
+## Updating the repaired local helper (0.1.25 onwards)
+
+For the explicitly installed `~/.fidra/ai-plugin/2.0.4` compatibility copy, packaged Fidra refreshes the adapter, offline tool catalogue and three workflow skills when it starts. It recognises the original adapter by its SHA-256 and thereafter accepts only its stable bootstrap. Unknown adapters and symbolic links are refused. A complete content-addressed snapshot is verified and selected atomically; startup failure leaves ledger use independent of the helper. The bootstrap verifies the selected files before executing them. Existing runtime, credential binding, installation identity, approvals and host configuration are never replaced. This updater never edits a host-managed plugin cache and does not install a helper where none exists.
+
+Update Fidra, reopen it, then fully quit and reopen the AI desktop app. This is sufficient for the repaired local tool server. The account plugin’s packaged skills have their own private release; updating that plugin does not replace the direct helper. Existing grants stay narrow. Additional permissions require native revoke and renewed matching-code approval.
+
+The 0.1.25 tool catalogue has 19 tools. General ledger writes and the remaining administration workflows are still in development; do not advertise them as available.

@@ -7,6 +7,7 @@ import type Database from 'better-sqlite3';
 import { openDatabase } from '../../database/connection';
 import { SettingsRepo } from '../../database/settings-repo';
 import { SheetRepo } from '../../repositories/sheet-repo';
+import { TransactionRepo } from '../../repositories/transaction-repo';
 import { PersonnelRepo } from '../../repositories/personnel-repo';
 import { AuditRepo } from '../../repositories/audit-repo';
 import { AiAuthorizationStore } from '../ai-authorization-store';
@@ -14,6 +15,7 @@ import { AiAccessBroker } from '../ai-access-broker';
 import { AiBridge } from '../ai-bridge';
 import { ReconciliationService } from '../reconciliation';
 import type { WindowContext } from '../../window/window-context';
+// eslint-disable-next-line @typescript-eslint/no-var-requires
 const { createAdapter } = require('../../../../resources/ai-bridge/server.cjs');
 let root: string; let db: Database.Database; let ctx: WindowContext; let store: AiAuthorizationStore; let broker: AiAccessBroker; let bridge: AiBridge; let available: boolean;
 const policy = { sheetIds: ['main'], fields: ['description'] as ['description'], permissions: { allowAdd: true, allowStatementUploads: true } };
@@ -36,13 +38,47 @@ async function approve() {
 beforeEach(async () => {
   root = fs.mkdtempSync(path.join(os.tmpdir(), 'fidra-access-')); db = openDatabase(path.join(root, 'ledger.fdra')).db;
   const sheets = new SheetRepo(db); sheets.create('main', 'Main'); sheets.create('private', 'Private');
-  ctx = { dbPath: path.join(root, 'ledger.fdra'), databaseId: 'test-ledger-id', isClosed: false, isLocalSyncAuthEnabled: false, localAuthPersonnel: null, sheetRepo: sheets, settingsRepo: new SettingsRepo(db), personnelRepo: new PersonnelRepo(db), auditRepo: new AuditRepo(db), reconciliation: new ReconciliationService(db) } as unknown as WindowContext;
+  const transactions = new TransactionRepo(db);
+  ctx = { dbPath: path.join(root, 'ledger.fdra'), databaseId: 'test-ledger-id', isClosed: false, isLocalSyncAuthEnabled: false, localAuthPersonnel: null, sheetRepo: sheets, transactionRepo: transactions, repos: { transactions }, settingsRepo: new SettingsRepo(db), personnelRepo: new PersonnelRepo(db), auditRepo: new AuditRepo(db), reconciliation: new ReconciliationService(db) } as unknown as WindowContext;
   const key = randomBytes(32); available = true;
   store = new AiAuthorizationStore(path.join(root, 'authorizations.enc'), { available: () => available, encrypt: (value) => { const iv = randomBytes(12); const cipher = createCipheriv('aes-256-gcm', key, iv); const bytes = Buffer.concat([cipher.update(value), cipher.final()]); return Buffer.concat([iv, cipher.getAuthTag(), bytes]); }, decrypt: (value) => { const cipher = createDecipheriv('aes-256-gcm', key, value.subarray(0, 12)); cipher.setAuthTag(value.subarray(12, 28)); return Buffer.concat([cipher.update(value.subarray(28)), cipher.final()]).toString(); } });
   broker = makeBroker(); broker.unlockOwner(ctx, 'Trial owner', password); await broker.start(); client = adapter();
 });
 afterEach(() => { vi.useRealTimers(); broker.stop(); db.close(); fs.rmSync(root, { recursive: true, force: true }); });
 describe('persistent administrator approval', () => {
+  it('keeps existing reconciliation approval narrow and rejects tool-side permission escalation', async () => {
+    await approve();
+    const connection = data(await call('list_connections'))[0];
+    expect(connection.permissions).toMatchObject({ capabilities: [], allAccounts: false });
+    expect((await call('read_transactions', { from: '2026-10-01', to: '2026-10-31' })).error.message).toContain('permission');
+    expect((await call('read_context', { from: '2026-10-01', to: '2026-10-31', permissions: { allAccounts: true } })).error).toBeDefined();
+    expect(data(await call('list_connections'))[0].permissions).toEqual(connection.permissions);
+  });
+  it('routes approved domain reads through the authenticated connection without reconciliation setup', async () => {
+    const pending = data(await call('connect_fidra')).pending;
+    broker.approve(ctx, pending.id, { ...policy, sheetIds: [], permissions: { allAccounts: true, capabilities: ['transactions.read'] } });
+    ctx.sheetRepo.create('future', 'Future');
+    const query = { from: '2026-10-01', to: '2026-10-31' };
+    expect(data(await call('read_transactions', query))).toMatchObject({ rows: [], total: 0 });
+    expect(data(await call('list_connections'))[0].accounts).toContainEqual({ id: 'future', name: 'Future' });
+    expect((await call('read_transactions', { ...query, capabilities: ['transactions.manage'] })).error).toBeDefined();
+    const grant = broker.state(ctx).authorizations[0]; broker.revoke(ctx, grant.id);
+    expect((await call('read_transactions', query)).error).toBeDefined();
+  });
+  it('accepts host tool-call metadata without changing arguments or granting access', async () => {
+    const request = { jsonrpc: '2.0', id: 1, method: 'tools/call', params: {
+      name: 'connect_fidra', arguments: {}, _meta: { 'openai/session': 'synthetic-session', progressToken: 'synthetic-progress' },
+    } };
+    const response = await client.call(request);
+    expect(response.error).toBeUndefined();
+    const pending = data(response).pending;
+    expect(pending.code).toBe(broker.state(ctx).requests[0].code);
+    expect(broker.state(ctx).authorizations).toEqual([]);
+    expect(request.params._meta).toEqual({ 'openai/session': 'synthetic-session', progressToken: 'synthetic-progress' });
+    expect((await client.call({ ...request, params: { ...request.params, arguments: { allowAdd: true } } })).error).toBeDefined();
+    expect((await client.call({ ...request, params: { ...request.params, unexpected: true } })).error).toBeDefined();
+    expect((await client.call({ ...request, params: { ...request.params, name: 'read_context', arguments: { from: '2026-10-01', to: '2026-10-31' } } })).error).toBeDefined();
+  });
   it('reveals no ledger data before native approval and requires selected accounts', async () => {
     expect(data(await call('list_connections'))).toEqual([]);
     expect((await call('read_context', { from: '2026-10-01', to: '2026-10-31' })).error).toBeDefined();

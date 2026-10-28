@@ -1,51 +1,29 @@
 import { ipcMain } from 'electron';
-import { z } from 'zod';
 import { resolveContext } from './context-resolver';
-import { idSchema, invoiceRowSchema } from '../../shared/ipc-schemas';
-import { logInvoiceCreated, logInvoiceUpdated, logInvoiceDeleted, logInvoiceMarkedPaid } from '../services/audit-service';
+import * as operations from '../services/invoice-operations';
 
 export function registerInvoiceHandlers(): void {
   ipcMain.handle('invoices:getAll', (event) => {
-    return resolveContext(event).repos.invoices.getAll();
+    return operations.invoicesGetAll(resolveContext(event));
   });
 
   ipcMain.handle('invoices:getByPlannedTemplate', (event, plannedTemplateId: unknown) => {
-    const validId = idSchema.parse(plannedTemplateId);
-    return resolveContext(event).repos.invoices.getByPlannedTemplateId(validId);
+    return operations.invoicesGetByPlannedTemplate(resolveContext(event), plannedTemplateId);
   });
 
   ipcMain.handle('invoices:save', (event, data: unknown) => {
-    const validated = invoiceRowSchema.parse(data);
-    const ctx = resolveContext(event);
-    const existing = ctx.invoiceRepo.getById(validated.id);
-    const result = ctx.repos.invoices.save(validated);
-    if (existing) {
-      logInvoiceUpdated(ctx, validated);
-    } else {
-      logInvoiceCreated(ctx, validated);
-    }
-    return result;
+    return operations.invoicesSave(resolveContext(event), data);
   });
 
   ipcMain.handle('invoices:delete', (event, id: unknown) => {
-    const validId = idSchema.parse(id);
-    const ctx = resolveContext(event);
-    const result = ctx.repos.invoices.remove(validId);
-    logInvoiceDeleted(ctx, validId);
-    return result;
+    return operations.invoicesDelete(resolveContext(event), id);
   });
 
   ipcMain.handle('invoices:markPaid', (event, invoiceId: unknown, transactionId: unknown) => {
-    const validInvoiceId = idSchema.parse(invoiceId);
-    const validTxId = idSchema.parse(transactionId);
-    const ctx = resolveContext(event);
-    const result = ctx.repos.invoices.markPaid(validInvoiceId, validTxId);
-    if (result) logInvoiceMarkedPaid(ctx, result);
-    return result;
+    return operations.invoicesMarkPaid(resolveContext(event), invoiceId, transactionId);
   });
 
   ipcMain.handle('invoices:revertToDraft', (event, invoiceId: unknown) => {
-    const validId = idSchema.parse(invoiceId);
-    return resolveContext(event).repos.invoices.revertToDraft(validId);
+    return operations.invoicesRevertToDraft(resolveContext(event), invoiceId);
   });
 }

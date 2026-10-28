@@ -3,7 +3,7 @@ import path from 'node:path';
 import fs from 'node:fs';
 import { squirrelEvent, runSquirrelHelper } from './services/squirrel-lifecycle';
 import { resetOpenDeviceState } from './ipc/device';
-import { personalAiBridge } from './services/ai-runtime';
+import { personalAiBridge, refreshCompatibilityAiHelper } from './services/ai-runtime';
 
 // ─── Startup diagnostic log (written to file since no terminal in Finder) ───
 const DIAG_LOG = path.join(
@@ -71,6 +71,7 @@ declare const MAIN_WINDOW_VITE_DEV_SERVER_URL: string | undefined;
 app.on('ready', async () => {
   if (installerEvent || !gotTheLock) return;
   diag('app.ready fired');
+  refreshCompatibilityAiHelper();
   // ─── Content Security Policy ────────────────────────────────────
   const isDev = !!MAIN_WINDOW_VITE_DEV_SERVER_URL;
   const csp = [

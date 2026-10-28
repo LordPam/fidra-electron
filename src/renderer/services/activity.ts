@@ -29,17 +29,11 @@ export async function renameActivity(params: RenameParams): Promise<void> {
   const { oldName, newName, transactions, templates, activityNotes, refreshNotes } = params;
 
   const oldTxns = transactions.filter((t) => t.activity === oldName);
-  const newTxns: TransactionRow[] = oldTxns.map((t) => ({
-    ...t, activity: newName, version: t.version + 1,
-  }));
   const oldTempls = templates.filter((t) => t.activity === oldName);
-  const newTempls: PlannedTemplateRow[] = oldTempls.map((t) => ({
-    ...t, activity: newName, version: t.version + 1,
-  }));
   const noteText = activityNotes[oldName];
 
   const cmd = createRenameActivityCommand(
-    oldName, newName, oldTxns, newTxns, oldTempls, newTempls, noteText, refreshNotes,
+    oldName, newName, oldTxns, oldTempls, noteText, refreshNotes,
   );
   await useUndoStore.getState().execute(cmd);
 }
@@ -60,17 +54,11 @@ export async function deleteActivity(params: DeleteParams): Promise<void> {
   const { activity, transactions, templates, activityNotes, refreshNotes } = params;
 
   const oldTxns = transactions.filter((t) => t.activity === activity);
-  const clearedTxns: TransactionRow[] = oldTxns.map((t) => ({
-    ...t, activity: null, version: t.version + 1,
-  }));
   const oldTempls = templates.filter((t) => t.activity === activity);
-  const clearedTempls: PlannedTemplateRow[] = oldTempls.map((t) => ({
-    ...t, activity: null, version: t.version + 1,
-  }));
   const noteText = activity in activityNotes ? activityNotes[activity] : undefined;
 
   const cmd = createDeleteActivityCommand(
-    activity, oldTxns, clearedTxns, oldTempls, clearedTempls, noteText, refreshNotes,
+    activity, oldTxns, oldTempls, noteText, refreshNotes,
   );
   await useUndoStore.getState().execute(cmd);
 }

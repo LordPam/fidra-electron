@@ -1,6 +1,5 @@
 import fs from 'node:fs';
 import os from 'node:os';
-import path from 'node:path';
 import { ipcMain } from 'electron';
 import { z } from 'zod';
 import { resolveContext } from './context-resolver';
@@ -21,6 +20,7 @@ import { localSyncConfigSchema, localSyncResolutionSchema, localSyncMigrationOpt
 import type { LocalSyncStatus, LocalSyncConflict, MigrationResult, SyncFolderValidation, ImportNotification } from '../../shared/ipc-types';
 import { joinLocalSync } from '../sync/migration';
 import { syncLog, errorMessage } from '../sync/sync-log';
+import { syncGetStatus, syncExportNow, syncImportNow } from '../services/sync-operations';
 import { SessionStore, dbPathToSessionId } from '../services/session-store';
 
 const SETTING_SYNC_FOLDER = 'localSync.syncFolder';
@@ -244,39 +244,7 @@ export function registerLocalSyncHandlers(): void {
   });
 
   // ─── localSync:getStatus ──────────────────────────────────────────
-  ipcMain.handle('localSync:getStatus', (event) => {
-    const ctx = resolveContext(event);
-    const syncFolder = ctx.settingsRepo.getSetting(SETTING_SYNC_FOLDER);
-    const orchestrator = ctx.localSyncOrchestrator;
-
-    // Enabled = settings are present (regardless of orchestrator state)
-    const enabled = !!syncFolder;
-
-    if (!orchestrator) {
-      return {
-        enabled,
-        state: 'stopped',
-        lastExportAt: null,
-        lastImportAt: null,
-        pendingConflicts: 0,
-        lastError: null,
-        syncFolder: syncFolder ?? null,
-        staleReason: null,
-      } satisfies LocalSyncStatus;
-    }
-
-    const status = orchestrator.getStatus();
-    return {
-      enabled,
-      state: status.state,
-      lastExportAt: status.lastExportAt,
-      lastImportAt: status.lastImportAt,
-      pendingConflicts: status.pendingConflicts,
-      lastError: status.lastError,
-      syncFolder: syncFolder ?? null,
-      staleReason: status.staleReason,
-    } satisfies LocalSyncStatus;
-  });
+  ipcMain.handle('localSync:getStatus', (event) => syncGetStatus(resolveContext(event)));
 
   // ─── localSync:exportNow ──────────────────────────────────────────
   ipcMain.handle('localSync:exportNow', (event) => {
@@ -286,7 +254,7 @@ export function registerLocalSyncHandlers(): void {
       return { bundleId: null, changesetCount: 0, attachmentCount: 0 };
     }
     try {
-      return orchestrator.exportNow();
+      return syncExportNow(ctx);
     } catch (e) {
       syncLog('error', 'exportNow IPC handler failed', { error: errorMessage(e) });
       return { bundleId: null, changesetCount: 0, attachmentCount: 0 };
@@ -301,7 +269,7 @@ export function registerLocalSyncHandlers(): void {
       return { bundlesProcessed: 0, changesetsApplied: 0, conflictsQueued: 0, bundlesSkipped: 0, attachmentsImported: 0 };
     }
     try {
-      return orchestrator.importAll();
+      return syncImportNow(ctx);
     } catch (e) {
       syncLog('error', 'importNow IPC handler failed', { error: errorMessage(e) });
       return { bundlesProcessed: 0, changesetsApplied: 0, conflictsQueued: 0, bundlesSkipped: 0, attachmentsImported: 0 };
@@ -392,6 +360,7 @@ export function registerLocalSyncHandlers(): void {
     if (parsedResolution === 'keep-local' && conflict.field_name !== '-1') {
       try {
         // Strip leading cr-sqlite binary prefix from entity_id to get the actual PK
+        // eslint-disable-next-line no-control-regex -- cr-sqlite prefixes keys with binary control bytes
         const entityId = conflict.entity_id.replace(/^[\x00-\x1f]+/, '');
         const table = conflict.entity_type;
         const field = conflict.field_name;

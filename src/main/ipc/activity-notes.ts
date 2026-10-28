@@ -1,20 +1,19 @@
 import { ipcMain } from 'electron';
-import { z } from 'zod';
 import { resolveContext } from './context-resolver';
+import * as operations from '../services/activity-note-operations';
+import { activitiesApplyChange } from '../services/activity-operations';
 
 export function registerActivityNotesHandlers(): void {
+  ipcMain.handle('activities:applyChange', (event, raw: unknown) => activitiesApplyChange(resolveContext(event), raw));
   ipcMain.handle('activityNotes:getAll', (event) => {
-    return resolveContext(event).repos.activityNotes.getAll();
+    return operations.activityNotesGetAll(resolveContext(event));
   });
 
   ipcMain.handle('activityNotes:save', (event, activity: unknown, notes: unknown) => {
-    const validActivity = z.string().parse(activity);
-    const validNotes = z.string().parse(notes);
-    resolveContext(event).repos.activityNotes.save(validActivity, validNotes);
+    return operations.activityNotesSave(resolveContext(event), activity, notes);
   });
 
   ipcMain.handle('activityNotes:delete', (event, activity: unknown) => {
-    const validActivity = z.string().parse(activity);
-    resolveContext(event).repos.activityNotes.remove(validActivity);
+    return operations.activityNotesDelete(resolveContext(event), activity);
   });
 }

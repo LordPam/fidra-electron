@@ -44,6 +44,29 @@ jobs:
         run: |
           npx tsc --noEmit
           npm test
+      - name: Build and verify matching connection helper
+        shell: bash
+        run: |
+          export FIDRA_PLUGIN_NODE_RUNTIME="$(node -p 'process.execPath')"
+          npm run build:ai-plugin
+          node scripts/smoke-ai-plugin.mjs
+      - name: Desktop acceptance on the isolated runner
+        shell: bash
+        env:
+          TARGET_PLATFORM: ${{ matrix.platform }}
+          TARGET_ARCH: ${{ matrix.arch }}
+        run: |
+          npm run rebuild:electron
+          npm run package -- --arch="$TARGET_ARCH"
+          export FIDRA_E2E_PLUGIN_ROOT="$PWD/out/ai-plugin/$TARGET_PLATFORM-$TARGET_ARCH/Fidra-private/Fidra"
+          if [ "$TARGET_PLATFORM" = darwin ]; then
+            export FIDRA_E2E_PACKAGED_EXECUTABLE="$PWD/out/Fidra-darwin-arm64/Fidra.app/Contents/MacOS/Fidra"
+            npx playwright test
+          else
+            export FIDRA_E2E_PACKAGED_EXECUTABLE="$PWD/out/Fidra-win32-x64/Fidra.exe"
+            npx playwright test e2e/packaged-fidra.e2e.ts e2e/installed-helper.e2e.ts
+          fi
+          npm run rebuild:node
       - name: Prepare update signing key
         shell: bash
         env:
@@ -54,6 +77,20 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: npx electron-forge publish --arch=${{ matrix.arch }}
+      - name: Smoke-test actual previous-version installer replacement
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+          TARGET_PLATFORM: ${{ matrix.platform }}
+          TARGET_ARCH: ${{ matrix.arch }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/previous" "$RUNNER_TEMP/candidate"
+          if [ "$TARGET_PLATFORM" = darwin ]; then asset=Fidra-macOS-arm64.dmg; else asset=Fidra-Windows-Setup.exe; fi
+          gh release download v0.1.23 --pattern "$asset" --dir "$RUNNER_TEMP/previous"
+          gh release download "$RELEASE_TAG" --pattern "$asset" --pattern "fidra-update-$TARGET_PLATFORM-$TARGET_ARCH.json" --dir "$RUNNER_TEMP/candidate"
+          node scripts/smoke-installer-upgrade.mjs "$RUNNER_TEMP/previous/$asset" "$RUNNER_TEMP/candidate/$asset" "$RUNNER_TEMP/candidate/fidra-update-$TARGET_PLATFORM-$TARGET_ARCH.json" "out/ai-plugin/$TARGET_PLATFORM-$TARGET_ARCH/Fidra-private/Fidra"
       - name: Remove temporary signing key
         if: always()
         shell: bash
@@ -65,6 +102,7 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v4
       - name: Verify all update artifacts and publish
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -73,4 +111,4 @@ jobs:
         run: |
           gh release view "$RELEASE_TAG" --json assets > release-assets.json
           node -e 'const names = new Set(require("./release-assets.json").assets.map(a => a.name)); for (const name of ["Fidra-macOS-arm64.dmg", "Fidra-Windows-Setup.exe", "fidra-update-darwin-arm64.json", "fidra-update-win32-x64.json"]) if (!names.has(name)) throw Error("Missing release asset: " + name)'
-          gh release edit "$RELEASE_TAG" --draft=false
+          gh release edit "$RELEASE_TAG" --notes-file "release-notes/$RELEASE_TAG.md" --draft=false

@@ -118,3 +118,44 @@ test('approved access survives a full application restart without a second conse
     expect(content(await call('read_context', { from: '2026-10-01', to: '2026-10-31' })).accounts).toHaveLength(1);
   } finally { await restarted.close(); }
 });
+
+test('Settings-first approval loads accounts and grants only explicitly selected capabilities', async ({ window, userHome }) => {
+  await window.locator('a[href="#/settings"]').click();
+  // Fresh renderer stores, with Settings as the first mounted view.
+  await window.reload();
+  await window.getByLabel('Owner name', { exact: true }).fill('Trial owner');
+  await window.getByLabel('Owner password', { exact: true }).fill('trial-owner-password');
+  await window.getByRole('button', { name: 'Set access owner', exact: true }).click();
+  const call = aiClient(userHome); await call('connect_fidra');
+  await window.getByRole('button', { name: 'Review connection request' }).click();
+  const dialog = window.getByRole('dialog');
+  await expect(dialog.getByLabel('General', { exact: true })).toBeVisible();
+  await expect(dialog.getByLabel('Read transactions in permitted accounts', { exact: true })).not.toBeChecked();
+  await expect(dialog.getByLabel('Change supported application settings', { exact: true })).toBeDisabled();
+  await dialog.getByLabel('This code matches the connection I requested in my AI app', { exact: true }).check();
+  await expect(dialog.getByRole('button', { name: 'Allow access', exact: true })).toBeDisabled();
+  await dialog.getByLabel('All current and future accounts, including ledger-wide operations', { exact: true }).check();
+  for (const label of ['Read transactions in permitted accounts', 'Read planned payments', 'Read supported application settings', 'List this ledger’s backups', 'Create ledger backups', 'Read synchronization status']) await dialog.getByLabel(label, { exact: true }).check();
+  await dialog.getByRole('button', { name: 'Allow access', exact: true }).click();
+  const connection = content(await call('list_connections'))[0];
+  expect(connection.permissions).toEqual({ allAccounts: true, allowAdd: false, allowStatementUploads: false, capabilities: ['transactions.read', 'planned.read', 'settings.read', 'backups.read', 'backups.create', 'sync.read'] });
+  await window.evaluate(async () => {
+    await window.api.saveTransaction({ id: 'capability-read', date: '2026-10-26', description: 'Visible entry', amount: '12.00', type: 'expense', status: 'pending', sheet: 'General', category: null, party: null, reference: null, activity: null, notes: 'Unapproved private note', linked_id: null, version: 1, created_at: '2026-10-26T00:00:00Z', modified_at: null, modified_by: null });
+    await window.api.createSheet('future', 'Future');
+  });
+  const transactions = content(await call('read_transactions', { from: '2026-10-01', to: '2026-10-31' }));
+  expect(transactions.rows[0]).toMatchObject({ id: 'capability-read', description: 'Visible entry' });
+  expect(JSON.stringify(transactions)).not.toContain('Unapproved private note');
+  expect(content(await call('list_connections'))[0].accounts).toContainEqual({ id: 'future', name: 'Future' });
+  expect(content(await call('read_planned'))).toMatchObject({ rows: [] });
+  expect(content(await call('read_settings', { groups: ['financialYear'] }))).toEqual({ financialYear: { startMonth: 1 } });
+  const requestId = crypto.randomUUID();
+  const backup = content(await call('create_backup', { requestId }));
+  expect(content(await call('create_backup', { requestId })).id).toBe(backup.id);
+  expect(content(await call('read_backups')).backups).toHaveLength(1);
+  expect(JSON.stringify(backup)).not.toContain(userHome);
+  expect(content(await call('read_sync_status'))).toMatchObject({ enabled: false });
+  expect((await call('run_sync', { direction: 'both' })).error).toBeDefined();
+  expect((await call('read_invoices', { from: '2026-10-01', to: '2026-10-31' })).error).toBeDefined();
+  expect((await call('read_settings', { groups: ['localSync.passphrase'] })).error).toBeDefined();
+});

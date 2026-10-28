@@ -4,44 +4,17 @@ import path from 'node:path';
 import os from 'node:os';
 import fs from 'node:fs';
 import { reserveAccountPath } from '../services/account-catalog';
+import * as settings from '../services/settings-operations';
 import { resolveContext } from './context-resolver';
 import { getWindowManager } from '../window/window-manager';
 import {
   loadGlobalSettings,
   removeRecentFile,
   markFirstRunComplete,
-  getUiPreferences,
-  saveUiPreferences,
 } from '../window/global-settings';
-import {
-  profileSchema,
-  transactionSettingsSchema,
-  invoiceDefaultsSchema,
-  uiPreferencesSchema,
-} from '../../shared/ipc-schemas';
+
 
 const STALE_THRESHOLD_MS = 24 * 60 * 60 * 1000; // 24 hours
-
-/**
- * Resolve the current user's display name.
- * Priority: auth session email → local profile (initials > name) → null.
- */
-function getCurrentUser(ctx: import('../window/window-context').WindowContext): { displayName: string; source: 'auth' | 'profile' | 'none' } | null {
-  // 1. Auth session (Local Sync auth)
-  if (ctx.authSession?.user?.email) {
-    return { displayName: ctx.authSession.user.email, source: 'auth' };
-  }
-
-  // 2. Local profile
-  const initials = ctx.settingsRepo.getSetting('profile.initials') ?? '';
-  const name = ctx.settingsRepo.getSetting('profile.name') ?? '';
-  const local = initials || name;
-  if (local) {
-    return { displayName: local, source: 'profile' };
-  }
-
-  return null;
-}
 
 export function registerWindowHandlers(): void {
   ipcMain.handle('app:getStartupMode', (event) => {
@@ -282,113 +255,20 @@ export function registerWindowHandlers(): void {
     }
   });
 
-  // Per-database profile
-  ipcMain.handle('settings:getProfile', (event) => {
-    const ctx = resolveContext(event);
-    return {
-      name: ctx.settingsRepo.getSetting('profile.name') ?? '',
-      initials: ctx.settingsRepo.getSetting('profile.initials') ?? '',
-    };
-  });
-
-  ipcMain.handle('settings:saveProfile', (event, profile: unknown) => {
-    const validated = profileSchema.parse(profile);
-    const ctx = resolveContext(event);
-    ctx.settingsRepo.setSetting('profile.name', validated.name);
-    ctx.settingsRepo.setSetting('profile.initials', validated.initials);
-  });
-
-  ipcMain.handle('settings:getTransactionSettings', (event) => {
-    const ctx = resolveContext(event);
-    return {
-      dateOnApprove: ctx.settingsRepo.getSetting('tx.dateOnApprove') === 'true',
-      dateOnPlannedConversion: ctx.settingsRepo.getSetting('tx.dateOnPlannedConversion') !== 'false', // default true
-    };
-  });
-
-  ipcMain.handle('settings:saveTransactionSettings', (event, settings: unknown) => {
-    const validated = transactionSettingsSchema.parse(settings);
-    const ctx = resolveContext(event);
-    ctx.settingsRepo.setSetting('tx.dateOnApprove', String(validated.dateOnApprove));
-    ctx.settingsRepo.setSetting('tx.dateOnPlannedConversion', String(validated.dateOnPlannedConversion));
-  });
-
-  ipcMain.handle('settings:getCurrentUser', (event) => {
-    const ctx = resolveContext(event);
-    return getCurrentUser(ctx);
-  });
-
-  // Financial year start month (per-database, org-scoped — syncs via Local Sync)
-  ipcMain.handle('settings:getFYStartMonth', (event) => {
-    const ctx = resolveContext(event);
-    const val = ctx.settingsRepo.getSetting('fy.startMonth');
-    if (!val) {
-      // Persist the default so it participates in org-scoped sync
-      ctx.settingsRepo.setSetting('fy.startMonth', '1');
-      return 1;
-    }
-    return parseInt(val, 10);
-  });
-
-  ipcMain.handle('settings:saveFYStartMonth', (event, month: unknown) => {
-    const validMonth = z.number().int().min(1).max(12).parse(month);
-    const ctx = resolveContext(event);
-    ctx.settingsRepo.setSetting('fy.startMonth', String(validMonth));
-  });
-
-  // Organisation name (per-database, org-scoped — syncs via Local Sync)
-  ipcMain.handle('settings:getOrgName', (event) => {
-    const ctx = resolveContext(event);
-    return ctx.settingsRepo.getSetting('report.orgName') ?? '';
-  });
-
-  ipcMain.handle('settings:saveOrgName', (event, name: unknown) => {
-    const validName = z.string().max(200).parse(name);
-    const ctx = resolveContext(event);
-    ctx.settingsRepo.setSetting('report.orgName', validName);
-  });
-
-  // Current sheet selection (per-database, UI-only — device-scoped)
-  ipcMain.handle('settings:getCurrentSheet', (event) => {
-    const ctx = resolveContext(event);
-    return ctx.settingsRepo.getSetting('ui.currentSheet') ?? 'All Sheets';
-  });
-
-  ipcMain.handle('settings:saveCurrentSheet', (event, name: unknown) => {
-    const ctx = resolveContext(event);
-    const validated = z.string().parse(name);
-    ctx.settingsRepo.setSetting('ui.currentSheet', validated);
-  });
-
-  // Invoice defaults (per-database, org-scoped — syncs via Local Sync)
-  const INVOICE_KEYS = ['fromName', 'fromAddress', 'bankDetails', 'notes', 'logoPath', 'logoData', 'counter', 'accentMode'] as const;
-
-  ipcMain.handle('settings:getInvoiceDefaults', (event) => {
-    const ctx = resolveContext(event);
-    return {
-      fromName: ctx.settingsRepo.getSetting('invoice.fromName') ?? '',
-      fromAddress: ctx.settingsRepo.getSetting('invoice.fromAddress') ?? '',
-      bankDetails: ctx.settingsRepo.getSetting('invoice.bankDetails') ?? '',
-      notes: ctx.settingsRepo.getSetting('invoice.notes') ?? '',
-      logoPath: ctx.settingsRepo.getSetting('invoice.logoPath') ?? '',
-      logoData: ctx.settingsRepo.getSetting('invoice.logoData') ?? '',
-      counter: ctx.settingsRepo.getSetting('invoice.counter') ?? '',
-      accentMode: (ctx.settingsRepo.getSetting('invoice.accentMode') as 'fidra' | 'black' | 'logo') ?? 'fidra',
-    };
-  });
-
-  ipcMain.handle('settings:saveInvoiceDefaults', (event, defaults: unknown) => {
-    const validated = invoiceDefaultsSchema.parse(defaults);
-    const ctx = resolveContext(event);
-    for (const key of INVOICE_KEYS) {
-      ctx.settingsRepo.setSetting(`invoice.${key}`, validated[key]);
-    }
-  });
-
-  // UI preferences
-  ipcMain.handle('settings:getUiPreferences', () => getUiPreferences());
-  ipcMain.handle('settings:saveUiPreferences', (_event, prefs: unknown) => {
-    const validated = uiPreferencesSchema.parse(prefs);
-    saveUiPreferences(validated);
-  });
+  // Shared application settings operations.
+  ipcMain.handle('settings:getProfile', (event) => settings.settingsGetProfile(resolveContext(event)));
+  ipcMain.handle('settings:saveProfile', (event, raw: unknown) => settings.settingsSaveProfile(resolveContext(event), raw));
+  ipcMain.handle('settings:getTransactionSettings', (event) => settings.settingsGetTransactionSettings(resolveContext(event)));
+  ipcMain.handle('settings:saveTransactionSettings', (event, raw: unknown) => settings.settingsSaveTransactionSettings(resolveContext(event), raw));
+  ipcMain.handle('settings:getCurrentUser', (event) => settings.settingsGetCurrentUser(resolveContext(event)));
+  ipcMain.handle('settings:getFYStartMonth', (event) => settings.settingsGetFYStartMonth(resolveContext(event)));
+  ipcMain.handle('settings:saveFYStartMonth', (event, raw: unknown) => settings.settingsSaveFYStartMonth(resolveContext(event), raw));
+  ipcMain.handle('settings:getOrgName', (event) => settings.settingsGetOrgName(resolveContext(event)));
+  ipcMain.handle('settings:saveOrgName', (event, raw: unknown) => settings.settingsSaveOrgName(resolveContext(event), raw));
+  ipcMain.handle('settings:getCurrentSheet', (event) => settings.settingsGetCurrentSheet(resolveContext(event)));
+  ipcMain.handle('settings:saveCurrentSheet', (event, raw: unknown) => settings.settingsSaveCurrentSheet(resolveContext(event), raw));
+  ipcMain.handle('settings:getInvoiceDefaults', (event) => settings.settingsGetInvoiceDefaults(resolveContext(event)));
+  ipcMain.handle('settings:saveInvoiceDefaults', (event, raw: unknown) => settings.settingsSaveInvoiceDefaults(resolveContext(event), raw));
+  ipcMain.handle('settings:getUiPreferences', (event) => settings.settingsGetUiPreferences(resolveContext(event)));
+  ipcMain.handle('settings:saveUiPreferences', (event, raw: unknown) => settings.settingsSaveUiPreferences(resolveContext(event), raw));
 }

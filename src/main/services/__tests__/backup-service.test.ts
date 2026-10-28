@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import Database from 'better-sqlite3';
-import { createBackup, restoreBackup } from '../backup-service';
+import { createBackup, restoreBackup, listBackups } from '../backup-service';
 import { SettingsRepo } from '../../database/settings-repo';
 
 let dir: string;
@@ -114,5 +114,29 @@ describe('restoreBackup', () => {
     const safetyDb = new Database(path.join(dir, 'backups', safety[0], 'ledger.fdra'));
     expect(safetyDb.prepare('SELECT id FROM transactions').all()).toEqual([{ id: 't2' }]);
     safetyDb.close();
+  });
+});
+
+describe('backup identity and retention', () => {
+  it('protects the chosen restore target and the safety backup even with retention one', async () => {
+    settingsRepo.setSetting('backup.retentionCount', '1');
+    const target = await createBackup(db, dbPath, databaseId, 'manual', { backupDir: path.join(dir, 'backups'), retentionCount: 1, autoBackupOnClose: true });
+    expect((await restoreBackup(db, dbPath, databaseId, target.path, settingsRepo)).success).toBe(true);
+    const backups = listBackups(dbPath, { backupDir: path.join(dir, 'backups'), retentionCount: 1, autoBackupOnClose: true });
+    expect(backups.map((backup) => backup.metadata.trigger).sort()).toEqual(['manual', 'pre-restore']);
+  });
+  it('never removes another ledger’s backup from a shared backup folder', async () => {
+    const settings = { backupDir: path.join(dir, 'shared'), retentionCount: 1, autoBackupOnClose: true };
+    const other = await createBackup(db, dbPath, 'different-ledger', 'manual', settings);
+    await createBackup(db, dbPath, databaseId, 'manual', settings);
+    await createBackup(db, dbPath, databaseId, 'manual', settings);
+    expect(fs.existsSync(other.path)).toBe(true);
+    expect(listBackups(dbPath, settings)).toHaveLength(2);
+  });
+  it('does not replace or close the live database when post-backup authority changes', async () => {
+    const target = await createBackup(db, dbPath, databaseId, 'manual');
+    const result = await restoreBackup(db, dbPath, databaseId, target.path, settingsRepo, () => { throw new Error('Permission revoked'); });
+    expect(result).toMatchObject({ success: false, dbClosed: false, error: expect.stringContaining('Permission revoked') });
+    expect(db.open).toBe(true);
   });
 });

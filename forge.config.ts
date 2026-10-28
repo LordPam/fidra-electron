@@ -188,7 +188,8 @@ const config: ForgeConfig = {
           if (!artifact) throw new Error('Release is missing its installer artifact');
           execFileSync(process.execPath, [path.join(project, 'scripts/create-update-release.mjs'),
             '--artifact', artifact, '--platform', result.platform, '--arch', result.arch,
-            '--version', version, '--private-key', process.env.FIDRA_UPDATE_PRIVATE_KEY_PATH], { stdio: 'inherit' });
+            '--version', version, '--private-key', process.env.FIDRA_UPDATE_PRIVATE_KEY_PATH,
+            ...(fs.existsSync(path.join(project, 'release-notes', `v${version}.md`)) ? ['--notes', path.join(project, 'release-notes', `v${version}.md`)] : [])], { stdio: 'inherit' });
           result.artifacts.push(path.join(path.dirname(artifact), `fidra-update-${result.platform}-${result.arch}.json`));
         }
       }

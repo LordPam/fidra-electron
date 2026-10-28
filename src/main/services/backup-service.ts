@@ -78,6 +78,8 @@ export async function createBackup(
   databaseId: string,
   trigger: BackupMetadata['trigger'],
   settings?: BackupSettings,
+  protectedPaths: readonly string[] = [],
+  requestKey?: string,
 ): Promise<BackupListItem> {
   const resolvedSettings = settings ?? {
     backupDir: null,
@@ -85,7 +87,7 @@ export async function createBackup(
     autoBackupOnClose: true,
   };
   const backupDir = resolveBackupDir(dbPath, resolvedSettings);
-  const folderName = `backup_${formatTimestamp()}`;
+  const folderName = `backup_${formatTimestamp()}_${crypto.randomUUID().slice(0, 8)}`;
   const backupFolder = path.join(backupDir, folderName);
 
   fs.mkdirSync(backupFolder, { recursive: true });
@@ -112,6 +114,8 @@ export async function createBackup(
   // Write metadata
   const metadata: BackupMetadata = {
     id: crypto.randomUUID(),
+    databaseId,
+    ...(requestKey ? { requestKey } : {}),
     createdAt: new Date().toISOString(),
     dbName: dbFileName,
     dbSize,
@@ -122,7 +126,7 @@ export async function createBackup(
   fs.writeFileSync(path.join(backupFolder, 'metadata.json'), JSON.stringify(metadata, null, 2));
 
   // Enforce retention
-  enforceRetention(backupDir, resolvedSettings.retentionCount);
+  enforceRetention(backupDir, resolvedSettings.retentionCount, databaseId, protectedPaths);
 
   return { path: backupFolder, metadata };
 }
@@ -172,6 +176,7 @@ export async function restoreBackup(
   databaseId: string,
   backupPath: string,
   settingsRepo: SettingsRepo,
+  beforeReplace?: () => void,
 ): Promise<{ success: boolean; error?: string; dbClosed: boolean }> {
   // Validate backup folder
   const dbFileName = path.basename(dbPath);
@@ -183,7 +188,9 @@ export async function restoreBackup(
   // Create pre-restore safety backup
   try {
     const settings = getBackupSettings(settingsRepo);
-    await createBackup(db, dbPath, databaseId, 'pre-restore', settings);
+    await createBackup(db, dbPath, databaseId, 'pre-restore', settings, [backupPath]);
+    // The safety backup yields: authority and same-file window checks may have changed.
+    beforeReplace?.();
   } catch (e) {
     return {
       success: false,
@@ -251,7 +258,7 @@ export function deleteBackup(backupPath: string): boolean {
   }
 }
 
-function enforceRetention(backupDir: string, retentionCount: number): void {
+function enforceRetention(backupDir: string, retentionCount: number, databaseId: string, protectedPaths: readonly string[]): void {
   if (!fs.existsSync(backupDir)) return;
 
   const entries = fs.readdirSync(backupDir, { withFileTypes: true });
@@ -264,6 +271,10 @@ function enforceRetention(backupDir: string, retentionCount: number): void {
     try {
       const raw = fs.readFileSync(metadataPath, 'utf-8');
       const metadata = JSON.parse(raw) as BackupMetadata;
+      // Legacy metadata cannot distinguish two same-named ledgers in a shared
+      // backup folder. Keep those backups for explicit native removal.
+      if (metadata.databaseId !== databaseId) continue;
+      if (protectedPaths.some((protectedPath) => path.resolve(protectedPath) === path.resolve(backupDir, entry.name))) continue;
       backupFolders.push({ name: entry.name, createdAt: metadata.createdAt });
     } catch {
       // Skip corrupt entries
@@ -275,7 +286,8 @@ function enforceRetention(backupDir: string, retentionCount: number): void {
 
   // Remove oldest backups exceeding retention
   while (backupFolders.length > retentionCount) {
-    const oldest = backupFolders.shift()!;
+    const oldest = backupFolders.shift();
+    if (!oldest) break;
     const folderPath = path.join(backupDir, oldest.name);
     try {
       fs.rmSync(folderPath, { recursive: true, force: true });

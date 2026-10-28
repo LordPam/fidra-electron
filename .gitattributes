@@ -1,0 +1,2 @@
+# This compatibility fixture is verified byte-for-byte against an installed helper.
+src/main/services/__tests__/fixtures/fidra-helper-2.0.4.cjs text eol=lf

@@ -20,6 +20,7 @@ import {
   ChevronUp,
 } from 'lucide-react';
 import type { BackupListItem, BackupSettings } from '../../shared/ipc-types';
+import { useAuthStore } from '@/stores/auth-store';
 
 interface BackupRestoreDialogProps {
   open: boolean;
@@ -52,6 +53,7 @@ function TriggerBadge({ trigger }: { trigger: string }) {
 }
 
 export function BackupRestoreDialog({ open, onOpenChange }: BackupRestoreDialogProps) {
+  const canAdminister = useAuthStore((state) => state.authMode !== 'localSync' || state.isAdmin);
   const [backups, setBackups] = useState<BackupListItem[]>([]);
   const [settings, setSettings] = useState<BackupSettings>({
     backupDir: null,
@@ -232,7 +234,7 @@ export function BackupRestoreDialog({ open, onOpenChange }: BackupRestoreDialogP
                               variant="destructive"
                               size="sm"
                               className="h-6 text-xs px-2"
-                              disabled={restoringPath !== null}
+                              disabled={!canAdminister || restoringPath !== null}
                               onClick={() => handleRestore(backup.path)}
                             >
                               {restoringPath === backup.path ? (
@@ -289,6 +291,8 @@ export function BackupRestoreDialog({ open, onOpenChange }: BackupRestoreDialogP
                               variant="ghost"
                               size="sm"
                               className="h-6 text-xs px-2 text-muted-foreground hover:text-destructive"
+                              disabled={!canAdminister}
+                              title={canAdminister ? 'Delete backup' : 'Only administrators can delete backups'}
                               onClick={() => {
                                 setConfirmDelete(backup.path);
                                 setConfirmRestore(null);
@@ -321,7 +325,8 @@ export function BackupRestoreDialog({ open, onOpenChange }: BackupRestoreDialogP
               )}
             </button>
             {settingsOpen && (
-              <div className="px-3 pb-3 space-y-4 border-t border-border-subtle pt-3">
+              <fieldset disabled={!canAdminister} className="px-3 pb-3 space-y-4 border-t border-border-subtle pt-3">
+                {!canAdminister && <p className="text-sm text-muted-foreground">Only administrators can change backup settings, restore or delete backups.</p>}
                 {/* Backup folder */}
                 <div className="space-y-1.5">
                   <label className="text-sm font-medium">Backup Folder</label>
@@ -396,7 +401,7 @@ export function BackupRestoreDialog({ open, onOpenChange }: BackupRestoreDialogP
                     Save Settings
                   </Button>
                 )}
-              </div>
+              </fieldset>
             )}
           </div>
         </div>

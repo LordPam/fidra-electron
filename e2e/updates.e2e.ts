@@ -26,7 +26,9 @@ test('updates have a persistent Settings panel with honest installation controls
   await window.locator('a[href="#/settings"]').click();
   await expect(window.getByText('Version 0.1.24 is ready')).toBeVisible();
   await window.getByText('Updates', { exact: true }).scrollIntoViewIfNeeded();
-  await window.screenshot({ path: '/tmp/fidra-update-panel.png' });
+  // Optional review artifact, separate from the functional acceptance above.
+  // Chromium capture can stall on macOS even after every UI assertion passes.
+  if (process.env.FIDRA_E2E_CAPTURE_UI === '1') await window.screenshot({ path: '/tmp/fidra-update-panel.png' });
 });
 
 test('update status reaches every window and manual-only preferences persist', async ({ window, app, userHome }) => {
