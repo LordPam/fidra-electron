@@ -62,9 +62,16 @@ Unit tests cover signature/URL/platform validation, streaming corruption/interru
 - Actual previous-release installer replacement and Windows runtime installation remain rollout smoke tests. No release was published. The private release key was subsequently stored only in the approved encrypted GitHub Actions secret; its metadata was verified.
 
 
-## 0.1.25 connection helper rollout
+## 0.1.27 connection helper rollout
 
 The previously repaired, explicitly installed local helper is refreshed automatically by packaged Fidra startup. See `AI_PLUGIN.md`. Updating/reopening Fidra then restarting the AI desktop app refreshes this tool server without manual file replacement. Saved native grants remain narrow; additional permissions require native review. The separate private account-plugin release updates its packaged skills and portable adapter but is not assumed to update the pinned helper.
 
 
 For Node 22+ clean dependency installation, use `npm ci --ignore-scripts`, `node scripts/prepare-native-install.mjs`, then `npm rebuild`. The pinned CR-SQLite 0.16.3 install helper uses obsolete JSON import assertion syntax; the preparation script checks the pinned version and exact statement, replacing only package metadata loading before running the usual dependency lifecycle. Its native extension is unchanged. The release workflow performs this sequence. Manual dispatch builds and validates private candidates without publishing; only a matching tag push can publish after all gates pass.
+
+
+## Published bridge verification — 2026-10-29
+
+Version 0.1.27 is public at https://github.com/LordPam/fidra-electron/releases/tag/v0.1.27 (workflow `40816551469`, source `b2f453e`). Each platform passed 675 service tests; macOS passed 36 desktop scenarios, Windows four packaged-helper scenarios. Both actually installed 0.1.23, replaced it with the authenticated candidate, booted again and verified synthetic SQLite/attachment retention plus helper refresh. This uses the isolated test credential boundaries documented above; actual user credential/permission prompts remain native user actions. The public Mac/Windows announcement signatures, versions and installer sizes were read back and verified; the stable Mac update feed resolves to 0.1.27. Failed tags 0.1.25 and 0.1.26 were not published.
+
+The owner’s remaining steps are to save work, download/open the update from Fidra Settings, complete installer replacement, reopen Fidra, then fully restart the AI desktop app. Revoke/reapprove inside native Fidra only when requesting additional capabilities. No manual helper-file or host-configuration replacement is needed for the recognised compatibility installation.

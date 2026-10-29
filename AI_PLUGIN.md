@@ -76,10 +76,13 @@ The fresh unit/integration run passes 663 tests across 58 files. Typecheck, adde
 Test logs: `/private/tmp/fidra-oct27-unit-tests.log`, `/private/tmp/fidra-oct27-desktop-tests.log`, `/private/tmp/fidra-oct27-failed-recheck.log`. Mac development-candidate results do not establish Windows, actual host-chat candidate installation, real OS credential prompts or the still-unimplemented broader ledger/admin write coverage.
 
 
-## Updating the repaired local helper (0.1.25 onwards)
+## Updating the repaired local helper (0.1.27 onwards)
 
 For the explicitly installed `~/.fidra/ai-plugin/2.0.4` compatibility copy, packaged Fidra refreshes the adapter, offline tool catalogue and three workflow skills when it starts. It recognises the original adapter by its SHA-256 and thereafter accepts only its stable bootstrap. Unknown adapters and symbolic links are refused. A complete content-addressed snapshot is verified and selected atomically; startup failure leaves ledger use independent of the helper. The bootstrap verifies the selected files before executing them. Existing runtime, credential binding, installation identity, approvals and host configuration are never replaced. This updater never edits a host-managed plugin cache and does not install a helper where none exists.
 
 Update Fidra, reopen it, then fully quit and reopen the AI desktop app. This is sufficient for the repaired local tool server. The account plugin’s packaged skills have their own private release; updating that plugin does not replace the direct helper. Existing grants stay narrow. Additional permissions require native revoke and renewed matching-code approval.
 
-The 0.1.25 tool catalogue has 19 tools. General ledger writes and the remaining administration workflows are still in development; do not advertise them as available.
+The released 0.1.27 tool catalogue has 19 tools. General ledger writes and the remaining administration workflows are still in development; do not advertise them as available.
+
+
+Released 2026-10-29: Fidra 0.1.27 and private account plugin 2.0.5. Both platform release gates passed; public update announcements were signature-verified after publication. This does not install the update into the owner’s running app or refresh this chat’s currently cached eight-tool server. The owner must install/reopen Fidra and restart the AI desktop app. Existing grants remain unchanged; new capabilities need a fresh native approval.
