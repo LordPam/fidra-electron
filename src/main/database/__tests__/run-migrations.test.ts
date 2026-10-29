@@ -30,66 +30,70 @@ afterEach(() => {
  */
 function writeLegacyDatabase(): void {
   const db = new Database(dbPath);
-  db.exec(`
-    CREATE TABLE transactions (
-      id TEXT PRIMARY KEY NOT NULL,
-      date TEXT NOT NULL,
-      description TEXT NOT NULL,
-      amount TEXT NOT NULL,
-      type TEXT NOT NULL,
-      status TEXT NOT NULL,
-      sheet TEXT NOT NULL,
-      category TEXT, party TEXT, reference TEXT, activity TEXT, notes TEXT,
-      linked_id TEXT,
-      version INTEGER DEFAULT 1,
-      created_at TEXT NOT NULL,
-      modified_at TEXT, modified_by TEXT
-    );
-    CREATE TABLE planned_templates (
-      id TEXT PRIMARY KEY NOT NULL,
-      start_date TEXT NOT NULL,
-      description TEXT NOT NULL,
-      amount TEXT NOT NULL,
-      type TEXT NOT NULL,
-      frequency TEXT NOT NULL,
-      target_sheet TEXT NOT NULL,
-      category TEXT, party TEXT, activity TEXT, notes TEXT,
-      transfer_target_sheet TEXT,
-      end_date TEXT, occurrence_count INTEGER,
-      skipped_dates TEXT DEFAULT '[]', fulfilled_dates TEXT DEFAULT '[]',
-      version INTEGER DEFAULT 1,
-      created_at TEXT NOT NULL
-    );
-    CREATE TABLE sheets (
-      id TEXT PRIMARY KEY NOT NULL DEFAULT '',
-      name TEXT NOT NULL DEFAULT '' UNIQUE,
-      is_virtual INTEGER DEFAULT 0, is_planned INTEGER DEFAULT 0, sort_order INTEGER DEFAULT 0,
-      created_at TEXT NOT NULL DEFAULT ''
-    );
-    CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
-    CREATE TABLE personnel (
-      id TEXT PRIMARY KEY,
-      email TEXT NOT NULL,
-      name TEXT NOT NULL,
-      role TEXT NOT NULL,
-      auth_uid TEXT,
-      created_at TEXT NOT NULL,
-      invited_by TEXT
-    );
-  `);
-  db.prepare(
-    `INSERT INTO transactions (id, date, description, amount, type, status, sheet, linked_id, created_at)
-     VALUES ('tx1', '2026-01-01', 'Transfer out', '25.00', 'expense', 'approved', 'Main', 'link-1', '2026-01-01')`,
-  ).run();
-  db.prepare(
-    `INSERT INTO planned_templates (id, start_date, description, amount, type, frequency, target_sheet, transfer_target_sheet, created_at)
-     VALUES ('pt1', '2026-01-01', 'Monthly transfer', '25.00', 'expense', 'monthly', 'Main', 'Savings', '2026-01-01')`,
-  ).run();
-  db.prepare("INSERT INTO sheets (id, name, created_at) VALUES ('s1', 'Main', '2026-01-01')").run();
-  db.prepare("INSERT INTO settings (key, value) VALUES ('fyStartMonth', '4')").run();
-  db.prepare(
-    "INSERT INTO personnel (id, email, name, role, created_at) VALUES ('p1', 'a@b.com', 'Alice', 'admin', '2026-01-01')",
-  ).run();
+  // Batch fixture construction; migrations below still run through the real
+  // application entry point with its normal durability and transaction rules.
+  db.transaction(() => {
+    db.exec(`
+      CREATE TABLE transactions (
+        id TEXT PRIMARY KEY NOT NULL,
+        date TEXT NOT NULL,
+        description TEXT NOT NULL,
+        amount TEXT NOT NULL,
+        type TEXT NOT NULL,
+        status TEXT NOT NULL,
+        sheet TEXT NOT NULL,
+        category TEXT, party TEXT, reference TEXT, activity TEXT, notes TEXT,
+        linked_id TEXT,
+        version INTEGER DEFAULT 1,
+        created_at TEXT NOT NULL,
+        modified_at TEXT, modified_by TEXT
+      );
+      CREATE TABLE planned_templates (
+        id TEXT PRIMARY KEY NOT NULL,
+        start_date TEXT NOT NULL,
+        description TEXT NOT NULL,
+        amount TEXT NOT NULL,
+        type TEXT NOT NULL,
+        frequency TEXT NOT NULL,
+        target_sheet TEXT NOT NULL,
+        category TEXT, party TEXT, activity TEXT, notes TEXT,
+        transfer_target_sheet TEXT,
+        end_date TEXT, occurrence_count INTEGER,
+        skipped_dates TEXT DEFAULT '[]', fulfilled_dates TEXT DEFAULT '[]',
+        version INTEGER DEFAULT 1,
+        created_at TEXT NOT NULL
+      );
+      CREATE TABLE sheets (
+        id TEXT PRIMARY KEY NOT NULL DEFAULT '',
+        name TEXT NOT NULL DEFAULT '' UNIQUE,
+        is_virtual INTEGER DEFAULT 0, is_planned INTEGER DEFAULT 0, sort_order INTEGER DEFAULT 0,
+        created_at TEXT NOT NULL DEFAULT ''
+      );
+      CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+      CREATE TABLE personnel (
+        id TEXT PRIMARY KEY,
+        email TEXT NOT NULL,
+        name TEXT NOT NULL,
+        role TEXT NOT NULL,
+        auth_uid TEXT,
+        created_at TEXT NOT NULL,
+        invited_by TEXT
+      );
+    `);
+    db.prepare(
+      `INSERT INTO transactions (id, date, description, amount, type, status, sheet, linked_id, created_at)
+       VALUES ('tx1', '2026-01-01', 'Transfer out', '25.00', 'expense', 'approved', 'Main', 'link-1', '2026-01-01')`,
+    ).run();
+    db.prepare(
+      `INSERT INTO planned_templates (id, start_date, description, amount, type, frequency, target_sheet, transfer_target_sheet, created_at)
+       VALUES ('pt1', '2026-01-01', 'Monthly transfer', '25.00', 'expense', 'monthly', 'Main', 'Savings', '2026-01-01')`,
+    ).run();
+    db.prepare("INSERT INTO sheets (id, name, created_at) VALUES ('s1', 'Main', '2026-01-01')").run();
+    db.prepare("INSERT INTO settings (key, value) VALUES ('fyStartMonth', '4')").run();
+    db.prepare(
+      "INSERT INTO personnel (id, email, name, role, created_at) VALUES ('p1', 'a@b.com', 'Alice', 'admin', '2026-01-01')",
+    ).run();
+  })();
   db.close();
 }
 
