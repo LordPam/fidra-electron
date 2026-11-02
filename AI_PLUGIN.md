@@ -87,7 +87,7 @@ The released 0.1.27 tool catalogue has 19 tools. General ledger writes and the r
 
 Released 2026-10-29: Fidra 0.1.27 and private account plugin 2.0.5. Both platform release gates passed; public update announcements were signature-verified after publication. This does not install the update into the owner’s running app or refresh this chat’s currently cached eight-tool server. The owner must install/reopen Fidra and restart the AI desktop app. Existing grants remain unchanged; new capabilities need a fresh native approval.
 
-## Sheet creation — 0.1.28 / plugin 2.0.6 candidate
+## Sheet creation — 0.1.29 / plugin 2.0.6 candidate
 
 The catalogue now has 20 tools, adding `create_sheet` for one empty sheet. It uses shared Manage Sheets operations and requires explicit `sheets.manage` plus all-current-and-future-account approval. Existing grants stay unchanged. A fresh UUID `requestId` binds the normalized name and connection to an atomic per-device receipt; retries return its state, original sheet and current sheet identity. Reusing an ID for another name fails. An undone or deleted sheet is never recreated by a tool retry. Receipts remain in device-scoped per-ledger settings across restart, outside the synced settings allowlist. They expose no general setting access.
 

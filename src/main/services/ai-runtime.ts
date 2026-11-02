@@ -12,15 +12,10 @@ import { getWindowManager } from '../window/window-manager';
 import { createBackup, getBackupSettings } from './backup-service';
 import type { WindowContext } from '../window/window-context';
 import type { AiSheetCreation } from '../../shared/ai-sheet-types';
+import { notifyAiSheetWindows } from './ai-sheet-notifications';
 
 export function notifyAiSheetChange(context: WindowContext, creation: AiSheetCreation, recordUndo = false): void {
-  for (const candidate of getWindowManager().getAllContexts()) {
-    try {
-      if (candidate.isClosed || fs.realpathSync(candidate.dbPath) !== fs.realpathSync(context.dbPath)) continue;
-      candidate.sendToRenderer('localSync:dataChanged', { tables: ['sheets', 'audit_log'] });
-      if (recordUndo) candidate.sendToRenderer('ai:sheetCreated', creation);
-    } catch { console.warn('[AI] Sheet changed; its window needs a refresh.'); }
-  }
+  notifyAiSheetWindows(context, getWindowManager().getAllContexts(), creation, recordUndo);
 }
 
 export const aiBridgeResourceDirectory = path.join(app.isPackaged ? process.resourcesPath : path.join(app.getAppPath(), 'resources'), 'ai-bridge');
