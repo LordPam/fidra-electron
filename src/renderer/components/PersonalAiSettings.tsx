@@ -40,14 +40,14 @@ export function PersonalAiSettings() {
       {state?.access.authorizations.map((connection) => <div key={connection.id} className="space-y-2 rounded-lg border border-border p-3 text-sm">
         <p className="font-medium">{connection.client === 'chatgpt' ? 'ChatGPT' : 'Claude'} · {connection.active ? 'Available' : 'Paused'}</p>
         <p>{connection.policy.permissions.allAccounts ? 'All current and future accounts, including ledger-wide operations' : connection.policy.sheetIds.map((id) => sheets.find((sheet) => sheet.id === id)?.name ?? 'Account details not loaded').join(', ')}</p>
-        <p className="text-muted-foreground">{connection.policy.permissions.allowAdd ? 'May add pending entries and fulfil planned payments' : 'Read and prepare drafts'}{connection.policy.permissions.allowStatementUploads ? ' · May receive statements from chat' : ''}</p>
+        <p className="text-muted-foreground">{connection.policy.permissions.allowAdd ? 'May add entries and fulfil planned payments' : 'Read and prepare drafts'}{connection.policy.permissions.allowStatementUploads ? ' · May receive statements from chat' : ''}</p>
         {!!connection.policy.permissions.capabilities.length && <ul className="list-disc pl-5 text-xs text-muted-foreground">{connection.policy.permissions.capabilities.map((capability) => <li key={capability}>{applicationCapabilityDetails[capability].label}</li>)}</ul>}
         <p className="text-xs text-muted-foreground">Approved by {connection.approvedBy} on {new Date(connection.approvedAt).toLocaleDateString()}</p>
         <Button size="sm" variant="outline" disabled={busy} onClick={() => { void run(() => window.api.revokeAiAccess(connection.id)); }}>Revoke access</Button>
       </div>)}
       {state?.proposals.map((proposal) => <details key={proposal.id} className="rounded border border-border p-3 text-sm">
         <summary>{proposal.label} · {proposal.rows.length} rows · {proposal.state}</summary>
-        <p className="my-2 text-xs text-muted-foreground">New entries start pending. Your AI asks about uncertainty in the conversation before applying a batch.</p>
+        <p className="my-2 text-xs text-muted-foreground">Income has no approval status; expenses start pending. Your AI asks about uncertainty in the conversation before applying a batch.</p>
         {proposal.rows.map((row, index) => <p key={index} className="text-xs">{row.source.date} · £{row.source.amount} · {row.description} · {row.action}</p>)}
         {proposal.state === 'committed' && <Button className="mt-3" variant="outline" disabled={busy || undoId !== `reconciliation:${proposal.id}`} onClick={() => { void run(undo); }}>Undo this import</Button>}
       </details>)}

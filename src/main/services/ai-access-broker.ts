@@ -14,6 +14,8 @@ import { aiToolCatalog } from './ai-tool-catalog';
 import { aiPermittedAccounts } from './ai-operation-access';
 import { aiRunSync } from './ai-sync-operations';
 import { aiCreateBackup, aiReadBackups } from './ai-backup-operations';
+import { aiCreateSheet } from './ai-sheet-operations';
+import type { AiSheetCreation } from '../../shared/ai-sheet-types';
 
 const publicKeySchema = z.string().max(200).refine((value) => {
   try { return createPublicKey({ key: Buffer.from(value, 'base64'), type: 'spki', format: 'der' }).asymmetricKeyType === 'ed25519'; }
@@ -30,6 +32,7 @@ interface Pending { info: AiAccessRequest; publicKey: string }
 interface BrokerOptions {
   discoveryFile: string; store: AiAuthorizationStore; bridge: AiBridge;
   contexts(): WindowContext[]; preparing(): boolean; changed(): void;
+  sheetCreated?(context: WindowContext, creation: AiSheetCreation): void;
 }
 
 /** Native consent is the only path to durable access. Signed requests prove possession of an OS-stored installation key. */
@@ -156,6 +159,15 @@ export class AiAccessBroker {
     if (!record) throw new Error(records.length ? 'Choose an approved connectionId from list_connections.' : 'Use connect_fidra and obtain administrator approval first.');
     const ctx = this.options.contexts().find((candidate) => this.allowed(record, candidate));
     if (!ctx) throw new Error('Fidra access is paused. Open the approved ledger and sign in as the authorised administrator, or unlock its standalone owner.');
+    if (call.name === 'create_sheet') {
+      const result = aiCreateSheet(ctx, { policy: record.policy, isCurrent: () => this.allowed(record, ctx) }, record.id,
+        `${this.identity(ctx).name} via ${record.client}`, args);
+      if (result.changed) {
+        try { this.options.sheetCreated?.(ctx, result.creation); }
+        catch { console.warn('[AI] Sheet creation completed; its window needs a refresh.'); }
+      }
+      return { content: [{ type: 'text', text: JSON.stringify(result.creation) }] };
+    }
     if (call.name === 'read_backups' || call.name === 'create_backup') {
       const access = { policy: record.policy, isCurrent: () => this.allowed(record, ctx) };
       const result = call.name === 'read_backups' ? aiReadBackups(ctx, access, args) : await aiCreateBackup(ctx, access, record.id, args);

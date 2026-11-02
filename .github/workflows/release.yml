@@ -71,6 +71,7 @@ jobs:
           else
             export FIDRA_E2E_PACKAGED_EXECUTABLE="$PWD/out/Fidra-win32-x64/Fidra.exe"
             npx playwright test e2e/packaged-fidra.e2e.ts e2e/installed-helper.e2e.ts
+            npx playwright test e2e/personal-ai.e2e.ts --grep 'sheet creation'
           fi
           npm run rebuild:node
       - name: Prepare update signing key

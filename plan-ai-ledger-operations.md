@@ -1,6 +1,6 @@
 # External-app ledger operations
 
-Status: implementation in progress, 26 October 2026. The owner confirmed that settings, backups, sync and team administration belong in scope alongside ledger operations. Passwords and AI-access approval stay in native Fidra. The source now includes scoped domain reads, backup creation and existing sync controls. These changes are not installed or published; existing live permissions have not changed. The owner requires the same limits and controls as a human using Fidra.
+Status: implementation in progress, 26 October 2026. The owner confirmed that settings, backups, sync and team administration belong in scope alongside ledger operations. Passwords and AI-access approval stay in native Fidra. The source now includes scoped domain reads, backup creation and existing sync controls. The read/backup/sync subset shipped in app 0.1.27/plugin 2.0.5; existing live permissions have not broadened. A 2 November candidate adds empty-sheet creation and fixes income-import defaults; its release gates are tracked in AGENTS.md. The owner requires the same limits and controls as a human using Fidra.
 
 ## Required boundary
 
@@ -98,3 +98,9 @@ Run targeted unit/integration checks, TypeScript, relevant lint and real-Electro
 ## Completion criteria
 
 Every requested operation has one authoritative implementation used by both entrypoints; the external app cannot exceed its user or grant, skip a required confirmation, omit linked effects, bypass validation or escape the native audit/Undo model. Existing narrow approvals retain their original authority. A client can successfully perform the requested supported workflows through documented tools after installing the reviewed app/plugin versions and obtaining native capability consent.
+
+## 2 November 2026 sheet-creation candidate
+
+`create_sheet` is a narrow semantic write through the shared `sheetsCreate` application operation. It requires current broker/user authority, `sheets.manage` and explicit all-current/future-account consent. Shared validation now enforces the same trimmed/reserved name and Unicode duplicate checks as Manage Sheets. The tool accepts only a name and UUID request ID, generating its own sheet ID. A connection-bound hash identifies a device-scoped receipt, stored atomically with the sheet and mandatory external audit attribution. Repeated IDs with changed input fail; ordinary retries return the saved operation state and current sheet identity, including after a rename/deletion/native Undo, rather than recreating anything.
+
+Native push notices record the completed operation through the existing Undo command abstraction. Its native-only typed history endpoint validates the receipt, live user authority and complete unchanged/empty sheet before Undo; actuals and incoming/outgoing schedule references block deletion. Redo refuses ID or name collisions. Same-ledger windows refresh without navigation or focus changes. This provides only empty-sheet creation, not rename/merge/delete/reorder or transaction/transfer workflows. New imports now use the shared type-dependent native status defaults; no existing entries are silently migrated.

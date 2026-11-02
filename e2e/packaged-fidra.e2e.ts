@@ -44,7 +44,7 @@ test('packaged extension enforces native scope, filters data, retries backups an
     const initialized = await client.request('initialize', { protocolVersion: '2025-06-18' });
     expect(initialized.result?.instructions).toContain('Work with Fidra');
     const catalog = await client.request('tools/list');
-    expect(catalog.result?.tools).toHaveLength(19);
+    expect(catalog.result?.tools).toHaveLength(20);
     expect(catalog.result?.tools?.map((tool) => tool.name)).not.toContain('execute_sql');
     expect(toolData(await client.call('list_connections'))).toEqual([]);
     const range = { from: '2026-10-01', to: '2026-10-31' };
@@ -173,7 +173,7 @@ test('app-managed helper upgrade preserves installation identity and existing na
   const updated = packagedFidraClient(root, userHome);
   try {
     expect((await updated.request('initialize', {})).result?.instructions).toContain('Work with Fidra');
-    expect((await updated.request('tools/list')).result?.tools).toHaveLength(19);
+    expect((await updated.request('tools/list')).result?.tools).toHaveLength(20);
     const connection = toolData(await updated.call('list_connections'))[0];
     expect(connection.id).toBe(connectionId);
     expect(connection.permissions.capabilities).toEqual([]);

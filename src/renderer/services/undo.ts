@@ -302,6 +302,16 @@ export function createRemoveAttachmentCommand(
 
 // Sheet commands
 
+/** A committed external operation is recorded on receipt; replay uses its guarded native history. */
+export function createAiSheetCreationCommand(creation: import('../../shared/ai-sheet-types').AiSheetCreation): UndoCommand {
+  return {
+    id: `ai-sheet:${creation.receiptId}`,
+    description: `Create sheet: ${creation.sheet.name}`,
+    execute: () => useSheetStore.getState().changeAiSheetCreation(creation.receiptId, 'redo'),
+    undo: () => useSheetStore.getState().changeAiSheetCreation(creation.receiptId, 'undo'),
+  };
+}
+
 export function createAddSheetCommand(sheet: { id: string; name: string }): UndoCommand {
   return {
     description: `Add sheet: ${sheet.name}`,

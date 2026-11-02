@@ -4,6 +4,7 @@ import { assertSheetNameAvailable } from './referential-integrity';
 import { logSheetCreated, logSheetRenamed, logSheetDeleted } from './audit-service';
 import type { WindowContext } from '../window/window-context';
 import { assertApplicationPermission } from './application-access';
+import { sheetNameSchema } from '../../shared/sheet-name';
 
 /** Shared desktop/external application operations. Each entry validates before repository access. */
 export function sheetsGetAll(ctx: WindowContext) {
@@ -14,7 +15,7 @@ export function sheetsGetAll(ctx: WindowContext) {
 export function sheetsCreate(ctx: WindowContext, id: unknown, name: unknown) {
   assertApplicationPermission(ctx, 'ledgerUse');
   const validId = idSchema.parse(id);
-  const validName = nameSchema.parse(name);
+  const validName = sheetNameSchema.parse(name);
   assertSheetNameAvailable(ctx.sqlite, validName);
   const result = ctx.repos.sheets.create(validId, validName);
   logSheetCreated(ctx, validName, validId);
@@ -24,7 +25,7 @@ export function sheetsCreate(ctx: WindowContext, id: unknown, name: unknown) {
 export function sheetsRename(ctx: WindowContext, oldName: unknown, newName: unknown) {
   assertApplicationPermission(ctx, 'ledgerUse');
   const validOld = nameSchema.parse(oldName);
-  const validNew = nameSchema.parse(newName);
+  const validNew = sheetNameSchema.parse(newName);
   const sheet = ctx.sheetRepo.getByName(validOld);
   if (!sheet || sheet.is_virtual || sheet.is_planned) throw new Error('Choose an existing account.');
   assertSheetNameAvailable(ctx.sqlite, validNew, sheet?.id);

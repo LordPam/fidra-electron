@@ -26,6 +26,54 @@ test.beforeEach(async ({ app }) => {
   });
 });
 
+test('sheet creation uses native permission, refreshes the view and supports guarded Undo and Redo', async ({ window, userHome }) => {
+  await window.locator('a[href="#/settings"]').click();
+  await window.getByLabel('Owner name', { exact: true }).fill('Synthetic owner');
+  await window.getByLabel('Owner password', { exact: true }).fill('synthetic-owner-password');
+  await window.getByRole('button', { name: 'Set access owner', exact: true }).click();
+  const call = aiClient(userHome);
+  const args = { requestId: crypto.randomUUID(), name: 'Synthetic: Savings' };
+  expect((await call('create_sheet', args)).error).toBeDefined();
+  const pending = content(await call('connect_fidra')).pending;
+  await window.getByRole('button', { name: 'Review connection request' }).click();
+  const dialog = window.getByRole('dialog');
+  await expect(dialog.getByText(pending.code, { exact: true })).toBeVisible();
+  await expect(dialog.getByLabel('Create, rename, merge, delete and reorder accounts', { exact: true })).toBeDisabled();
+  await dialog.getByLabel('This code matches the connection I requested in my AI app', { exact: true }).check();
+  await dialog.getByLabel('All current and future accounts, including ledger-wide operations', { exact: true }).check();
+  await dialog.getByLabel('Create, rename, merge, delete and reorder accounts', { exact: true }).check();
+  await dialog.getByRole('button', { name: 'Allow access', exact: true }).click();
+  expect(content(await call('list_connections'))[0].permissions.capabilities).toEqual(['sheets.manage']);
+  const created = content(await call('create_sheet', args));
+  expect(created).toMatchObject({ state: 'applied', sheet: { name: args.name }, currentSheet: { name: args.name } });
+  expect(content(await call('create_sheet', args))).toEqual(created);
+  await expect(window.getByRole('status', { name: 'AI sheet created', exact: true })).toBeVisible();
+  await window.getByRole('button', { name: 'View sheets', exact: true }).click();
+  await expect(window.getByTitle(`Undo: Create sheet: ${args.name}`, { exact: true })).toBeEnabled();
+  await window.getByTitle(`Undo: Create sheet: ${args.name}`, { exact: true }).click();
+  await expect.poll(() => window.evaluate(() => window.api.getSheets()).then((sheets) => sheets.some((sheet) => sheet.name === 'Synthetic: Savings'))).toBe(false);
+  expect(content(await call('create_sheet', args))).toMatchObject({ state: 'undone', currentSheet: null });
+  await window.getByTitle(`Redo: Create sheet: ${args.name}`, { exact: true }).click();
+  await expect.poll(() => window.evaluate(() => window.api.getSheets()).then((sheets) => sheets.some((sheet) => sheet.name === 'Synthetic: Savings'))).toBe(true);
+  expect(content(await call('list_connections'))[0].accounts).toContainEqual(created.sheet);
+  await window.evaluate(async () => {
+    await window.api.saveTransaction({ id: 'synthetic-after-create', date: '2026-11-02', description: 'Synthetic entry', amount: '1.00', type: 'income', status: '--',
+      sheet: 'Synthetic: Savings', category: null, party: null, reference: null, activity: null, notes: null, linked_id: null, version: 1,
+      created_at: '2026-11-02T12:00:00Z', modified_at: null, modified_by: null });
+  });
+  const error = await window.evaluate(async (receiptId) => {
+    try { await window.api.changeAiSheetCreation({ receiptId, direction: 'undo' }); return null; }
+    catch (error) { return String(error); }
+  }, created.receiptId);
+  expect(error).toContain('no longer empty');
+  expect(await window.evaluate(() => window.api.getTransactions())).toHaveLength(1);
+  expect((await call('create_sheet', { ...args, requestId: crypto.randomUUID(), name: ' ALL SHEETS ' })).error).toBeDefined();
+  await window.locator('a[href="#/settings"]').click();
+  await window.getByRole('button', { name: 'Revoke access', exact: true }).click();
+  expect((await call('create_sheet', { ...args, requestId: crypto.randomUUID(), name: 'Denied' })).error).toBeDefined();
+  expect((await window.evaluate(() => window.api.getSheets())).map((sheet) => sheet.name)).not.toContain('Denied');
+});
+
 test('plugin initiates a persistent permission prompt, imports a statement, and supports native Undo', async ({ window, app, userHome }) => {
   await window.locator('a[href="#/settings"]').click();
   await expect(window.getByRole('button', { name: 'Save ChatGPT extension (trial)' })).toHaveCount(0);
@@ -40,7 +88,7 @@ test('plugin initiates a persistent permission prompt, imports a statement, and 
   await window.getByLabel('This code matches the connection I requested in my AI app', { exact: true }).check();
   await window.getByRole('dialog').getByLabel('General', { exact: true }).check();
   await window.getByLabel('Receive statements I attach in my AI chat', { exact: true }).check();
-  await window.getByLabel('Add missing pending entries and fulfil planned payments when I ask', { exact: true }).check();
+  await window.getByLabel('Add missing entries and fulfil planned payments when I ask', { exact: true }).check();
   await window.getByRole('button', { name: 'Allow access', exact: true }).click();
   expect(content(await call('connect_fidra'))).toMatchObject({ connected: true });
   const context = content(await call('read_context', { from: '2026-10-01', to: '2026-10-31' }));

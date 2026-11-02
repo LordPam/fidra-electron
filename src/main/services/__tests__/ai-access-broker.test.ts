@@ -20,9 +20,10 @@ const { createAdapter } = require('../../../../resources/ai-bridge/server.cjs');
 let root: string; let db: Database.Database; let ctx: WindowContext; let store: AiAuthorizationStore; let broker: AiAccessBroker; let bridge: AiBridge; let available: boolean;
 const policy = { sheetIds: ['main'], fields: ['description'] as ['description'], permissions: { allowAdd: true, allowStatementUploads: true } };
 const password = 'synthetic-owner-password';
+const sheetCreated = vi.fn();
 function makeBroker() {
   bridge = new AiBridge({ isCurrent: (candidate) => candidate === ctx, isPreparing: () => false, onChanged: () => undefined, beforeApply: async () => undefined });
-  return new AiAccessBroker({ discoveryFile: path.join(root, 'endpoint.json'), store, bridge, contexts: () => [ctx], preparing: () => false, changed: () => undefined });
+  return new AiAccessBroker({ discoveryFile: path.join(root, 'endpoint.json'), store, bridge, contexts: () => [ctx], preparing: () => false, changed: () => undefined, sheetCreated });
 }
 function adapter() {
   let secret: string | null = null;
@@ -36,21 +37,52 @@ async function approve() {
   broker.approve(ctx, requested.pending.id, policy); return broker.state(ctx).authorizations[0];
 }
 beforeEach(async () => {
+  sheetCreated.mockReset();
   root = fs.mkdtempSync(path.join(os.tmpdir(), 'fidra-access-')); db = openDatabase(path.join(root, 'ledger.fdra')).db;
   const sheets = new SheetRepo(db); sheets.create('main', 'Main'); sheets.create('private', 'Private');
   const transactions = new TransactionRepo(db);
-  ctx = { dbPath: path.join(root, 'ledger.fdra'), databaseId: 'test-ledger-id', isClosed: false, isLocalSyncAuthEnabled: false, localAuthPersonnel: null, sheetRepo: sheets, transactionRepo: transactions, repos: { transactions }, settingsRepo: new SettingsRepo(db), personnelRepo: new PersonnelRepo(db), auditRepo: new AuditRepo(db), reconciliation: new ReconciliationService(db) } as unknown as WindowContext;
+  ctx = { sqlite: db, dbPath: path.join(root, 'ledger.fdra'), databaseId: 'test-ledger-id', isClosed: false, isLocalSyncAuthEnabled: false, localAuthPersonnel: null, sheetRepo: sheets, transactionRepo: transactions, repos: { transactions, sheets }, settingsRepo: new SettingsRepo(db), personnelRepo: new PersonnelRepo(db), auditRepo: new AuditRepo(db), reconciliation: new ReconciliationService(db) } as unknown as WindowContext;
   const key = randomBytes(32); available = true;
   store = new AiAuthorizationStore(path.join(root, 'authorizations.enc'), { available: () => available, encrypt: (value) => { const iv = randomBytes(12); const cipher = createCipheriv('aes-256-gcm', key, iv); const bytes = Buffer.concat([cipher.update(value), cipher.final()]); return Buffer.concat([iv, cipher.getAuthTag(), bytes]); }, decrypt: (value) => { const cipher = createDecipheriv('aes-256-gcm', key, value.subarray(0, 12)); cipher.setAuthTag(value.subarray(12, 28)); return Buffer.concat([cipher.update(value.subarray(28)), cipher.final()]).toString(); } });
   broker = makeBroker(); broker.unlockOwner(ctx, 'Trial owner', password); await broker.start(); client = adapter();
 });
 afterEach(() => { vi.useRealTimers(); broker.stop(); db.close(); fs.rmSync(root, { recursive: true, force: true }); });
 describe('persistent administrator approval', () => {
+  it('creates sheets only after explicit native permission, deduplicates signed retries and survives restart', async () => {
+    const pending = data(await call('connect_fidra')).pending;
+    expect((await call('create_sheet', { requestId: '00000000-0000-4000-8000-000000000001', name: 'New' })).error).toBeDefined();
+    broker.approve(ctx, pending.id, { ...policy, sheetIds: [], permissions: { allAccounts: true, capabilities: ['sheets.manage'] } });
+    const args = { requestId: '00000000-0000-4000-8000-000000000001', name: 'Synthetic: Savings' };
+    const first = data(await call('create_sheet', args));
+    expect(first).toMatchObject({ state: 'applied', sheet: { name: args.name }, currentSheet: { name: args.name } });
+    expect(data(await call('create_sheet', args))).toEqual(first);
+    expect(sheetCreated).toHaveBeenCalledExactlyOnceWith(ctx, first);
+    expect(data(await call('list_connections'))[0].accounts).toContainEqual(first.sheet);
+    expect((await call('create_sheet', { ...args, permissions: { capabilities: ['sheets.manage'] } })).error).toBeDefined();
+    broker.stop(); broker = makeBroker(); await broker.start(); broker.unlockOwner(ctx, 'Trial owner', password);
+    expect(data(await call('create_sheet', args))).toEqual(first);
+    expect(ctx.sheetRepo.getAll()).toHaveLength(3);
+    const grant = broker.state(ctx).authorizations[0]; broker.revoke(ctx, grant.id);
+    expect((await call('create_sheet', args)).error).toBeDefined();
+    expect(ctx.sheetRepo.getAll()).toHaveLength(3);
+  });
+
+  it('does not turn a window refresh failure into a failed sheet creation', async () => {
+    const pending = data(await call('connect_fidra')).pending;
+    broker.approve(ctx, pending.id, { ...policy, sheetIds: [], permissions: { allAccounts: true, capabilities: ['sheets.manage'] } });
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    sheetCreated.mockImplementation(() => { throw new Error('Synthetic window closed'); });
+    try {
+      expect(data(await call('create_sheet', { requestId: '00000000-0000-4000-8000-000000000001', name: 'New' })).state).toBe('applied');
+      expect(ctx.sheetRepo.getByName('New')).not.toBeNull();
+    } finally { vi.restoreAllMocks(); }
+  });
   it('keeps existing reconciliation approval narrow and rejects tool-side permission escalation', async () => {
     await approve();
     const connection = data(await call('list_connections'))[0];
     expect(connection.permissions).toMatchObject({ capabilities: [], allAccounts: false });
     expect((await call('read_transactions', { from: '2026-10-01', to: '2026-10-31' })).error.message).toContain('permission');
+    expect((await call('create_sheet', { requestId: '00000000-0000-4000-8000-000000000001', name: 'New' })).error.message).toContain('permission');
     expect((await call('read_context', { from: '2026-10-01', to: '2026-10-31', permissions: { allAccounts: true } })).error).toBeDefined();
     expect(data(await call('list_connections'))[0].permissions).toEqual(connection.permissions);
   });

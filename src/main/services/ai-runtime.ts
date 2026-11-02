@@ -10,6 +10,18 @@ import { aiToolCatalog } from './ai-tool-catalog';
 import { refreshInstalledAiHelper, helperPayloadFiles, type HelperPayload } from './ai-helper-update';
 import { getWindowManager } from '../window/window-manager';
 import { createBackup, getBackupSettings } from './backup-service';
+import type { WindowContext } from '../window/window-context';
+import type { AiSheetCreation } from '../../shared/ai-sheet-types';
+
+export function notifyAiSheetChange(context: WindowContext, creation: AiSheetCreation, recordUndo = false): void {
+  for (const candidate of getWindowManager().getAllContexts()) {
+    try {
+      if (candidate.isClosed || fs.realpathSync(candidate.dbPath) !== fs.realpathSync(context.dbPath)) continue;
+      candidate.sendToRenderer('localSync:dataChanged', { tables: ['sheets', 'audit_log'] });
+      if (recordUndo) candidate.sendToRenderer('ai:sheetCreated', creation);
+    } catch { console.warn('[AI] Sheet changed; its window needs a refresh.'); }
+  }
+}
 
 export const aiBridgeResourceDirectory = path.join(app.isPackaged ? process.resourcesPath : path.join(app.getAppPath(), 'resources'), 'ai-bridge');
 export const fidraAiWorkflow = fs.readFileSync(path.join(aiBridgeResourceDirectory, 'skills', 'fidra-reconcile', 'SKILL.md'), 'utf8');
@@ -39,6 +51,7 @@ export const personalAiAccess = new AiAccessBroker({
   }),
   bridge: personalAiBridge, contexts: () => getWindowManager().getAllContexts(),
   preparing: () => getWindowManager().isPreparingOperation,
+  sheetCreated: (context, creation) => notifyAiSheetChange(context, creation, true),
   changed: () => { for (const ctx of getWindowManager().getAllContexts()) if (!ctx.isClosed) ctx.sendToRenderer('ai:changed'); },
 });
 

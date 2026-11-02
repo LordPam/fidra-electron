@@ -385,6 +385,12 @@ const api = {
   discardAiProposal: (id: string): Promise<void> => invoke('ai:discard', id),
   approveAiProposal: (approval: import('../shared/reconciliation-types').ReconciliationApproval): Promise<import('../shared/reconciliation-types').ReconciliationCommit> => invoke('ai:approve', approval),
   undoAiImport: (id: string): Promise<void> => invoke('ai:undo', id),
+  changeAiSheetCreation: (input: import('../shared/ai-sheet-types').AiSheetHistory): Promise<import('../shared/ai-sheet-types').AiSheetCreation> => invoke('ai:changeSheetCreation', input),
+  onAiSheetCreated: (callback: (creation: import('../shared/ai-sheet-types').AiSheetCreation) => void): (() => void) => {
+    const handler = (_event: unknown, creation: import('../shared/ai-sheet-types').AiSheetCreation) => callback(creation);
+    ipcRenderer.on('ai:sheetCreated', handler);
+    return () => ipcRenderer.removeListener('ai:sheetCreated', handler);
+  },
   onAiProposalReady: (callback: () => void): (() => void) => {
     const handler = () => callback(); ipcRenderer.on('ai:proposalReady', handler);
     return () => ipcRenderer.removeListener('ai:proposalReady', handler);

@@ -36,6 +36,15 @@ beforeEach(() => {
 afterEach(() => { db.close(); fs.rmSync(directory, { recursive: true, force: true }); });
 
 describe('reconciliation proposals', () => {
+  it.each([['income', '--'], ['expense', 'pending']] as const)('imports %s with the same status as native entry creation', (type, status) => {
+    const proposal = service.stage('grant', scope, draft({ source: { ...draft().rows[0].source, type } }));
+    const receipt = service.commit(approve(proposal), 'Synthetic owner');
+    expect(new TransactionRepo(db).getById(receipt.transactionIds[0])).toMatchObject({ type, status });
+    service.undo(proposal.id, 'Synthetic owner');
+    expect(new TransactionRepo(db).getAll()).toEqual([]);
+    service.commit(approve(service.get(proposal.id, 'grant')), 'Synthetic owner');
+    expect(new TransactionRepo(db).getAll()[0]).toMatchObject({ type, status });
+  });
   it('discloses only selected accounts, dates and optional fields', () => {
     const repo = new TransactionRepo(db);
     repo.save(tx()); repo.save(tx({ id: 'other', sheet: 'Savings' })); repo.save(tx({ id: 'old', date: '2026-09-01' }));

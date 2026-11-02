@@ -85,3 +85,5 @@ Set `FIDRA_E2E_CAPTURE_UI=1` to additionally export the update-panel review scre
 
 
 Owner preference (2026-10-28): do not run these visible Electron scenarios on the owner’s active desktop. Use isolated GitHub runners. Local background service/type/lint/build checks are fine; do not assume a terminal background job hides or prevents application focus. The release workflow runs full macOS acceptance and packaged-helper scope/upgrade acceptance on Windows before publication.
+
+`personal-ai.e2e.ts` additionally covers named sheet creation, default-off native permission, duplicate retries, visible creation notices, native Undo/Redo and refusal to undo after entries are added. The release workflow runs this scenario on both isolated platforms. Do not launch it locally on the owner’s active desktop.

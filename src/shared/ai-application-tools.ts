@@ -1,8 +1,14 @@
 import { z } from 'zod';
 import { aiEmptyQuerySchema, aiInvoiceQuerySchema, aiPlannedQuerySchema, aiTransactionQuerySchema, aiSettingsQuerySchema } from './ai-ledger-read-types';
+import { aiSheetCreateSchema } from './ai-sheet-types';
 
 export const aiRunSyncSchema = z.object({ direction: z.enum(['export', 'import', 'both']) }).strict();
 export const aiBackupCreateSchema = z.object({ requestId: z.string().uuid() }).strict();
+export const aiSheetCreateDefinition = {
+  name: 'create_sheet', description: 'Create one empty Fidra sheet using Manage Sheets rules. Requires sheets.manage and explicit all-current-and-future-account consent. Supply the user-requested name and a fresh UUID requestId; reuse the same ID and name on retry. Retries return the original receipt and never recreate a sheet after Undo or deletion. Native Undo is available only while the created sheet remains empty and unchanged. Does not rename, move money, merge or delete existing sheets.',
+  inputSchema: { ...z.toJSONSchema(aiSheetCreateSchema, { io: 'input' }), properties: { ...z.toJSONSchema(aiSheetCreateSchema, { io: 'input' }).properties, connectionId: { type: 'string' } } },
+  annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+};
 export const aiLedgerReadSpecs = {
   read_transactions: { schema: aiTransactionQuerySchema, description: 'Read transactions in approved accounts and the requested date range. Only approved context fields are returned. Pages contain at most 200 rows.' },
   read_planned: { schema: aiPlannedQuerySchema, description: 'Read schedules in approved accounts. A planned transfer is returned only when both accounts are permitted. Only approved context fields are returned.' },

@@ -152,6 +152,6 @@ try {
   assert(fs.readFileSync(path.join(helper, 'server/server.cjs'), 'utf8').includes('Stable entry point'));
   const { digest } = JSON.parse(fs.readFileSync(path.join(helper, 'current.json'), 'utf8'));
   const catalog = JSON.parse(fs.readFileSync(path.join(helper, 'releases', digest, 'tools.json'), 'utf8'));
-  assert.equal(catalog.tools.length, 19);
+  assert.equal(catalog.tools.length, 20);
   console.log(`Actual ${process.platform}/${process.arch} 0.1.23 → ${pkg.version} installer replacement, startup, synthetic financial/attachment retention and helper refresh passed.`);
 } finally { fs.rmSync(root, { recursive: true, force: true }); }

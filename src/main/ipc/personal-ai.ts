@@ -2,10 +2,11 @@ import { app, ipcMain, powerMonitor } from 'electron';
 import { z } from 'zod';
 import { resolveContext } from './context-resolver';
 import { getWindowManager } from '../window/window-manager';
-import { personalAiAccess, personalAiBridge, retireOldAiTrial } from '../services/ai-runtime';
+import { personalAiAccess, personalAiBridge, retireOldAiTrial, notifyAiSheetChange } from '../services/ai-runtime';
 import { reconciliationApprovalSchema } from '../../shared/reconciliation-types';
 import type { WindowContext } from '../window/window-context';
 import { aiAccessPolicySchema } from '../../shared/ai-access-types';
+import { changeAiSheetCreation } from '../services/ai-sheet-operations';
 
 function requireUser(context: WindowContext): string {
   if (context.isClosed || getWindowManager().isPreparingOperation) throw new Error('Fidra is preparing to close.');
@@ -13,6 +14,12 @@ function requireUser(context: WindowContext): string {
   return context.localAuthPersonnel?.email ?? 'Local user';
 }
 export function registerPersonalAiHandlers(): void {
+  ipcMain.handle('ai:changeSheetCreation', (event, raw: unknown) => {
+    const context = resolveContext(event); requireUser(context);
+    const creation = changeAiSheetCreation(context, raw);
+    notifyAiSheetChange(context, creation);
+    return creation;
+  });
   try { retireOldAiTrial(); } catch { console.warn('[AI] Old trial files could not be removed; financial startup is continuing.'); }
   ipcMain.handle('ai:getState', (event) => {
     const context = resolveContext(event); requireUser(context);

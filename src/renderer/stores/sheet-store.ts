@@ -15,6 +15,7 @@ interface SheetState {
   renameSheet: (oldName: string, newName: string) => Promise<void>;
   removeSheet: (id: string, name: string, mergeTarget?: string) => Promise<void>;
   reorderSheets: (orderedIds: string[]) => Promise<void>;
+  changeAiSheetCreation: (receiptId: string, direction: 'undo' | 'redo') => Promise<void>;
 }
 
 export const useSheetStore = create<SheetState>((set, get) => ({
@@ -48,13 +49,11 @@ export const useSheetStore = create<SheetState>((set, get) => ({
       const gen = get()._generation;
       const rows = await window.api.getSheets();
       if (gen !== get()._generation) return;
-      if (rows.length > 0) {
-        const current = get().sheets;
-        if (current.length === rows.length && current.every((s, i) => s.id === rows[i].id && s.name === rows[i].name)) {
-          return;
-        }
-        set({ sheets: rows });
+      const current = get().sheets;
+      if (current.length === rows.length && current.every((s, i) => s.id === rows[i].id && s.name === rows[i].name)) {
+        return;
       }
+      set((state) => ({ sheets: rows, currentSheet: rows.some((sheet) => sheet.name === state.currentSheet) ? state.currentSheet : 'All Sheets' }));
     } catch (e) {
       console.warn('[SheetStore] silentRefresh failed:', e);
     }
@@ -63,6 +62,12 @@ export const useSheetStore = create<SheetState>((set, get) => ({
   setCurrent: (name: string) => {
     set({ currentSheet: name });
     window.api.saveCurrentSheet(name);
+  },
+
+  changeAiSheetCreation: async (receiptId, direction) => {
+    await window.api.changeAiSheetCreation({ receiptId, direction });
+    set((state) => ({ _generation: state._generation + 1 }));
+    await get().silentRefresh();
   },
 
   addSheet: async (id: string, name: string) => {

@@ -17,6 +17,7 @@ import {
 } from '@/components/ui/select';
 import { Pencil, Trash2, Plus, ChevronUp, ChevronDown } from 'lucide-react';
 import type { SheetRow } from '../../shared/ipc-types';
+import { sheetNameSchema } from '../../shared/sheet-name';
 
 interface ManageSheetsDialogProps {
   open: boolean;
@@ -54,9 +55,9 @@ export function ManageSheetsDialog({
   }, [sheets]);
 
   const validateName = (name: string, excludeId?: string): string | null => {
-    const trimmed = name.trim();
-    if (!trimmed) return 'Name is required';
-    if (trimmed.toLowerCase() === 'all sheets') return 'Cannot use "All Sheets"';
+    const parsed = sheetNameSchema.safeParse(name);
+    if (!parsed.success) return parsed.error.issues[0].message;
+    const trimmed = parsed.data;
     if (items.some((s) => s.name.toLowerCase() === trimmed.toLowerCase() && s.id !== excludeId)) {
       return 'Name already exists';
     }

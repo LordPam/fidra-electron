@@ -1,5 +1,5 @@
 import type { AiBridge } from './ai-bridge';
-import { aiLedgerReadDefinitions, aiRunSyncDefinition, aiBackupDefinitions } from '../../shared/ai-application-tools';
+import { aiLedgerReadDefinitions, aiRunSyncDefinition, aiBackupDefinitions, aiSheetCreateDefinition } from '../../shared/ai-application-tools';
 
 export function aiToolCatalog(bridge: Pick<AiBridge, 'toolDefinitions'>): unknown {
       const domain = bridge.toolDefinitions({ allowAdd: true, allowStatementUploads: true }) as { tools: { name: string; inputSchema: Record<string, unknown> }[] };
@@ -9,6 +9,7 @@ export function aiToolCatalog(bridge: Pick<AiBridge, 'toolDefinitions'>): unknow
         ...aiLedgerReadDefinitions(),
         aiRunSyncDefinition,
         ...aiBackupDefinitions,
+        aiSheetCreateDefinition,
         ...domain.tools.map((tool) => ({ ...tool, inputSchema: tool.name === 'read_context' ? { type: 'object', properties: { connectionId: { type: 'string' }, from: { type: 'string', description: 'Requested start date, YYYY-MM-DD' }, to: { type: 'string', description: 'Requested end date, YYYY-MM-DD' }, sheetIds: { type: 'array', items: { type: 'string' } } }, required: ['from', 'to'], additionalProperties: false }
           : { ...tool.inputSchema, properties: { ...(tool.inputSchema.properties as object), connectionId: { type: 'string' } } } })),
       ] };

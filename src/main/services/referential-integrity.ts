@@ -60,11 +60,10 @@ export function assertSheetNameAvailable(
   name: string,
   exceptSheetId?: string,
 ): void {
-  const clash = db
-    .prepare('SELECT id, name FROM sheets WHERE LOWER(name) = LOWER(?)')
-    .all(name) as { id: string; name: string }[];
-
-  const other = clash.find((row) => row.id !== exceptSheetId);
+  const sheets = db.prepare('SELECT id, name FROM sheets').all() as { id: string; name: string }[];
+  // Match Manage Sheets' Unicode-aware JS case folding. SQLite LOWER only
+  // folds ASCII, which otherwise lets an external caller bypass the UI rule.
+  const other = sheets.find((row) => row.id !== exceptSheetId && row.name.toLowerCase() === name.toLowerCase());
   if (other) {
     throw new ReferentialIntegrityError(
       other.name === name

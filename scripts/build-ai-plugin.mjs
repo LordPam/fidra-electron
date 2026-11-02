@@ -9,7 +9,7 @@ import JSZip from 'jszip';
 
 // Maintainer build task. No user-specific connection or financial data enters a package.
 const root = path.resolve(import.meta.dirname, '..');
-const pluginVersion = '2.0.5';
+const pluginVersion = '2.0.6';
 const runtime = process.env.FIDRA_PLUGIN_NODE_RUNTIME;
 if (!runtime || !path.isAbsolute(runtime)) throw new Error('Set FIDRA_PLUGIN_NODE_RUNTIME to a verified official Node 22+ binary for this platform.');
 const metadata = JSON.parse(execFileSync(runtime, ['-p', 'JSON.stringify({platform:process.platform,arch:process.arch,version:process.versions.node})'], { encoding: 'utf8' }));

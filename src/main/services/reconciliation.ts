@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { isDeepStrictEqual } from 'node:util';
 import { toPence } from '../../shared/money';
+import { defaultStatusForType } from '../../shared/transaction-rules';
 import type Database from 'better-sqlite3';
 import { TransactionRepo } from '../repositories/transaction-repo';
 import { PlannedRepo } from '../repositories/planned-repo';
@@ -189,7 +190,7 @@ export class ReconciliationService {
         if (!sheet) throw new Error('The account changed after preview.');
         if (row.action !== 'link') {
         const actual = transactionRowSchema.parse({ id, date: row.source.date, description: row.description, amount: row.source.amount,
-          type: row.source.type, status: 'pending', sheet: sheet.name, party: row.party, category: row.category, activity: row.activity,
+          type: row.source.type, status: defaultStatusForType(row.source.type), sheet: sheet.name, party: row.party, category: row.category, activity: row.activity,
           reference: row.source.bankId ?? null, notes: `Bank description: ${row.source.description}`, linked_id: null, version: 1,
           created_at: now, modified_at: now, modified_by: actor });
         actuals.push(this.transactions.save(actual));

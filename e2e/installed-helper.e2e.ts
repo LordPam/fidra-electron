@@ -34,7 +34,7 @@ test('installed Fidra refreshes the recognised helper automatically at startup',
     expect(fs.readFileSync(path.join(root, 'server/server.cjs'), 'utf8')).toContain('Stable entry point');
     const client = packagedFidraClient(root, userHome);
     try {
-      expect((await client.request('tools/list')).result?.tools).toHaveLength(19);
+      expect((await client.request('tools/list')).result?.tools).toHaveLength(20);
       const connections = await client.call('list_connections');
       // A fresh isolated home may have no unlocked OS encryption store. Native
       // denial is expected; do not weaken packaged safeStorage to bypass it.

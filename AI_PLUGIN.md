@@ -18,7 +18,7 @@ The claimed app label is not independent proof of ChatGPT/Claude publisher ident
 - `register_statement`: original bytes explicitly attached by the user, stored only in RAM. Maximum 1 MB; source hash computed by Fidra.
 - `read_statement`: read a registered source within the active session. PDF extraction uses the original chat attachment, not a second file selection.
 - `stage_reconciliation` / `get_proposal`: prepare/check a validated batch and its questions, without mutating the ledger.
-- `apply_reconciliation`: add pending actuals and fulfil exact planned occurrences within approved permission. Maximum 1,000 rows per batch; backup, scope/source/current-state revalidation, atomic commit, idempotency, audit and native Undo remain enforced.
+- `apply_reconciliation`: add actuals with native type/status defaults and fulfil exact planned occurrences within approved permission. Maximum 1,000 rows per batch; backup, scope/source/current-state revalidation, atomic commit, idempotency, audit and native Undo remain enforced.
 
 The tool catalog is generated from the server definitions during the package build. The installed adapter supplies initialization, skills and tool discovery even when Fidra is closed, so opening Fidra later does not require reinstalling the plugin. Financial calls require the live signed-request path.
 
@@ -86,3 +86,11 @@ The released 0.1.27 tool catalogue has 19 tools. General ledger writes and the r
 
 
 Released 2026-10-29: Fidra 0.1.27 and private account plugin 2.0.5. Both platform release gates passed; public update announcements were signature-verified after publication. This does not install the update into the owner’s running app or refresh this chat’s currently cached eight-tool server. The owner must install/reopen Fidra and restart the AI desktop app. Existing grants remain unchanged; new capabilities need a fresh native approval.
+
+## Sheet creation — 0.1.28 / plugin 2.0.6 candidate
+
+The catalogue now has 20 tools, adding `create_sheet` for one empty sheet. It uses shared Manage Sheets operations and requires explicit `sheets.manage` plus all-current-and-future-account approval. Existing grants stay unchanged. A fresh UUID `requestId` binds the normalized name and connection to an atomic per-device receipt; retries return its state, original sheet and current sheet identity. Reusing an ID for another name fails. An undone or deleted sheet is never recreated by a tool retry. Receipts remain in device-scoped per-ledger settings across restart, outside the synced settings allowlist. They expose no general setting access.
+
+Native creation notices register guarded Undo/Redo and notify every same-ledger window. Undo refuses a populated or changed sheet; Redo checks duplicate names and IDs. Creation matches the native Add control and needs no bank statement. Rename/merge/delete/reorder and general linked-transfer tools remain unavailable. The import workflow also now follows native defaults: income has no approval status (`--`), expenses start pending. Existing imported records are unchanged.
+
+Installation requires the matching app and helper catalogue, a full AI-client restart and native review of the additional sheet-management capability. The earlier reconciliation-only approval cannot create sheets. Publication/desktop acceptance are not established by source or background tests alone; see AGENTS.md for the current release status.
