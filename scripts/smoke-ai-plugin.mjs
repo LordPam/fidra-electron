@@ -69,5 +69,6 @@ try {
   assert.equal(responses.length, 2); assert.equal(responses[0].result.serverInfo.version, '2.0.0');
   const names = responses[1].result.tools.map((tool) => tool.name);
   assert(names.includes('connect_fidra') && names.includes('read_context') && names.includes('apply_reconciliation'));
+  for (const name of ['prepare_ledger_changes', 'get_ledger_changes', 'apply_ledger_changes']) assert(names.includes(name), `Missing ledger editing tool: ${name}`);
   console.log(`Packaged ${process.platform}/${process.arch} runtime, native binding, initialization and offline tools passed. No credential read/write or financial tool was requested.`);
 } finally { fs.rmSync(root, { recursive: true, force: true }); }

@@ -1,0 +1,86 @@
+name: Ledger editing acceptance
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - 'ci/fidra-ledger-edit-*'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ledger-edit-acceptance-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  acceptance:
+    name: Acceptance (${{ matrix.platform }})
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-15
+            platform: darwin
+            arch: arm64
+          - os: windows-latest
+            platform: win32
+            arch: x64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install reviewed dependencies
+        shell: bash
+        run: |
+          npm ci --ignore-scripts
+          node scripts/prepare-native-install.mjs
+          npm rebuild
+      - name: Typecheck and service acceptance including signed localhost transport
+        shell: bash
+        run: |
+          npx tsc --noEmit
+          npm test
+      - name: Build and verify the matching plugin
+        shell: bash
+        run: |
+          export FIDRA_PLUGIN_NODE_RUNTIME="$(node -p 'process.execPath')"
+          npm run build:ai-plugin
+          node scripts/smoke-ai-plugin.mjs
+      - name: Build and test real Electron on the isolated runner
+        shell: bash
+        env:
+          TARGET_PLATFORM: ${{ matrix.platform }}
+          TARGET_ARCH: ${{ matrix.arch }}
+        run: |
+          npm run rebuild:electron
+          npm run package -- --arch="$TARGET_ARCH"
+          export FIDRA_E2E_PLUGIN_ROOT="$PWD/out/ai-plugin/$TARGET_PLATFORM-$TARGET_ARCH/Fidra-private/Fidra"
+          if [ "$TARGET_PLATFORM" = darwin ]; then
+            export FIDRA_E2E_PACKAGED_EXECUTABLE="$PWD/out/Fidra-darwin-arm64/Fidra.app/Contents/MacOS/Fidra"
+            npx playwright test
+          else
+            export FIDRA_E2E_PACKAGED_EXECUTABLE="$PWD/out/Fidra-win32-x64/Fidra.exe"
+            npx playwright test e2e/packaged-fidra.e2e.ts e2e/installed-helper.e2e.ts
+            npx playwright test e2e/personal-ai.e2e.ts --grep 'sheet creation|ledger cleanup|general ledger edits'
+          fi
+      - name: Retain matching plugin candidates
+        uses: actions/upload-artifact@v4
+        with:
+          name: ledger-edit-plugin-${{ matrix.platform }}-${{ matrix.arch }}
+          path: |
+            out/ai-plugin/*/Fidra-plugin.zip
+            out/ai-plugin/*/Fidra-account.zip
+            out/ai-plugin/*/Fidra-private.zip
+          if-no-files-found: error
+      - name: Retain desktop failure evidence
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ledger-edit-failure-${{ matrix.platform }}-${{ matrix.arch }}
+          path: test-results/
+          if-no-files-found: ignore

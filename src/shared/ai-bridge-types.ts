@@ -13,4 +13,5 @@ export interface AiConnection {
   id: string; client: AiClient; lastUsedAt: string | null; lastTool: string | null; scope: ReconciliationScope;
   permissions: AiConnectionPermissions;
 }
-export interface AiBridgeState { access: import('./ai-access-types').AiAccessState; proposals: ReconciliationProposal[] }
+export interface AiBridgeState { access: import('./ai-access-types').AiAccessState; proposals: ReconciliationProposal[];
+  cleanups?: import('./ledger-cleanup-types').LedgerCleanupPreview[] }

@@ -21,6 +21,11 @@ export class TransactionRepo {
     return (this.db.prepare('SELECT * FROM transactions WHERE id = ?').get(id) as TransactionRow) ?? null;
   }
 
+  /** Internal review/Undo guards must also protect legacy planned rows. */
+  getAllForSnapshot(): TransactionRow[] {
+    return this.db.prepare('SELECT * FROM transactions ORDER BY id').all() as TransactionRow[];
+  }
+
   save(data: TransactionRow): TransactionRow {
     // Use INSERT + UPDATE instead of INSERT OR REPLACE so cr-sqlite only bumps
     // col_version for columns whose values actually changed. INSERT OR REPLACE

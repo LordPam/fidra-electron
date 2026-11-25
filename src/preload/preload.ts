@@ -385,6 +385,13 @@ const api = {
   discardAiProposal: (id: string): Promise<void> => invoke('ai:discard', id),
   approveAiProposal: (approval: import('../shared/reconciliation-types').ReconciliationApproval): Promise<import('../shared/reconciliation-types').ReconciliationCommit> => invoke('ai:approve', approval),
   undoAiImport: (id: string): Promise<void> => invoke('ai:undo', id),
+  reviewLedgerCleanup: (input: import('../shared/ledger-cleanup-types').LedgerCleanupReview): Promise<import('../shared/ledger-cleanup-types').LedgerCleanupPreview> => invoke('ai:reviewCleanup', input),
+  changeLedgerCleanup: (input: import('../shared/ledger-cleanup-types').LedgerCleanupHistory): Promise<import('../shared/ledger-cleanup-types').LedgerCleanupPreview> => invoke('ai:changeCleanup', input),
+  onLedgerCleanupCommitted: (callback: (receipt: import('../shared/ledger-cleanup-types').LedgerCleanupReceipt) => void): (() => void) => {
+    const handler = (_event: unknown, receipt: import('../shared/ledger-cleanup-types').LedgerCleanupReceipt) => callback(receipt);
+    ipcRenderer.on('ai:cleanupCommitted', handler);
+    return () => ipcRenderer.removeListener('ai:cleanupCommitted', handler);
+  },
   changeAiSheetCreation: (input: import('../shared/ai-sheet-types').AiSheetHistory): Promise<import('../shared/ai-sheet-types').AiSheetCreation> => invoke('ai:changeSheetCreation', input),
   onAiSheetCreated: (callback: (creation: import('../shared/ai-sheet-types').AiSheetCreation) => void): (() => void) => {
     const handler = (_event: unknown, creation: import('../shared/ai-sheet-types').AiSheetCreation) => callback(creation);

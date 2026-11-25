@@ -4,6 +4,10 @@ import type { AttachmentRow } from '../../shared/ipc-types';
 export class AttachmentRepo {
   constructor(private readonly db: Database.Database) {}
 
+  getAllForSnapshot(): AttachmentRow[] {
+    return this.db.prepare('SELECT * FROM attachments ORDER BY id').all() as AttachmentRow[];
+  }
+
   getForTransaction(transactionId: string): AttachmentRow[] {
     return this.db
       .prepare('SELECT * FROM attachments WHERE transaction_id = ? ORDER BY created_at DESC')

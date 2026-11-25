@@ -17,4 +17,6 @@ Installation and consent persist. Paused access means Fidra is closed, the compu
 
 When the user requests reconciliation, continue with `fidra-reconcile` and read only the account/date context needed for that request. Do not import or stage transactions solely to test setup. Do not claim a public-directory listing or actual client installation has been verified from a successful connector test.
 
-For supported ledger reads, empty-sheet creation, backups and synchronization, continue with `fidra-ledger`. Check each capability in `list_connections`; new tools never expand an existing approval. If the installed app does not support a tool, explain that both Fidra and the plugin need matching updates.
+For supported actual/planned creation and editing, transfers, invoices, categories, activities, settings, ledger reads, empty-sheet creation, reviewed cleanup, backups and synchronization, continue with `fidra-ledger`. Check each capability in `list_connections`; new tools never expand an existing approval. If the installed app does not support a tool, explain that both Fidra and the plugin need matching updates.
+
+A catalogue update alone does not require revocation/reapproval when the existing native grant already contains every required capability and account scope. Compare returned permissions; obtain new native consent only for missing permissions. Destructive cleanup review is a separate exact-batch control inside Fidra.

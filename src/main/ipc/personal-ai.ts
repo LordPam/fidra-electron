@@ -24,7 +24,15 @@ export function registerPersonalAiHandlers(): void {
   ipcMain.handle('ai:getState', (event) => {
     const context = resolveContext(event); requireUser(context);
     const sessionIds = new Set(personalAiBridge.connections(context).map((session) => session.id));
-    return { access: personalAiAccess.state(context), proposals: context.reconciliation.list().filter((proposal) => sessionIds.has(proposal.grantId)) };
+    return { access: personalAiAccess.state(context), proposals: context.reconciliation.list().filter((proposal) => sessionIds.has(proposal.grantId)), cleanups: personalAiAccess.ledgerCleanups(context) };
+  });
+  ipcMain.handle('ai:reviewCleanup', (event, raw: unknown) => {
+    const context = resolveContext(event); requireUser(context);
+    return personalAiAccess.reviewLedgerCleanup(context, raw);
+  });
+  ipcMain.handle('ai:changeCleanup', (event, raw: unknown) => {
+    const context = resolveContext(event); requireUser(context);
+    return personalAiAccess.changeLedgerCleanup(context, raw);
   });
   ipcMain.handle('ai:approveAccess', (event, raw: unknown) => {
     const context = resolveContext(event); requireUser(context);

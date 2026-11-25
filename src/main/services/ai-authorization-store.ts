@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { randomUUID } from 'node:crypto';
+import { randomUUID, randomBytes, createHmac, timingSafeEqual } from 'node:crypto';
 import { z } from 'zod';
 import { aiAccessPolicySchema } from '../../shared/ai-access-types';
 
@@ -11,7 +11,8 @@ export const aiAuthorizationSchema = z.object({
 }).strict();
 export type AiAuthorization = z.infer<typeof aiAuthorizationSchema>;
 const ownerSchema = z.object({ databaseId: z.string(), dbPath: z.string(), name: z.string(), passwordHash: z.string() }).strict();
-const dataSchema = z.object({ version: z.literal(1), authorizations: z.array(aiAuthorizationSchema).max(100), owners: z.array(ownerSchema).max(100) }).strict();
+const dataSchema = z.object({ version: z.literal(1), authorizations: z.array(aiAuthorizationSchema).max(100), owners: z.array(ownerSchema).max(100),
+  operationKey: z.string().regex(/^[a-f0-9]{64}$/).optional() }).strict();
 export type AiAuthorizationData = z.infer<typeof dataSchema>;
 export interface AiSecureStorage { available(): boolean; encrypt(value: string): Buffer; decrypt(value: Buffer): string }
 
@@ -41,4 +42,18 @@ export class AiAuthorizationStore {
     } finally { fs.rmSync(temporary, { force: true }); }
   }
   clear(): void { fs.rmSync(this.file, { force: true }); }
+
+  /** Journal approvals/snapshots must not become trusted just by arriving in a ledger or sync bundle. */
+  signOperation(scope: string, body: string): string {
+    const data = this.read();
+    if (!data.operationKey) { data.operationKey = randomBytes(32).toString('hex'); this.write(data); }
+    return createHmac('sha256', Buffer.from(data.operationKey, 'hex')).update(JSON.stringify([scope, body])).digest('hex');
+  }
+  verifyOperation(scope: string, body: string, signature: string): boolean {
+    if (!/^[a-f0-9]{64}$/.test(signature)) return false;
+    const key = this.read().operationKey;
+    if (!key) return false;
+    const expected = createHmac('sha256', Buffer.from(key, 'hex')).update(JSON.stringify([scope, body])).digest();
+    return timingSafeEqual(expected, Buffer.from(signature, 'hex'));
+  }
 }

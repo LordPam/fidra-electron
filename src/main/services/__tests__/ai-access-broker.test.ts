@@ -2,7 +2,7 @@ import { beforeEach, afterEach, describe, it, expect, vi } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { createCipheriv, createDecipheriv, randomBytes, generateKeyPairSync, sign } from 'node:crypto';
+import { createCipheriv, createDecipheriv, randomBytes, randomUUID, generateKeyPairSync, sign } from 'node:crypto';
 import type Database from 'better-sqlite3';
 import { openDatabase } from '../../database/connection';
 import { SettingsRepo } from '../../database/settings-repo';
@@ -10,6 +10,11 @@ import { SheetRepo } from '../../repositories/sheet-repo';
 import { TransactionRepo } from '../../repositories/transaction-repo';
 import { PersonnelRepo } from '../../repositories/personnel-repo';
 import { AuditRepo } from '../../repositories/audit-repo';
+import { PlannedRepo } from '../../repositories/planned-repo';
+import { InvoiceRepo } from '../../repositories/invoice-repo';
+import { AttachmentRepo } from '../../repositories/attachment-repo';
+import { CategoryRepo } from '../../repositories/category-repo';
+import { ActivityNotesRepo } from '../../repositories/activity-notes-repo';
 import { AiAuthorizationStore } from '../ai-authorization-store';
 import { AiAccessBroker } from '../ai-access-broker';
 import { AiBridge } from '../ai-bridge';
@@ -21,9 +26,10 @@ let root: string; let db: Database.Database; let ctx: WindowContext; let store: 
 const policy = { sheetIds: ['main'], fields: ['description'] as ['description'], permissions: { allowAdd: true, allowStatementUploads: true } };
 const password = 'synthetic-owner-password';
 const sheetCreated = vi.fn();
+const cleanupCommitted = vi.fn();
 function makeBroker() {
   bridge = new AiBridge({ isCurrent: (candidate) => candidate === ctx, isPreparing: () => false, onChanged: () => undefined, beforeApply: async () => undefined });
-  return new AiAccessBroker({ discoveryFile: path.join(root, 'endpoint.json'), store, bridge, contexts: () => [ctx], preparing: () => false, changed: () => undefined, sheetCreated });
+  return new AiAccessBroker({ discoveryFile: path.join(root, 'endpoint.json'), store, bridge, contexts: () => [ctx], preparing: () => false, changed: () => undefined, sheetCreated, cleanupCommitted });
 }
 function adapter() {
   let secret: string | null = null;
@@ -38,16 +44,74 @@ async function approve() {
 }
 beforeEach(async () => {
   sheetCreated.mockReset();
+  cleanupCommitted.mockReset();
   root = fs.mkdtempSync(path.join(os.tmpdir(), 'fidra-access-')); db = openDatabase(path.join(root, 'ledger.fdra')).db;
   const sheets = new SheetRepo(db); sheets.create('main', 'Main'); sheets.create('private', 'Private');
   const transactions = new TransactionRepo(db);
-  ctx = { sqlite: db, dbPath: path.join(root, 'ledger.fdra'), databaseId: 'test-ledger-id', isClosed: false, isLocalSyncAuthEnabled: false, localAuthPersonnel: null, sheetRepo: sheets, transactionRepo: transactions, repos: { transactions, sheets }, settingsRepo: new SettingsRepo(db), personnelRepo: new PersonnelRepo(db), auditRepo: new AuditRepo(db), reconciliation: new ReconciliationService(db) } as unknown as WindowContext;
+  const planned = new PlannedRepo(db), invoices = new InvoiceRepo(db), attachments = new AttachmentRepo(db);
+  ctx = { sqlite: db, dbPath: path.join(root, 'ledger.fdra'), databaseId: randomUUID(), isClosed: false, isLocalSyncAuthEnabled: false, localAuthPersonnel: null,
+    sheetRepo: sheets, transactionRepo: transactions, plannedRepo: planned, invoiceRepo: invoices, attachmentRepo: attachments,
+    repos: { transactions, sheets, planned, invoices, attachments, categories: new CategoryRepo(db), activityNotes: new ActivityNotesRepo(db) }, settingsRepo: new SettingsRepo(db), personnelRepo: new PersonnelRepo(db),
+    auditRepo: new AuditRepo(db), reconciliation: new ReconciliationService(db) } as unknown as WindowContext;
+  ctx.settingsRepo.setSetting('backup.dir', path.join(root, 'backups'));
   const key = randomBytes(32); available = true;
   store = new AiAuthorizationStore(path.join(root, 'authorizations.enc'), { available: () => available, encrypt: (value) => { const iv = randomBytes(12); const cipher = createCipheriv('aes-256-gcm', key, iv); const bytes = Buffer.concat([cipher.update(value), cipher.final()]); return Buffer.concat([iv, cipher.getAuthTag(), bytes]); }, decrypt: (value) => { const cipher = createDecipheriv('aes-256-gcm', key, value.subarray(0, 12)); cipher.setAuthTag(value.subarray(12, 28)); return Buffer.concat([cipher.update(value.subarray(28)), cipher.final()]).toString(); } });
   broker = makeBroker(); broker.unlockOwner(ctx, 'Trial owner', password); await broker.start(); client = adapter();
 });
 afterEach(() => { vi.useRealTimers(); broker.stop(); db.close(); fs.rmSync(root, { recursive: true, force: true }); });
 describe('persistent administrator approval', () => {
+  it('routes statement-free plans and actual edits over signed MCP with live capabilities and native Undo', async () => {
+    const pending = data(await call('connect_fidra')).pending;
+    broker.approve(ctx, pending.id, { sheetIds: ['main'], fields: ['description'], permissions: {
+      capabilities: ['planned.read', 'planned.manage', 'transactions.read', 'transactions.manage'] } });
+    const input = { requestId: randomUUID(), label: 'Synthetic planned dinner fee', actions: [{ kind: 'create_planned', value: {
+      startDate: '2026-11-30', description: 'Dinner fee', amount: '25.00', type: 'income', frequency: 'once', sheetId: 'main',
+      category: null, party: null, activity: null, notes: null, endDate: null, occurrenceCount: null, transferSheetId: null,
+    }, reason: 'The owner requested this future payment.' }] };
+    const preview = data(await call('prepare_ledger_changes', input));
+    expect(preview.state).toBe('ready'); expect(ctx.plannedRepo.getAll()).toEqual([]);
+    expect(data(await call('apply_ledger_changes', { id: preview.id, digest: preview.digest })).state).toBe('committed');
+    expect(cleanupCommitted).toHaveBeenCalledTimes(1); expect(ctx.plannedRepo.getAll()).toHaveLength(1);
+    expect(data(await call('get_ledger_changes', { id: preview.id })).state).toBe('committed');
+    broker.changeLedgerCleanup(ctx, { id: preview.id, direction: 'undo' }); expect(ctx.plannedRepo.getAll()).toEqual([]);
+    expect(data(await call('apply_ledger_changes', { id: preview.id, digest: preview.digest })).state).toBe('undone');
+    expect((await call('prepare_ledger_changes', { ...input, requestId: randomUUID(), actions: [{ kind: 'create_planned', value: { ...input.actions[0].value, sheetId: 'private' }, reason: 'Unapproved account' }] })).error.message).toContain('outside');
+    broker.revoke(ctx, broker.state(ctx).authorizations[0].id);
+    expect((await call('get_ledger_changes', { id: preview.id })).error).toBeDefined();
+  });
+  it('routes semantic cleanup over signed MCP and keeps destructive approval and Undo native', async () => {
+    const pending = data(await call('connect_fidra')).pending;
+    broker.approve(ctx, pending.id, { sheetIds: [], fields: ['description'], permissions: { allAccounts: true,
+      capabilities: ['transactions.read', 'transactions.manage', 'transactions.delete', 'transfers.manage'] } });
+    const now = new Date().toISOString();
+    ctx.transactionRepo.save({ id: 'out', date: '2026-10-24', description: 'Synthetic out', amount: '12.00', type: 'expense', status: 'pending', sheet: 'Main',
+      category: null, party: null, reference: null, notes: null, activity: null, linked_id: null, version: 1, created_at: now, modified_at: null, modified_by: null });
+    const input = { requestId: randomUUID(), label: 'Synthetic reviewed cleanup', actions: [{ kind: 'replace_with_transfer', entries: [{ id: 'out', version: 1 }],
+      fromSheetId: 'main', toSheetId: 'private', description: 'Synthetic transfer', reason: 'The source identifies both accounts.' }] };
+    const preview = data(await call('prepare_ledger_cleanup', input));
+    expect(preview).toMatchObject({ state: 'draft', transferCount: 1 });
+    expect(ctx.transactionRepo.getAll()).toHaveLength(1);
+    expect((await call('apply_ledger_cleanup', { id: preview.id, digest: preview.digest })).error.message).toContain('inside Fidra');
+    expect((await call('apply_ledger_cleanup', { id: preview.id, digest: preview.digest, approve: true })).error).toBeDefined();
+    expect((await call('review_ledger_cleanup', { id: preview.id, digest: preview.digest, approve: true })).error).toBeDefined();
+    expect(broker.ledgerCleanups(ctx)[0].state).toBe('draft');
+    broker.reviewLedgerCleanup(ctx, { id: preview.id, digest: preview.digest, approve: true });
+    broker.stop(); broker = makeBroker(); await broker.start();
+    expect(broker.ledgerCleanups(ctx)).toEqual([]); broker.unlockOwner(ctx, 'Trial owner', password);
+    expect(data(await call('get_ledger_cleanup', { id: preview.id })).state).toBe('approved');
+    expect(data(await call('apply_ledger_cleanup', { id: preview.id, digest: preview.digest })).state).toBe('committed');
+    expect(cleanupCommitted).toHaveBeenCalledTimes(1);
+    expect(ctx.transactionRepo.getAll()).toHaveLength(2);
+    expect(ctx.transactionRepo.getAll().find((row) => row.type === 'income')?.status).toBe('--');
+    expect(data(await call('apply_ledger_cleanup', { id: preview.id, digest: preview.digest })).state).toBe('committed');
+    expect(cleanupCommitted).toHaveBeenCalledTimes(1);
+    broker.changeLedgerCleanup(ctx, { id: preview.id, direction: 'undo' });
+    expect(ctx.transactionRepo.getById('out')).not.toBeNull();
+    expect(data(await call('apply_ledger_cleanup', { id: preview.id, digest: preview.digest })).state).toBe('undone');
+    const grant = broker.state(ctx).authorizations[0]; broker.revoke(ctx, grant.id);
+    expect((await call('get_ledger_cleanup', { id: preview.id })).error).toBeDefined();
+    expect(broker.ledgerCleanups(ctx)).toEqual([]);
+  });
   it('creates sheets only after explicit native permission, deduplicates signed retries and survives restart', async () => {
     const pending = data(await call('connect_fidra')).pending;
     expect((await call('create_sheet', { requestId: '00000000-0000-4000-8000-000000000001', name: 'New' })).error).toBeDefined();
@@ -83,6 +147,7 @@ describe('persistent administrator approval', () => {
     expect(connection.permissions).toMatchObject({ capabilities: [], allAccounts: false });
     expect((await call('read_transactions', { from: '2026-10-01', to: '2026-10-31' })).error.message).toContain('permission');
     expect((await call('create_sheet', { requestId: '00000000-0000-4000-8000-000000000001', name: 'New' })).error.message).toContain('permission');
+    expect((await call('prepare_ledger_cleanup', { requestId: randomUUID(), label: 'Denied', actions: [{ kind: 'fix_income_status', entries: [{ id: 'unknown', version: 1 }], reason: 'Denied' }] })).error.message).toContain('permission');
     expect((await call('read_context', { from: '2026-10-01', to: '2026-10-31', permissions: { allAccounts: true } })).error).toBeDefined();
     expect(data(await call('list_connections'))[0].permissions).toEqual(connection.permissions);
   });

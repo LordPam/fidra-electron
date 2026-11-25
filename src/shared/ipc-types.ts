@@ -426,6 +426,8 @@ export interface IpcChannels {
   'ai:approve': { args: [import('./reconciliation-types').ReconciliationApproval]; result: import('./reconciliation-types').ReconciliationCommit };
   'ai:undo': { args: [string]; result: void };
   'ai:changeSheetCreation': { args: [import('./ai-sheet-types').AiSheetHistory]; result: import('./ai-sheet-types').AiSheetCreation };
+  'ai:reviewCleanup': { args: [import('./ledger-cleanup-types').LedgerCleanupReview]; result: import('./ledger-cleanup-types').LedgerCleanupPreview };
+  'ai:changeCleanup': { args: [import('./ledger-cleanup-types').LedgerCleanupHistory]; result: import('./ledger-cleanup-types').LedgerCleanupPreview };
   'invitation:open': { args: []; result: { invitation: import('./invitation-types').FidraInvitation; syncFolder: string | null } | null };
   'invitation:save': { args: [import('./invitation-types').FidraInvitation]; result: boolean };
   'device:getInfo': { args: []; result: import('./device-types').DeviceDataInfo };

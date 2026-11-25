@@ -16,6 +16,10 @@ import { aiRunSync } from './ai-sync-operations';
 import { aiCreateBackup, aiReadBackups } from './ai-backup-operations';
 import { aiCreateSheet } from './ai-sheet-operations';
 import type { AiSheetCreation } from '../../shared/ai-sheet-types';
+import { LedgerCleanupService } from './ledger-cleanup';
+import type { LedgerCleanupPreview } from '../../shared/ledger-cleanup-types';
+import { ledgerCleanupHistorySchema, ledgerCleanupReviewSchema } from '../../shared/ledger-cleanup-types';
+import { LedgerChangeService } from './ledger-changes';
 
 const publicKeySchema = z.string().max(200).refine((value) => {
   try { return createPublicKey({ key: Buffer.from(value, 'base64'), type: 'spki', format: 'der' }).asymmetricKeyType === 'ed25519'; }
@@ -33,10 +37,13 @@ interface BrokerOptions {
   discoveryFile: string; store: AiAuthorizationStore; bridge: AiBridge;
   contexts(): WindowContext[]; preparing(): boolean; changed(): void;
   sheetCreated?(context: WindowContext, creation: AiSheetCreation): void;
+  cleanupCommitted?(context: WindowContext, preview: LedgerCleanupPreview, recordUndo: boolean): void;
 }
 
 /** Native consent is the only path to durable access. Signed requests prove possession of an OS-stored installation key. */
 export class AiAccessBroker {
+  private readonly cleanups: LedgerCleanupService;
+  private readonly changes: LedgerChangeService;
   private server: Server | null = null;
   private serverId = randomUUID();
   private port = 0;
@@ -45,7 +52,32 @@ export class AiAccessBroker {
   private readonly pending = new Map<string, Pending>();
   private readonly unlocked = new Map<string, string>();
   private readonly sessions = new Map<string, { context: WindowContext; id: string; query: string }>();
-  constructor(private readonly options: BrokerOptions) {}
+  constructor(private readonly options: BrokerOptions) {
+    this.cleanups = new LedgerCleanupService(options.store);
+    this.changes = new LedgerChangeService(options.store);
+  }
+
+  private activeCleanupConnections(ctx: WindowContext) {
+    return new Set(this.options.store.read().authorizations.filter((record) => this.allowed(record, ctx)).map((record) => record.id));
+  }
+  ledgerCleanups(ctx: WindowContext): LedgerCleanupPreview[] {
+    if (!this.options.store.available() || this.ownerStatus(ctx) !== 'admin' || this.paused || this.options.preparing()) return [];
+    const connections = this.activeCleanupConnections(ctx);
+    return [...this.cleanups.list(ctx, connections), ...this.changes.list(ctx, connections)];
+  }
+  reviewLedgerCleanup(ctx: WindowContext, raw: unknown) {
+    const reviewer = this.identity(ctx);
+    const input = ledgerCleanupReviewSchema.parse(raw);
+    const result = this.changes.has(ctx, input.id) ? this.changes.review(ctx, this.activeCleanupConnections(ctx), reviewer.name, input) : this.cleanups.review(ctx, this.activeCleanupConnections(ctx), reviewer.name, input);
+    this.options.changed(); return result;
+  }
+  changeLedgerCleanup(ctx: WindowContext, raw: unknown) {
+    if (this.options.preparing()) throw new Error('Fidra is preparing to close.');
+    const input = ledgerCleanupHistorySchema.parse(raw);
+    const result = this.changes.has(ctx, input.id) ? this.changes.history(ctx, input) : this.cleanups.history(ctx, input);
+    try { this.options.cleanupCommitted?.(ctx, result, false); } catch { console.warn('[AI] Cleanup history completed; refresh its window.'); }
+    this.options.changed(); return result;
+  }
 
   ownerStatus(ctx: WindowContext): AiAccessState['owner'] {
     if (ctx.temporaryDirectory || ctx.isClosed) return 'unavailable';
@@ -159,6 +191,36 @@ export class AiAccessBroker {
     if (!record) throw new Error(records.length ? 'Choose an approved connectionId from list_connections.' : 'Use connect_fidra and obtain administrator approval first.');
     const ctx = this.options.contexts().find((candidate) => this.allowed(record, candidate));
     if (!ctx) throw new Error('Fidra access is paused. Open the approved ledger and sign in as the authorised administrator, or unlock its standalone owner.');
+    if (['prepare_ledger_changes', 'get_ledger_changes', 'apply_ledger_changes'].includes(call.name)) {
+      const access = { policy: record.policy, isCurrent: () => this.allowed(record, ctx) };
+      const actor = `${this.identity(ctx).name} via ${record.client}`;
+      if (call.name === 'apply_ledger_changes') {
+        const result = await this.changes.apply(ctx, access, record.id, actor, args);
+        if (result.changed) {
+          try { this.options.cleanupCommitted?.(ctx, result.preview, true); } catch { console.warn('[AI] Ledger changes completed; refresh its window.'); }
+          this.options.changed();
+        }
+        return { content: [{ type: 'text', text: JSON.stringify(result.preview) }] };
+      }
+      const result = call.name === 'prepare_ledger_changes' ? this.changes.prepare(ctx, access, record.id, actor, args) : this.changes.get(ctx, access, record.id, args);
+      if (call.name === 'prepare_ledger_changes') this.options.changed();
+      return { content: [{ type: 'text', text: JSON.stringify(result) }] };
+    }
+    if (['prepare_ledger_cleanup', 'get_ledger_cleanup', 'apply_ledger_cleanup'].includes(call.name)) {
+      const access = { policy: record.policy, isCurrent: () => this.allowed(record, ctx) };
+      const actor = `${this.identity(ctx).name} via ${record.client}`;
+      if (call.name === 'apply_ledger_cleanup') {
+        const result = await this.cleanups.apply(ctx, access, record.id, actor, args);
+        if (result.changed) {
+          try { this.options.cleanupCommitted?.(ctx, result.preview, true); } catch { console.warn('[AI] Cleanup completed; refresh its window.'); }
+          this.options.changed();
+        }
+        return { content: [{ type: 'text', text: JSON.stringify(result.preview) }] };
+      }
+      const result = call.name === 'prepare_ledger_cleanup' ? this.cleanups.prepare(ctx, access, record.id, actor, args) : this.cleanups.get(ctx, access, record.id, args);
+      if (call.name === 'prepare_ledger_cleanup') this.options.changed();
+      return { content: [{ type: 'text', text: JSON.stringify(result) }] };
+    }
     if (call.name === 'create_sheet') {
       const result = aiCreateSheet(ctx, { policy: record.policy, isCurrent: () => this.allowed(record, ctx) }, record.id,
         `${this.identity(ctx).name} via ${record.client}`, args);

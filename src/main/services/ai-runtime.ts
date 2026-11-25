@@ -13,6 +13,7 @@ import { createBackup, getBackupSettings } from './backup-service';
 import type { WindowContext } from '../window/window-context';
 import type { AiSheetCreation } from '../../shared/ai-sheet-types';
 import { notifyAiSheetWindows } from './ai-sheet-notifications';
+import { notifyLedgerCleanupWindows } from './ledger-cleanup-notifications';
 
 export function notifyAiSheetChange(context: WindowContext, creation: AiSheetCreation, recordUndo = false): void {
   notifyAiSheetWindows(context, getWindowManager().getAllContexts(), creation, recordUndo);
@@ -47,6 +48,7 @@ export const personalAiAccess = new AiAccessBroker({
   bridge: personalAiBridge, contexts: () => getWindowManager().getAllContexts(),
   preparing: () => getWindowManager().isPreparingOperation,
   sheetCreated: (context, creation) => notifyAiSheetChange(context, creation, true),
+  cleanupCommitted: (context, preview, recordUndo) => notifyLedgerCleanupWindows(context, getWindowManager().getAllContexts(), preview, recordUndo),
   changed: () => { for (const ctx of getWindowManager().getAllContexts()) if (!ctx.isClosed) ctx.sendToRenderer('ai:changed'); },
 });
 

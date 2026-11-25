@@ -6,6 +6,7 @@ import { useSheetStore } from '@/stores/sheet-store';
 import { useUndoStore } from '@/stores/undo-store';
 import type { AiBridgeState } from '../../shared/ai-bridge-types';
 import { applicationCapabilityDetails } from '../../shared/application-capabilities';
+import { LedgerCleanupReview } from './LedgerCleanupReview';
 
 export function PersonalAiSettings() {
   const [state, setState] = useState<AiBridgeState | null>(null);
@@ -51,6 +52,9 @@ export function PersonalAiSettings() {
         {proposal.rows.map((row, index) => <p key={index} className="text-xs">{row.source.date} · £{row.source.amount} · {row.description} · {row.action}</p>)}
         {proposal.state === 'committed' && <Button className="mt-3" variant="outline" disabled={busy || undoId !== `reconciliation:${proposal.id}`} onClick={() => { void run(undo); }}>Undo this import</Button>}
       </details>)}
+      {state?.cleanups?.map((preview) => <LedgerCleanupReview key={`${preview.id}:${preview.digest}`} preview={preview} busy={busy}
+        canUndo={undoId === `ledger-cleanup:${preview.id}`} onUndo={() => { void run(undo); }}
+        onReview={(approve) => { void run(() => window.api.reviewLedgerCleanup({ id: preview.id, digest: preview.digest, approve })); }} />)}
       {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
     </CardContent>
   </Card>;

@@ -6,12 +6,19 @@ import { useSheetStore } from '../stores/sheet-store';
 import { useCategoryStore } from '../stores/category-store';
 import { useInvoiceStore } from '../stores/invoice-store';
 import { useAttachmentSignal } from '../stores/attachment-signal';
+import { useLedgerCleanupStore } from '../stores/ledger-cleanup-store';
 
 export interface UndoCommand {
   id?: string;
   execute: () => Promise<void>;
   undo: () => Promise<void>;
   description: string;
+}
+
+export function createLedgerCleanupCommand(receipt: import('../../shared/ledger-cleanup-types').LedgerCleanupReceipt): UndoCommand {
+  return { id: `ledger-cleanup:${receipt.id}`, description: receipt.label,
+    execute: () => useLedgerCleanupStore.getState().changeHistory(receipt.id, 'redo'),
+    undo: () => useLedgerCleanupStore.getState().changeHistory(receipt.id, 'undo') };
 }
 
 export function createAddTransferCommand(expense: TransactionRow, income: TransactionRow): UndoCommand {

@@ -74,6 +74,102 @@ test('sheet creation uses native permission, refreshes the view and supports gua
   expect((await window.evaluate(() => window.api.getSheets())).map((sheet) => sheet.name)).not.toContain('Denied');
 });
 
+test('general ledger edits create statement-free plans, split receipts and record native Undo without expanding consent', async ({ window, userHome }) => {
+  await window.locator('a[href="#/settings"]').click();
+  await window.getByLabel('Owner name', { exact: true }).fill('Synthetic owner');
+  await window.getByLabel('Owner password', { exact: true }).fill('synthetic-owner-password');
+  await window.getByRole('button', { name: 'Set access owner', exact: true }).click();
+  const call = aiClient(userHome);
+  const pending = content(await call('connect_fidra')).pending;
+  await window.getByRole('button', { name: 'Review connection request' }).click();
+  const dialog = window.getByRole('dialog');
+  await expect(dialog.getByText(pending.code, { exact: true })).toBeVisible();
+  await dialog.getByLabel('This code matches the connection I requested in my AI app', { exact: true }).check();
+  for (const name of ['Read transactions in permitted accounts', 'Create and edit transactions', 'Read planned payments', 'Create, edit and fulfil planned payments']) await dialog.getByLabel(name, { exact: true }).check();
+  await dialog.getByRole('button', { name: 'Allow access', exact: true }).click();
+  const accounts = content(await call('list_connections'))[0].accounts;
+  const main = accounts.find((row: { name: string }) => row.name === 'General');
+  expect(main).toBeTruthy();
+  await window.evaluate(async () => {
+    await window.api.saveTransaction({ id: 'split-receipt', date: '2026-11-25', description: 'Two fees paid together', amount: '50.00', type: 'income', status: '--', sheet: 'General',
+      category: null, party: null, reference: null, activity: null, notes: null, linked_id: null, version: 1, created_at: '2026-11-25T12:00:00Z', modified_at: null, modified_by: null });
+  });
+  const optional = { category: null, party: null, activity: null, notes: null };
+  const input = { requestId: crypto.randomUUID(), label: 'Synthetic dinner and trip changes', actions: [
+    { kind: 'create_planned', value: { ...optional, description: 'Expected dinner fee', startDate: '2026-11-30', amount: '25.00', type: 'income', sheetId: main.id,
+      frequency: 'once', endDate: null, occurrenceCount: null, transferSheetId: null }, reason: 'The owner requested one expected payment.' },
+    { kind: 'split_transaction', id: 'split-receipt', version: 1, parts: [
+      { description: 'Dinner fee', amount: '25.00' }, { description: 'Weekend trip fee (driver)', amount: '25.00' },
+    ], reason: 'The owner confirmed two fees paid together.' },
+  ] };
+  const preview = content(await call('prepare_ledger_changes', input));
+  expect(preview.state).toBe('ready'); expect(await window.evaluate(() => window.api.getPlannedTemplates())).toEqual([]);
+  expect(content(await call('apply_ledger_changes', { id: preview.id, digest: preview.digest })).state).toBe('committed');
+  await expect.poll(() => window.evaluate(() => window.api.getPlannedTemplates()).then((rows) => rows.length)).toBe(1);
+  expect((await window.evaluate(() => window.api.getTransactions())).map((row) => row.amount)).toEqual(['25.00', '25.00']);
+  await expect(window.getByText('Synthetic dinner and trip changes · Applied', { exact: true })).toBeVisible();
+  await window.getByText('Synthetic dinner and trip changes · Applied', { exact: true }).click();
+  await window.getByRole('button', { name: 'Undo these changes', exact: true }).click();
+  await expect.poll(() => window.evaluate(() => window.api.getPlannedTemplates()).then((rows) => rows.length)).toBe(0);
+  expect((await window.evaluate(() => window.api.getTransactions()))[0].amount).toBe('50.00');
+  expect(content(await call('apply_ledger_changes', { id: preview.id, digest: preview.digest })).state).toBe('undone');
+  expect((await call('prepare_ledger_changes', { ...input, requestId: crypto.randomUUID(), actions: [{ kind: 'set_financial_year', expected: 1, startMonth: 9, reason: 'Not approved' }] })).error).toBeDefined();
+});
+
+test('ledger cleanup requires native destructive review and supports atomic linked transfers, income defaults and Undo/Redo', async ({ window, userHome }) => {
+  await window.locator('a[href="#/settings"]').click();
+  await window.getByLabel('Owner name', { exact: true }).fill('Synthetic owner');
+  await window.getByLabel('Owner password', { exact: true }).fill('synthetic-owner-password');
+  await window.getByRole('button', { name: 'Set access owner', exact: true }).click();
+  const call = aiClient(userHome); await call('connect_fidra');
+  await window.getByRole('button', { name: 'Review connection request' }).click();
+  const dialog = window.getByRole('dialog');
+  await dialog.getByLabel('This code matches the connection I requested in my AI app', { exact: true }).check();
+  await dialog.getByLabel('All current and future accounts, including ledger-wide operations', { exact: true }).check();
+  for (const label of ['Read transactions in permitted accounts', 'Create and edit transactions', 'Delete transactions', 'Record and edit internal ledger transfers', 'Create, rename, merge, delete and reorder accounts']) await dialog.getByLabel(label, { exact: true }).check();
+  await dialog.getByRole('button', { name: 'Allow access', exact: true }).click();
+  const mainId = await window.evaluate(async () => {
+    await window.api.createSheet('cleanup-pocket', 'Pocket');
+    const sheet = (await window.api.getSheets()).find((row) => row.name === 'General');
+    if (!sheet) throw new Error('Missing synthetic main sheet');
+    const now = '2026-11-04T12:00:00Z';
+    for (const [id, type, amount] of [['cleanup-out', 'expense', '12.00'], ['cleanup-in', 'income', '12.00'], ['cleanup-move', 'income', '3.00']] as const) {
+      await window.api.saveTransaction({ id, date: '2026-10-24', description: `Synthetic ${id}`, amount, type, status: 'pending', sheet: 'General',
+        category: null, party: null, reference: null, activity: null, notes: null, linked_id: null, version: 1, created_at: now, modified_at: null, modified_by: null });
+    }
+    return sheet.id;
+  });
+  const input = { requestId: crypto.randomUUID(), label: 'Synthetic ledger cleanup', actions: [
+    { kind: 'rename_sheet', sheetId: mainId, expectedName: 'General', name: 'Synthetic: Personal', reason: 'Preserve history while renaming.' },
+    { kind: 'move_entries', entries: [{ id: 'cleanup-move', version: 1 }], targetSheetId: 'cleanup-pocket', reason: 'Move this identified pocket income.' },
+    { kind: 'replace_with_transfer', entries: [{ id: 'cleanup-out', version: 1 }, { id: 'cleanup-in', version: 1 }], fromSheetId: mainId, toSheetId: 'cleanup-pocket', description: 'Synthetic linked transfer', reason: 'Match the two statement sides as an internal transfer.' },
+  ] };
+  const preview = content(await call('prepare_ledger_cleanup', input));
+  expect(preview.state).toBe('draft');
+  expect((await call('apply_ledger_cleanup', { id: preview.id, digest: preview.digest })).error.message).toContain('inside Fidra');
+  expect((await window.evaluate(() => window.api.getTransactions())).every((row) => row.linked_id === null)).toBe(true);
+  await window.getByText('Synthetic ledger cleanup · Review required', { exact: true }).click();
+  await expect(window.getByRole('button', { name: 'Approve this cleanup', exact: true })).toBeDisabled();
+  await window.getByLabel('I reviewed the accounts, dates, amounts and removals', { exact: true }).check();
+  await window.getByRole('button', { name: 'Approve this cleanup', exact: true }).click();
+  expect(content(await call('get_ledger_cleanup', { id: preview.id })).state).toBe('approved');
+  expect(content(await call('apply_ledger_cleanup', { id: preview.id, digest: preview.digest })).state).toBe('committed');
+  expect(content(await call('apply_ledger_cleanup', { id: preview.id, digest: preview.digest })).state).toBe('committed');
+  await expect(window.getByRole('status', { name: 'AI ledger cleanup applied', exact: true })).toBeVisible();
+  const after = await window.evaluate(() => window.api.getTransactions());
+  expect(after).toHaveLength(3); expect(after.filter((row) => row.linked_id)).toHaveLength(2);
+  expect(after.filter((row) => row.type === 'income').every((row) => row.status === '--')).toBe(true);
+  expect(after.find((row) => row.id === 'cleanup-move')?.sheet).toBe('Pocket');
+  expect((await window.evaluate(() => window.api.backupList()))).toHaveLength(1);
+  await window.getByRole('button', { name: 'Undo this cleanup', exact: true }).click();
+  await expect.poll(() => window.evaluate(() => window.api.getTransactions()).then((rows) => rows.some((row) => row.id === 'cleanup-out'))).toBe(true);
+  expect(content(await call('apply_ledger_cleanup', { id: preview.id, digest: preview.digest })).state).toBe('undone');
+  await window.locator('a[href="#/transactions"]').click();
+  await window.getByTitle('Redo: Synthetic ledger cleanup', { exact: true }).click();
+  await expect.poll(() => window.evaluate(() => window.api.getTransactions()).then((rows) => rows.filter((row) => row.linked_id).length)).toBe(2);
+  expect((await window.evaluate(() => window.api.getTransactions())).filter((row) => row.type === 'income').every((row) => row.status === '--')).toBe(true);
+});
+
 test('plugin initiates a persistent permission prompt, imports a statement, and supports native Undo', async ({ window, app, userHome }) => {
   await window.locator('a[href="#/settings"]').click();
   await expect(window.getByRole('button', { name: 'Save ChatGPT extension (trial)' })).toHaveCount(0);
