@@ -86,6 +86,10 @@ test('general ledger edits create statement-free plans, split receipts and recor
   await expect(dialog.getByText(pending.code, { exact: true })).toBeVisible();
   await dialog.getByLabel('This code matches the connection I requested in my AI app', { exact: true }).check();
   for (const name of ['Read transactions in permitted accounts', 'Create and edit transactions', 'Read planned payments', 'Create, edit and fulfil planned payments']) await dialog.getByLabel(name, { exact: true }).check();
+  await expect(dialog.getByRole('button', { name: 'Allow access', exact: true })).toBeDisabled();
+  await dialog.getByLabel('General', { exact: true }).check();
+  await expect(dialog.getByLabel('All current and future accounts, including ledger-wide operations', { exact: true })).not.toBeChecked();
+  await expect(dialog.getByRole('button', { name: 'Allow access', exact: true })).toBeEnabled();
   await dialog.getByRole('button', { name: 'Allow access', exact: true }).click();
   const accounts = content(await call('list_connections'))[0].accounts;
   const main = accounts.find((row: { name: string }) => row.name === 'General');
