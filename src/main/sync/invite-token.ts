@@ -4,6 +4,7 @@ import path from 'node:path';
 import { decodeInvitationPayload } from './invitation';
 import { wrapPassphrase, unwrapPassphrase } from './key-wrap';
 import { syncLog, errorMessage } from './sync-log';
+import { ensureSyncSubdirectory } from './bundle-io';
 
 const INVITES_SUBDIR = 'invites';
 const INVITE_EXT = '.invite';
@@ -46,8 +47,7 @@ export function writeInviteToken(
   password: string,
   syncPassphrase: string,
 ): string {
-  const invitesDir = path.join(syncFolder, INVITES_SUBDIR);
-  fs.mkdirSync(invitesDir, { recursive: true });
+  const invitesDir = ensureSyncSubdirectory(syncFolder, INVITES_SUBDIR);
 
   const filename = hashEmail(email) + INVITE_EXT;
   const filePath = path.join(invitesDir, filename);

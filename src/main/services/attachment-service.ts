@@ -4,7 +4,8 @@ import { shell } from 'electron';
 import type { AttachmentRow } from '../../shared/ipc-types';
 import type { WindowContext } from '../window/window-context';
 import { getAttachmentStoragePath } from '../database/connection';
-import { writeAttachmentFile, readAttachmentFile, removeAttachmentFile } from '../sync/attachment-transport';
+import { writeAttachmentFile, readAttachmentFile } from '../sync/attachment-transport';
+import { assertFolderBinding } from '../sync/folder-binding';
 import { toAmountString } from '../../shared/money';
 
 const MIME_MAP: Record<string, string> = {
@@ -188,14 +189,17 @@ export async function openAttachment(id: string, ctx: WindowContext): Promise<bo
   const localPath = safePath(storageDir, attachment.stored_name);
 
   if (!fs.existsSync(localPath)) {
-    // Try Local Sync shared folder (plain or legacy .enc)
+    // Only authenticated encrypted transport is accepted automatically.
     const syncFolder = ctx.localSyncOrchestrator
       ? ctx.settingsRepo.getSetting('localSync.syncFolder')
       : null;
     if (syncFolder) {
       try {
+        const binding = assertFolderBinding(ctx.sqlite, syncFolder);
+        const passphrase = ctx.localSyncPassphrase ?? ctx.settingsRepo.getSetting('localSync.passphrase');
+        if (!passphrase) return false;
         const pulled = readAttachmentFile(
-          syncFolder, attachment.stored_name, localPath, ctx.localSyncPassphrase ?? undefined,
+          syncFolder, attachment.stored_name, localPath, passphrase, binding.groupId,
         );
         if (pulled) {
           shell.openPath(localPath);
@@ -250,9 +254,14 @@ export function renameAttachmentsForTransaction(transactionId: string, ctx: Wind
     // If local file is missing but available in sync folder, pull it first
     if (!fs.existsSync(oldPath) && syncFolder) {
       try {
-        readAttachmentFile(syncFolder, attachment.stored_name, oldPath, ctx.localSyncPassphrase ?? undefined);
+        const binding = assertFolderBinding(ctx.sqlite, syncFolder);
+        const passphrase = ctx.localSyncPassphrase ?? ctx.settingsRepo.getSetting('localSync.passphrase');
+        if (passphrase) readAttachmentFile(syncFolder, attachment.stored_name, oldPath, passphrase, binding.groupId);
       } catch { /* non-fatal — file may just be gone */ }
     }
+
+    // Keep the original reference recoverable if transport is temporarily unavailable.
+    if (!fs.existsSync(oldPath)) continue;
 
     // Rename physical file
     if (fs.existsSync(oldPath)) {
@@ -262,13 +271,12 @@ export function renameAttachmentsForTransaction(transactionId: string, ctx: Wind
     // Update DB row
     ctx.repos.attachments.save({ ...attachment, stored_name: newStoredName });
 
-    // Sync folder maintenance: remove old name, export new name
+    // Retain old shared files for offline peers; safe pruning needs receipts.
     if (syncFolder && fs.existsSync(newPath)) {
       try {
-        removeAttachmentFile(syncFolder, attachment.stored_name);
-      } catch { /* non-fatal */ }
-      try {
-        writeAttachmentFile(syncFolder, newStoredName, newPath);
+        const binding = assertFolderBinding(ctx.sqlite, syncFolder);
+        const passphrase = ctx.localSyncPassphrase ?? ctx.settingsRepo.getSetting('localSync.passphrase');
+        if (passphrase) writeAttachmentFile(syncFolder, newStoredName, newPath, passphrase, binding.groupId);
       } catch {
         // Best-effort — the orchestrator's normal export cycle will also pick this up
       }

@@ -138,8 +138,11 @@ describe('FolderWatcher', () => {
         timeout: 5000,
       });
 
-      // Only the post-resume bundle should be detected
-      expect(detected.every((fp) => fp.includes('0000000002'))).toBe(true);
+      // Files arriving during pause must be reconciled after resume too.
+      await vi.waitFor(() => {
+        expect(detected.some((fp) => fp.includes('0000000001'))).toBe(true);
+        expect(detected.some((fp) => fp.includes('0000000002'))).toBe(true);
+      });
     } finally {
       watcher.stop();
     }
@@ -148,7 +151,7 @@ describe('FolderWatcher', () => {
   test('stop cleans up', () => {
     const watcher = new FolderWatcher({
       syncFolder: tmpDir,
-      onBundleDetected: () => {},
+      onBundleDetected: vi.fn(),
     });
 
     watcher.start();
@@ -158,10 +161,32 @@ describe('FolderWatcher', () => {
     expect(watcher.isRunning()).toBe(false);
   });
 
+  test('periodic reconciliation retries existing files without a new watcher event', async () => {
+    const bundle = path.join(syncDir, 'dev-1_0000000001.bundle');
+    fs.writeFileSync(bundle, 'not hydrated yet');
+    const reconcile = vi.fn();
+    const watcher = new FolderWatcher({
+      syncFolder: tmpDir,
+      pollIntervalMs: 30,
+      onBundleDetected: vi.fn(),
+      onReconcile: reconcile,
+    });
+    try {
+      watcher.start();
+      await vi.waitFor(() => expect(reconcile.mock.calls.length).toBeGreaterThanOrEqual(2));
+      watcher.pause();
+      const count = reconcile.mock.calls.length;
+      await sleep(100);
+      expect(reconcile).toHaveBeenCalledTimes(count);
+    } finally {
+      watcher.stop();
+    }
+  });
+
   test('start is idempotent', () => {
     const watcher = new FolderWatcher({
       syncFolder: tmpDir,
-      onBundleDetected: () => {},
+      onBundleDetected: vi.fn(),
     });
 
     try {

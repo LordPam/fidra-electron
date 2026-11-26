@@ -23,6 +23,7 @@ import { BackupRestoreDialog } from '@/dialogs/BackupRestoreDialog';
 import { cn } from '@/lib/utils';
 import { useWindowStore } from '@/stores/window-store';
 import { isCloudSyncedPath } from '../../shared/cloud-folder-detect';
+import { SyncDeliveryDetails } from '@/components/SyncDeliveryDetails';
 import logoLight from '@/assets/logo-light.svg';
 import logoDark from '@/assets/logo-dark.svg';
 
@@ -99,6 +100,7 @@ export default function SettingsView() {
   const lsState = useLocalSyncStore((s) => s.state);
   const lsSyncFolder = useLocalSyncStore((s) => s.syncFolder);
   const lsLastExportAt = useLocalSyncStore((s) => s.lastExportAt);
+  const lsDelivery = useLocalSyncStore((s) => s.delivery);
   const lsLastImportAt = useLocalSyncStore((s) => s.lastImportAt);
   const lsPendingConflicts = useLocalSyncStore((s) => s.pendingConflicts);
   const lsLastError = useLocalSyncStore((s) => s.lastError);
@@ -535,7 +537,7 @@ export default function SettingsView() {
             ) : (
               <div className="space-y-3">
                 <div className="flex flex-wrap items-center gap-2">
-                  <Badge variant="default" className="bg-green-600 text-xs">Enabled</Badge>
+                  <Badge variant="secondary" className="text-xs">Configured</Badge>
                   <Badge variant="secondary" className="text-xs capitalize">{lsState}</Badge>
                   {lsPendingConflicts > 0 && (
                     <Badge variant="destructive" className="text-xs">
@@ -555,12 +557,14 @@ export default function SettingsView() {
                     </>
                   )}
 
-                  <span className="text-muted-foreground">Last Export</span>
+                  <span className="text-muted-foreground">Last Folder Export</span>
                   <span>{lsLastExportAt ? formatRelativeTime(lsLastExportAt) : 'None this session'}</span>
 
                   <span className="text-muted-foreground">Last Import</span>
                   <span>{lsLastImportAt ? formatRelativeTime(lsLastImportAt) : 'None this session'}</span>
                 </div>
+
+                <SyncDeliveryDetails delivery={lsDelivery} />
 
                 {lsLastError && (
                   <p className="text-sm text-destructive">{lsLastError}</p>
@@ -570,8 +574,9 @@ export default function SettingsView() {
                   <div className="flex items-start gap-2 rounded-md bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
                     <Info className="h-3.5 w-3.5 mt-0.5 shrink-0" />
                     <span>
-                      Your database is in a cloud-synced folder. If sync settings seem to reset,
-                      just reconfigure Local Sync and everything will pick up where it left off.
+                      Your database is in a cloud-synced folder. Keep each device’s database locally
+                      and use the shared Local Sync folder to exchange changes. Reconfiguring alone
+                      does not recover missing history.
                     </span>
                   </div>
                 )}

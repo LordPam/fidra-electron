@@ -7,15 +7,22 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
+import crypto from 'node:crypto';
 import type Database from 'better-sqlite3';
 import { openDatabase, getAttachmentStoragePath } from '../database/connection';
 import { initializeCrr } from './crr-schema';
 import { applySnapshot } from './compaction';
 import { findLatestSnapshot, isBundleFile, parseBundleFilename, readBundleFile } from './bundle-io';
-import { unpackBundle } from './bundle-format';
+import { unpackBundle, BundleFormatError } from './bundle-format';
 import { BundleIntegrityError, BundleCryptoError } from './bundle-crypto';
-import { BundleFormatError } from './bundle-format';
 import { initializeDeviceIdentity } from './device-identity';
+import { bindExistingSyncFolder, readFolderManifest, assertFolderBinding } from './folder-binding';
+import { DeliveryReceipts } from './delivery-receipts';
+import { CausalHistory } from './causal-history';
+import { ConflictQueue } from './conflict-queue';
+import { AppliedBundles } from './applied-bundles';
+import { classifyChangesets, applyMergeResult } from './merge-gate';
+import { isImportableSyncRow } from './settings-filter';
 import { syncLog, errorMessage } from './sync-log';
 
 export interface MigrationResult {
@@ -48,7 +55,8 @@ export function joinLocalSync(opts: JoinLocalSyncOpts): MigrationResult {
     fs.accessSync(syncFolder, fs.constants.R_OK);
 
     // Find latest snapshot
-    const snapshot = findLatestSnapshot(syncFolder);
+    const manifest = readFolderManifest(syncFolder, passphrase);
+    const snapshot = findLatestSnapshot(syncFolder, passphrase, manifest.groupId);
     if (!snapshot) {
       return {
         success: false,
@@ -68,7 +76,8 @@ export function joinLocalSync(opts: JoinLocalSyncOpts): MigrationResult {
       initializeCrr(db);
 
       // Apply snapshot data
-      const snapshotResult = applySnapshot(db, snapshot.filePath, passphrase);
+      const snapshotResult = applySnapshot(db, snapshot.filePath, passphrase, { bootstrap: true, expectedGroupId: manifest.groupId });
+      bindExistingSyncFolder(db, syncFolder, passphrase);
 
       // Ensure applied_bundles table exists (normally created by SyncOrchestrator,
       // but we need it now to record the snapshot before the orchestrator starts)
@@ -85,30 +94,19 @@ export function joinLocalSync(opts: JoinLocalSyncOpts): MigrationResult {
           ON applied_bundles (device_id, sequence_number)
       `);
 
-      // Record the snapshot as applied so tryApplyLatestSnapshot() doesn't re-process it
-      const snapshotBundleId = `snapshot:${snapshotResult.deviceId}:${snapshotResult.sequenceNumber}`;
+      // Bootstrap evidence only; this never stands in for an exact bundle receipt.
+      const snapshotBundleId = `snapshot:${snapshotResult.bundleId}`;
       db.prepare(
         `INSERT OR IGNORE INTO applied_bundles (bundle_id, device_id, sequence_number, applied_at)
          VALUES (?, ?, ?, ?)`,
       ).run(snapshotBundleId, snapshotResult.deviceId, snapshotResult.sequenceNumber, new Date().toISOString());
 
-      // Seed applied_bundles with snapshot coverage so the orchestrator skips
-      // already-captured bundles during its first doImportAll()
-      if (snapshotResult.coveredDeviceSeqs) {
-        for (const [devId, maxSeq] of Object.entries(snapshotResult.coveredDeviceSeqs)) {
-          const coverageId = `snapshot-coverage:${devId}:${maxSeq}`;
-          db.prepare(
-            `INSERT OR IGNORE INTO applied_bundles (bundle_id, device_id, sequence_number, applied_at)
-             VALUES (?, ?, ?, ?)`,
-          ).run(coverageId, devId, maxSeq, new Date().toISOString());
-        }
-      }
-
-      // Import all bundles newer than the snapshot so the joiner DB has the
+      // Replay every available exact bundle through the merge gate so the joiner has the
       // complete current state. Without this, data created after the snapshot
       // (e.g., the invited personnel record) wouldn't exist when the caller
       // tries to set the joiner's password.
-      importBundlesAfterSnapshot(db, syncFolder, passphrase);
+      const identity = initializeDeviceIdentity(db, os.hostname());
+      importBundlesAfterSnapshot(db, syncFolder, passphrase, identity.deviceId);
 
       // Set lastExportedVersion watermark AFTER snapshot + bundle import so the
       // orchestrator's first doExport() doesn't re-export any of this data.
@@ -127,6 +125,7 @@ export function joinLocalSync(opts: JoinLocalSyncOpts): MigrationResult {
 
       // Ensure device identity exists (per-database, stored in sync_meta)
       initializeDeviceIdentity(db, os.hostname());
+      assertFolderBinding(db, syncFolder);
       opts.afterImport?.(db);
       db.pragma('wal_checkpoint(TRUNCATE)');
     } finally {
@@ -159,13 +158,16 @@ function importBundlesAfterSnapshot(
   db: Database.Database,
   syncFolder: string,
   passphrase: string,
+  deviceId: string,
 ): void {
+  const receipts = new DeliveryReceipts(db, deviceId);
   const syncDir = path.join(syncFolder, 'sync');
   let entries: string[];
   try {
     entries = fs.readdirSync(syncDir);
-  } catch {
-    return; // No sync dir yet
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return;
+    throw error;
   }
 
   // Collect and sort bundles by sequence number
@@ -173,7 +175,7 @@ function importBundlesAfterSnapshot(
   for (const entry of entries) {
     if (!isBundleFile(entry)) continue;
     const parsed = parseBundleFilename(entry);
-    if (!parsed) continue;
+    if (!parsed) throw new Error('An unrecognised bundle filename needs review before onboarding.');
     bundles.push({
       filePath: path.join(syncDir, entry),
       deviceId: parsed.deviceId,
@@ -184,50 +186,43 @@ function importBundlesAfterSnapshot(
 
   // Check which are already applied (snapshot coverage)
   const isApplied = db.prepare('SELECT 1 FROM applied_bundles WHERE bundle_id = ?');
-  const insertApplied = db.prepare(
-    `INSERT OR IGNORE INTO applied_bundles (bundle_id, device_id, sequence_number, applied_at)
-     VALUES (?, ?, ?, ?)`,
-  );
-  const insertChangeset = db.prepare(
-    `INSERT INTO crsql_changes
-     ("table", "pk", "cid", "val", "col_version", "db_version", "site_id", "cl", "seq")
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-  );
+  const applied = new AppliedBundles(db);
+  const history = new CausalHistory(db);
+  const queue = new ConflictQueue(db);
 
   let imported = 0;
   for (const bundle of bundles) {
     try {
       const data = readBundleFile(bundle.filePath);
+      applied.assertAppliedPayload(bundle.deviceId, bundle.sequenceNumber, data);
       const unpacked = unpackBundle(data, passphrase);
+      const group = db.prepare("SELECT value FROM settings WHERE key = 'localSync.groupId'").get() as { value: string } | undefined;
+      if (!group || unpacked.groupId !== group.value) throw new Error('Bundle team identity is missing or different. Reviewed recovery is required.');
 
       if (isApplied.get(unpacked.bundleId)) continue;
 
-      // Apply changesets directly (no merge gate — during join, all remote
-      // data is authoritative since we have no local edits yet)
-      const applyAll = db.transaction(() => {
-        for (const row of unpacked.changesets) {
-          const pk = typeof row.pk === 'string' ? Buffer.from(row.pk, 'utf-8') : row.pk;
-          insertChangeset.run(
-            row.table, pk, row.cid, row.val,
-            row.col_version, row.db_version, row.site_id, row.cl, row.seq,
-          );
-        }
-      });
-      applyAll();
-
-      insertApplied.run(
-        unpacked.bundleId, unpacked.deviceId, unpacked.sequenceNumber,
-        new Date().toISOString(),
-      );
+      if (unpacked.version !== 2 || unpacked.deviceId !== bundle.deviceId || unpacked.sequenceNumber !== bundle.sequenceNumber) {
+        throw new Error('Bundle protocol or identity mismatch during staged onboarding.');
+      }
+      const filtered = unpacked.changesets.filter((row) => isImportableSyncRow(row, group.value));
+      for (const row of filtered) if (typeof row.pk === 'string') row.pk = Buffer.from(row.pk);
+      const causalBundle = { deviceId: unpacked.deviceId, sequenceNumber: unpacked.sequenceNumber, observed: unpacked.observedBundles ?? {} };
+      const merge = classifyChangesets(db, filtered, { history, incoming: causalBundle });
+      db.transaction(() => {
+        applyMergeResult(db, merge, queue, unpacked.bundleId);
+        applied.insert(unpacked.bundleId, unpacked.deviceId, unpacked.sequenceNumber, data);
+        history.record(causalBundle, filtered, merge.conflicts.length === 0);
+        receipts.recordApplied({ sourceDeviceId: unpacked.deviceId, sequenceNumber: unpacked.sequenceNumber,
+          bundleId: unpacked.bundleId, payloadHash: crypto.createHash('sha256').update(data).digest('hex'), conflictsQueued: merge.conflicts.length });
+      })();
       imported++;
     } catch (e) {
       if (e instanceof BundleIntegrityError || e instanceof BundleCryptoError || e instanceof BundleFormatError) {
-        syncLog('warn', 'Skipping corrupt bundle during join import', { filePath: bundle.filePath, error: errorMessage(e) });
-        continue;
+        syncLog('warn', 'Unverified bundle blocks join import', { filePath: bundle.filePath, error: errorMessage(e) });
+        throw new Error('Team history is not fully verified. Wait for OneDrive or use reviewed recovery before joining.');
       }
-      // ENOENT = file disappeared (compaction) — skip
-      if ((e as NodeJS.ErrnoException).code === 'ENOENT') continue;
-      syncLog('warn', 'Skipping bundle during join import', { filePath: bundle.filePath, error: errorMessage(e) });
+      syncLog('warn', 'Failed bundle blocks join import', { filePath: bundle.filePath, error: errorMessage(e) });
+      throw new Error('Team history changed or could not be applied during onboarding. No account file was published; retry after sync completes.');
     }
   }
 

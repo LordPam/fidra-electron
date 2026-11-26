@@ -5,10 +5,11 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { openDatabase } from '../../database/connection';
 import { initializeCrr } from '../crr-schema';
-import { createSnapshot } from '../compaction';
+import { SyncOrchestrator } from '../sync-orchestrator';
 import { createInvitation, writeInvitationToken, readInvitationIdentity } from '../invitation';
 import { readInviteToken, hashEmail } from '../invite-token';
 import { joinLocalSync } from '../migration';
+import { initializeOrBindSyncFolder } from '../folder-binding';
 
 let root: string;
 let folder: string;
@@ -23,7 +24,10 @@ afterEach(() => { vi.restoreAllMocks(); fs.rmSync(root, { recursive: true, force
 function snapshot(): void {
   const { db } = openDatabase(path.join(root, 'source.fdra'));
   initializeCrr(db);
-  createSnapshot(db, folder, crypto.randomUUID(), db.prepare('SELECT crsql_site_id()').pluck().get() as Buffer, 1, secret);
+  initializeOrBindSyncFolder(db, folder, secret);
+  const orchestrator = new SyncOrchestrator({ db, syncFolder: folder, deviceId: crypto.randomUUID(), passphrase: secret });
+  orchestrator.exportNow();
+  orchestrator.createSnapshot();
   db.close();
 }
 

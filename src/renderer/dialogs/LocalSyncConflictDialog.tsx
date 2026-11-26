@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { AlertTriangle } from 'lucide-react';
 import type { LocalSyncConflict } from '../../shared/ipc-types';
 import { toAmountString } from '../../shared/money';
+import { useLocalSyncStore } from '@/stores/local-sync-store';
 
 interface LocalSyncConflictDialogProps {
   open: boolean;
@@ -32,6 +33,8 @@ function formatValue(value: string | null, fieldName: string): string {
 }
 
 function formatFieldName(fieldName: string): string {
+  if (fieldName === '-1') return 'Deletion / restoration';
+  if (fieldName === '__linked_transfer__') return 'Linked transfer — joint review required';
   return fieldName
     .replace(/_/g, ' ')
     .replace(/\b\w/g, (c) => c.toUpperCase());
@@ -43,6 +46,7 @@ export function LocalSyncConflictDialog({
   remaining,
   onResolve,
 }: LocalSyncConflictDialogProps) {
+  const resolutionError = useLocalSyncStore((state) => state.resolutionError);
   const entityLabel = conflict.entity_type.replace(/_/g, ' ');
   const localDisplay = formatValue(conflict.local_value, conflict.field_name);
   const remoteDisplay = formatValue(conflict.remote_value, conflict.field_name);
@@ -134,6 +138,7 @@ export function LocalSyncConflictDialog({
             Keep Local
           </Button>
         </DialogFooter>
+        {resolutionError && <p role="alert" className="text-sm text-destructive">{resolutionError}</p>}
       </DialogContent>
     </Dialog>
   );

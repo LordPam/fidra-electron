@@ -1,6 +1,9 @@
 import crypto from 'node:crypto';
 import zlib from 'node:zlib';
+import { z } from 'zod';
 import { encryptAndSign, verifyAndDecrypt } from './bundle-crypto';
+import { causalContextSchema, causalStateSchema, type CausalContext, type CausalState } from './causal-context';
+import { SYNCED_TABLES } from './crr-schema';
 
 // ─── Error type ─────────────────────────────────────────────────────
 
@@ -16,8 +19,8 @@ export class BundleFormatError extends Error {
 /** Raw row from cr-sqlite's `crsql_changes` virtual table. */
 export interface CrChangesetRow {
   table: string;
-  pk: string;         // JSON-encoded primary key
-  cid: string;        // column id (column name or '-1' for deletes)
+  pk: string | Buffer; // cr-sqlite binary primary key; strings are legacy/test inputs
+  cid: string;        // column name, or '-1' for a lifecycle marker (even cl = deleted)
   val: unknown;       // column value — may be string, number, null, or Buffer
   col_version: number;
   db_version: number;
@@ -30,6 +33,8 @@ export interface CrChangesetRow {
 export interface SerializedChangesetRow {
   table: string;
   pk: string;
+  /** Lossless binary representation, used by protocol v2. */
+  pkHex?: string;
   cid: string;
   val: unknown;       // Buffer vals become { __buf: "hex" }
   col_version: number;
@@ -41,7 +46,7 @@ export interface SerializedChangesetRow {
 
 /** The JSON envelope inside an encrypted bundle. */
 export interface BundlePayload {
-  version: 1;
+  version: 1 | 2;
   bundleId: string;        // UUID v4
   deviceId: string;        // machine identity
   siteId: string;          // hex-encoded cr-sqlite site_id for this database
@@ -54,7 +59,32 @@ export interface BundlePayload {
   deviceName?: string;
   /** Per-device max sequence numbers covered by this snapshot (snapshots only). */
   coveredDeviceSeqs?: Record<string, number>;
+  /** Stable organisation identity; absent only in legacy bundles. */
+  groupId?: string;
+  observedBundles?: CausalContext;
+  causalState?: CausalState;
+  snapshotGeneration?: number;
 }
+
+const hexBytes = z.string().regex(/^(?:[a-f0-9]{2})+$/);
+const changeSchema = z.object({
+  table: z.enum(SYNCED_TABLES), pk: z.union([z.string(), z.object({ type: z.literal('Buffer'), data: z.array(z.number().int().min(0).max(255)) })]),
+  pkHex: hexBytes.optional(), cid: z.string().min(1),
+  val: z.union([z.string(), z.number().finite(), z.null(), z.object({ __buf: z.string().regex(/^(?:[a-f0-9]{2})*$/) }).strict()]).optional(),
+  col_version: z.number().int().nonnegative(), db_version: z.number().int().nonnegative(),
+  site_id: z.string().regex(/^[a-f0-9]{32}$/), cl: z.number().int().nonnegative(), seq: z.number().int().nonnegative(),
+});
+const payloadSchema = z.object({
+  version: z.union([z.literal(1), z.literal(2)]), bundleId: z.string().uuid(),
+  deviceId: z.string().min(1).max(200).refine((value) => !value.includes('..') && !/[\\/\0]/.test(value)),
+  siteId: z.string().regex(/^[a-f0-9]{32}$/), sequenceNumber: z.number().int().nonnegative(),
+  timestamp: z.iso.datetime(), schemaVersion: z.number().int().positive(),
+  changesets: z.array(changeSchema), checksum: z.string().regex(/^[a-f0-9]{64}$/),
+  deviceName: z.string().max(200).optional(), groupId: z.string().uuid().optional(),
+  coveredDeviceSeqs: z.record(z.string(), z.number().int().nonnegative()).optional(),
+  observedBundles: causalContextSchema.optional(),
+  causalState: causalStateSchema.optional(), snapshotGeneration: z.number().int().positive().optional(),
+});
 
 // ─── Serialization ──────────────────────────────────────────────────
 
@@ -76,9 +106,9 @@ function deserializeValue(val: unknown): unknown {
 export function serializeChangesetRow(row: CrChangesetRow): SerializedChangesetRow {
   return {
     table: row.table,
-    // pk is typed as string but at runtime cr-sqlite returns a Buffer —
-    // convert to utf-8 string for JSON safety (matches import path in bundle-importer)
+    // Keep the historical display field, with lossless bytes alongside it.
     pk: Buffer.isBuffer(row.pk) ? (row.pk as unknown as Buffer).toString('utf-8') : row.pk,
+    ...(Buffer.isBuffer(row.pk) ? { pkHex: row.pk.toString('hex') } : {}),
     cid: row.cid,
     val: serializeValue(row.val),
     col_version: row.col_version,
@@ -107,7 +137,7 @@ function deserializePk(pk: unknown): string {
 export function deserializeChangesetRow(row: SerializedChangesetRow): CrChangesetRow {
   return {
     table: row.table,
-    pk: deserializePk(row.pk),
+    pk: row.pkHex !== undefined ? decodePkHex(row.pkHex) : deserializePk(row.pk),
     cid: row.cid,
     val: deserializeValue(row.val),
     col_version: row.col_version,
@@ -116,6 +146,11 @@ export function deserializeChangesetRow(row: SerializedChangesetRow): CrChangese
     cl: row.cl,
     seq: row.seq,
   };
+}
+
+function decodePkHex(value: string): Buffer {
+  if (typeof value !== 'string' || !/^(?:[a-f0-9]{2})+$/.test(value)) throw new BundleFormatError('Invalid binary primary key');
+  return Buffer.from(value, 'hex');
 }
 
 // ─── Checksum ───────────────────────────────────────────────────────
@@ -137,12 +172,16 @@ export interface CreateBundleOptions {
   deviceName?: string;
   /** Per-device max sequence numbers covered (snapshots only). */
   coveredDeviceSeqs?: Record<string, number>;
+  groupId?: string;
+  observedBundles?: CausalContext;
+  causalState?: CausalState;
+  snapshotGeneration?: number;
 }
 
 export function createBundlePayload(options: CreateBundleOptions): BundlePayload {
   const serialized = options.changesets.map(serializeChangesetRow);
   const payload: BundlePayload = {
-    version: 1,
+    version: 2,
     bundleId: crypto.randomUUID(),
     deviceId: options.deviceId,
     siteId: options.siteId.toString('hex'),
@@ -155,6 +194,10 @@ export function createBundlePayload(options: CreateBundleOptions): BundlePayload
   if (options.deviceName) {
     payload.deviceName = options.deviceName;
   }
+  if (options.groupId) payload.groupId = options.groupId;
+  if (options.observedBundles) payload.observedBundles = causalContextSchema.parse(options.observedBundles);
+  if (options.causalState) payload.causalState = causalStateSchema.parse(options.causalState);
+  if (options.snapshotGeneration) payload.snapshotGeneration = options.snapshotGeneration;
   if (options.coveredDeviceSeqs) {
     payload.coveredDeviceSeqs = options.coveredDeviceSeqs;
   }
@@ -185,19 +228,20 @@ export function unpackBundle(sealed: Buffer, passphrase: string): UnpackedBundle
 
   let json: string;
   try {
-    json = zlib.gunzipSync(compressed).toString('utf-8');
+    json = zlib.gunzipSync(compressed, { maxOutputLength: 150 * 1024 * 1024 }).toString('utf-8');
   } catch {
     throw new BundleFormatError('Failed to decompress bundle');
   }
 
   let payload: BundlePayload;
   try {
-    payload = JSON.parse(json) as BundlePayload;
+    // Validate the wire representation before converting binary keys/values.
+    payload = payloadSchema.parse(JSON.parse(json)) as unknown as BundlePayload;
   } catch {
     throw new BundleFormatError('Failed to parse bundle JSON');
   }
 
-  if (payload.version !== 1) {
+  if (payload.version !== 1 && payload.version !== 2) {
     throw new BundleFormatError(`Unsupported bundle version: ${payload.version}`);
   }
 
@@ -221,6 +265,10 @@ export function unpackBundle(sealed: Buffer, passphrase: string): UnpackedBundle
   if (payload.deviceName) {
     result.deviceName = payload.deviceName;
   }
+  if (payload.groupId) result.groupId = payload.groupId;
+  if (payload.observedBundles) result.observedBundles = causalContextSchema.parse(payload.observedBundles);
+  if (payload.causalState) result.causalState = causalStateSchema.parse(payload.causalState);
+  if (payload.snapshotGeneration) result.snapshotGeneration = payload.snapshotGeneration;
   if (payload.coveredDeviceSeqs) {
     result.coveredDeviceSeqs = payload.coveredDeviceSeqs;
   }

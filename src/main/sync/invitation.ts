@@ -5,6 +5,7 @@ import { invitationSchema, type FidraInvitation } from '../../shared/invitation-
 import { hashEmail } from './invite-token';
 import { wrapPassphrase, unwrapPassphrase } from './key-wrap';
 import { z } from 'zod';
+import { ensureSyncSubdirectory } from './bundle-io';
 
 const payloadSchema = z.object({ invitation: invitationSchema, passphrase: z.string().min(1) }).strict();
 
@@ -16,7 +17,7 @@ export function createInvitation(info: Omit<FidraInvitation, 'version' | 'id' | 
 /** Metadata is inside the authenticated encryption, rather than trusted from a descriptor. */
 export function writeInvitationToken(folder: string, invitation: FidraInvitation, passphrase: string): void {
   const wrapped = wrapPassphrase(JSON.stringify({ invitation, passphrase }), invitation.code);
-  const directory = path.join(folder, 'invites'); fs.mkdirSync(directory, { recursive: true });
+  const directory = ensureSyncSubdirectory(folder, 'invites');
   const destination = path.join(directory, `${hashEmail(invitation.email)}.invite`);
   const temporary = `${destination}.${crypto.randomUUID()}.tmp`;
   fs.writeFileSync(temporary, JSON.stringify({ version: 2, ...wrapped }), { mode: 0o600 });

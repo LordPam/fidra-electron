@@ -8,7 +8,7 @@ export function syncGetStatus(ctx: WindowContext): LocalSyncStatus {
   const status = ctx.localSyncOrchestrator?.getStatus();
   return { enabled: !!syncFolder, state: status?.state ?? 'stopped', lastExportAt: status?.lastExportAt ?? null,
     lastImportAt: status?.lastImportAt ?? null, pendingConflicts: status?.pendingConflicts ?? 0,
-    lastError: status?.lastError ?? null, syncFolder, staleReason: status?.staleReason ?? null };
+    lastError: status?.lastError ?? null, syncFolder, staleReason: status?.staleReason ?? null, delivery: status?.delivery };
 }
 
 export function syncExportNow(ctx: WindowContext) {

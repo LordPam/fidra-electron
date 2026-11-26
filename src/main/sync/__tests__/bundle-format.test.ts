@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import crypto from 'node:crypto';
+import zlib from 'node:zlib';
 import type { CrChangesetRow } from '../bundle-format';
 import {
   serializeChangesetRow,
@@ -10,7 +11,7 @@ import {
   bundleFileName,
   BundleFormatError,
 } from '../bundle-format';
-import { BundleIntegrityError } from '../bundle-crypto';
+import { BundleIntegrityError, encryptAndSign } from '../bundle-crypto';
 
 // ─── Helpers ────────────────────────────────────────────────────────
 
@@ -90,7 +91,7 @@ describe('createBundlePayload', () => {
       schemaVersion: 1,
       changesets: [makeRow()],
     });
-    expect(payload.version).toBe(1);
+    expect(payload.version).toBe(2);
   });
 
   it('generates unique bundleId', () => {
@@ -138,6 +139,25 @@ describe('createBundlePayload', () => {
 // ─── packBundle / unpackBundle ──────────────────────────────────────
 
 describe('packBundle / unpackBundle', () => {
+  it('preserves long and non-UTF8 binary primary keys exactly', () => {
+    const pk = Buffer.concat([Buffer.from([0, 255, 128, 254]), crypto.randomBytes(600)]);
+    const packed = packBundle({ deviceId: TEST_DEVICE_ID, siteId: TEST_SITE_ID, sequenceNumber: 1,
+      schemaVersion: 1, changesets: [makeRow({ pk })], passphrase: TEST_PASSPHRASE });
+    expect(unpackBundle(packed, TEST_PASSPHRASE).changesets[0].pk).toEqual(pk);
+  });
+
+  it.each([
+    { table: 'sync_meta' }, { site_id: 'not-hex' }, { pkHex: 'xyz' },
+    { col_version: -1 }, { val: { unexpected: 'object' } },
+  ])('rejects malformed authenticated changesets before SQLite: %j', (invalid) => {
+    const payload = createBundlePayload({ deviceId: TEST_DEVICE_ID, siteId: TEST_SITE_ID,
+      sequenceNumber: 1, schemaVersion: 1, changesets: [makeRow()] });
+    Object.assign(payload.changesets[0], invalid);
+    payload.checksum = crypto.createHash('sha256').update(JSON.stringify(payload.changesets)).digest('hex');
+    const packed = encryptAndSign(zlib.gzipSync(Buffer.from(JSON.stringify(payload))), TEST_PASSPHRASE);
+    expect(() => unpackBundle(packed, TEST_PASSPHRASE)).toThrow(BundleFormatError);
+  });
+
   it('round-trips full pipeline preserving all data', () => {
     const rows = [
       makeRow({ val: 'text', cid: 'description' }),

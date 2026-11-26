@@ -31,8 +31,8 @@ export function LocalSyncIndicator({ collapsed = true }: { collapsed?: boolean }
   if (!enabled) return null;
 
   // Determine dot color
-  let dotColor = 'bg-green-500';
-  let tooltipText = 'Local Sync: idle';
+  let dotColor = 'bg-slate-400';
+  let tooltipText = 'Local Sync: waiting — delivery to other devices is unverified';
 
   if (lastError) {
     dotColor = 'bg-red-500';

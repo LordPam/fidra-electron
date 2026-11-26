@@ -58,7 +58,7 @@ describe('bundle-scanner', () => {
     expect(results).toHaveLength(1);
   });
 
-  test('skips already-applied bundles by sequence number', () => {
+  test('skips only the exact applied sequence, preserving earlier gaps', () => {
     applied.insert('old-bundle-id', 'other', 5);
 
     writeBundle(syncDir, 'other_0000000003.bundle');
@@ -66,8 +66,30 @@ describe('bundle-scanner', () => {
     writeBundle(syncDir, 'other_0000000006.bundle');
 
     const results = scanForNewBundles(tmpDir, 'my-device', applied);
-    expect(results).toHaveLength(1);
-    expect(results[0].sequenceNumber).toBe(6);
+    expect(results.map((result) => result.sequenceNumber)).toEqual([3, 6]);
+  });
+
+  test('legacy snapshot coverage never hides unprocessed bundles', () => {
+    applied.insert('snapshot-coverage:other:5', 'other', 5);
+    applied.insert('snapshot:other:6', 'other', 6);
+    writeBundle(syncDir, 'other_0000000005.bundle');
+    writeBundle(syncDir, 'other_0000000006.bundle');
+    expect(scanForNewBundles(tmpDir, 'my-device', applied)).toHaveLength(2);
+  });
+
+  test('detects changed bytes under an already committed sequence instead of silently skipping them', () => {
+    const bytes = Buffer.from('verified encrypted bytes');
+    applied.insert('original-id', 'other', 1, bytes);
+    writeBundle(syncDir, 'other_0000000001.bundle', bytes.toString());
+    expect(scanForNewBundles(tmpDir, 'my-device', applied)).toEqual([]);
+    writeBundle(syncDir, 'other_0000000001.bundle', 'different bytes');
+    expect(() => scanForNewBundles(tmpDir, 'my-device', applied)).toThrow('previously received bundle changed');
+    expect(applied.count()).toBe(1);
+  });
+
+  test('surfaces an unrecognised provider conflict filename for review', () => {
+    writeBundle(syncDir, 'other_0000000001-conflict.bundle');
+    expect(() => scanForNewBundles(tmpDir, 'my-device', applied)).toThrow('filename needs review');
   });
 
   test('returns sorted by sequence number', () => {

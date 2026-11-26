@@ -5,10 +5,11 @@ import { z } from 'zod';
 import { resolveContext } from './context-resolver';
 import { initializeCrr, isCrrInitialized } from '../sync/crr-schema';
 import { initializeDeviceIdentity, getDeviceIdentity } from '../sync/device-identity';
+import { initializeOrBindSyncFolder, bindExistingSyncFolder } from '../sync/folder-binding';
+import { resolveSyncConflict } from '../sync/conflict-resolution';
+import { assertApplicationPermission } from '../services/application-access';
 import { SyncOrchestrator } from '../sync/sync-orchestrator';
 import { ConflictQueue } from '../sync/conflict-queue';
-import { deserializeChangesetRow } from '../sync/bundle-format';
-import type { SerializedChangesetRow } from '../sync/bundle-format';
 import { syncFolderHasExistingPeers, syncFolderHasInvites, validateSyncFolder } from '../sync/bundle-io';
 import { readInvitationIdentity } from '../sync/invitation';
 import { newAccountPath } from '../services/account-catalog';
@@ -59,6 +60,7 @@ export function registerLocalSyncHandlers(): void {
 
       // Initialize device identity (idempotent, per-database)
       const identity = initializeDeviceIdentity(ctx.sqlite, os.hostname());
+      initializeOrBindSyncFolder(ctx.sqlite, syncFolder, ctx.localSyncPassphrase ?? passphrase);
 
       // Store config in per-db settings (scope=device, never synced)
       ctx.settingsRepo.setSetting(SETTING_SYNC_FOLDER, syncFolder, 'device');
@@ -100,6 +102,7 @@ export function registerLocalSyncHandlers(): void {
             lastError: status.lastError,
             syncFolder,
             staleReason: status.staleReason,
+            delivery: status.delivery,
           };
           ctx.sendToRenderer('localSync:statusChanged', fullStatus);
         },
@@ -166,6 +169,10 @@ export function registerLocalSyncHandlers(): void {
       initializeCrr(ctx.sqlite);
       const identity = initializeDeviceIdentity(ctx.sqlite, os.hostname());
 
+      // An explicit reconnect may rebind the same authenticated mailbox at a
+      // new local path. It cannot initialize a new or unrelated organisation.
+      bindExistingSyncFolder(ctx.sqlite, syncFolder, ctx.localSyncPassphrase);
+
       // Save the sync folder setting (passphrase stays key-wrapped in personnel)
       ctx.settingsRepo.setSetting(SETTING_SYNC_FOLDER, syncFolder, 'device');
 
@@ -199,6 +206,7 @@ export function registerLocalSyncHandlers(): void {
             lastError: status.lastError,
             syncFolder,
             staleReason: status.staleReason,
+            delivery: status.delivery,
           };
           ctx.sendToRenderer('localSync:statusChanged', fullStatus);
         },
@@ -316,83 +324,28 @@ export function registerLocalSyncHandlers(): void {
 
   // ─── localSync:resolveConflict ────────────────────────────────────
   ipcMain.handle('localSync:resolveConflict', (event, conflictId: unknown, resolution: unknown) => {
-    const parsedId = z.string().min(1).parse(conflictId);
-    const parsedResolution = localSyncResolutionSchema.parse(resolution);
-
-    const ctx = resolveContext(event);
-    const queue = new ConflictQueue(ctx.sqlite);
-
-    // "manual" = Review Later: dismiss from overlay but leave unresolved
-    if (parsedResolution === 'manual') {
-      // Don't mark as resolved — just return. The conflict stays in the queue.
-      // The overlay removes it from its local array but it persists on next load.
-      return { success: true };
-    }
-
-    const conflict = queue.getById(parsedId);
-    if (!conflict) return { success: false };
-
-    // "accept-remote": apply the stored changeset to crsql_changes
-    if (parsedResolution === 'accept-remote' && conflict.changeset_json) {
-      try {
-        const serialized = JSON.parse(conflict.changeset_json) as SerializedChangesetRow;
-        const row = deserializeChangesetRow(serialized);
-        // pk must be a Buffer for crsql_changes (cr-sqlite binary pk format)
-        const pk = typeof row.pk === 'string' ? Buffer.from(row.pk, 'utf-8') : row.pk;
-        ctx.sqlite
-          .prepare(
-            `INSERT INTO crsql_changes
-             ("table", "pk", "cid", "val", "col_version", "db_version", "site_id", "cl", "seq")
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          )
-          .run(row.table, pk, row.cid, row.val, row.col_version, row.db_version, row.site_id, row.cl, row.seq);
-      } catch (e) {
-        console.error('[localSync:resolveConflict] Failed to apply remote changeset:', e instanceof Error ? e.message : String(e));
-        return { success: false };
+    try {
+      const parsedId = z.string().min(1).parse(conflictId);
+      const parsedResolution = localSyncResolutionSchema.parse(resolution);
+      const ctx = resolveContext(event);
+      assertApplicationPermission(ctx, 'ledgerUse');
+      if (parsedResolution === 'manual') return { success: true };
+      const queue = new ConflictQueue(ctx.sqlite);
+      const conflict = queue.getById(parsedId);
+      if (conflict?.entity_type === 'personnel') assertApplicationPermission(ctx, 'teamAdministration');
+      // Retain pending local revisions before publishing a reviewed replacement.
+      ctx.localSyncOrchestrator?.exportNow();
+      const actor = ctx.localAuthPersonnel?.name ?? ctx.settingsRepo.getSetting('profile.name') ?? 'Local user';
+      const result = resolveSyncConflict(ctx.sqlite, parsedId, parsedResolution, actor);
+      if (result.success) {
+        ctx.checkPersonnelSurvival([result.table]);
+        ctx.sendToRenderer('localSync:dataChanged', { tables: [result.table] });
+        ctx.localSyncOrchestrator?.exportNow();
       }
+      return result;
+    } catch (error) {
+      return { success: false, error: errorMessage(error) };
     }
-
-    // "keep-local": re-assert the local value by writing it back to the actual
-    // table. This bumps col_version higher than the conflicting remote version,
-    // so the next export carries a winning changeset that peers will auto-merge.
-    // Without this, the local value was already exported at the old col_version
-    // and peers would see a tie (same col_version, different values).
-    if (parsedResolution === 'keep-local' && conflict.field_name !== '-1') {
-      try {
-        // Strip leading cr-sqlite binary prefix from entity_id to get the actual PK
-        // eslint-disable-next-line no-control-regex -- cr-sqlite prefixes keys with binary control bytes
-        const entityId = conflict.entity_id.replace(/^[\x00-\x1f]+/, '');
-        const table = conflict.entity_type;
-        const field = conflict.field_name;
-
-        // Read current value and write it back — cr-sqlite bumps col_version
-        const current = ctx.sqlite
-          .prepare(`SELECT "${field}" FROM "${table}" WHERE id = ?`)
-          .get(entityId) as Record<string, unknown> | undefined;
-        if (current) {
-          ctx.sqlite
-            .prepare(`UPDATE "${table}" SET "${field}" = ? WHERE id = ?`)
-            .run(current[field] ?? null, entityId);
-        }
-      } catch (e) {
-        syncLog('error', 'keep-local re-assertion failed', { error: errorMessage(e) });
-        // Non-fatal — conflict is still resolved locally, just won't propagate immediately
-      }
-    }
-
-    const success = queue.resolve(parsedId, parsedResolution);
-
-    // Notify renderer that data may have changed (for accept-remote)
-    if (parsedResolution === 'accept-remote') {
-      ctx.sendToRenderer('localSync:dataChanged', { tables: [conflict.entity_type] });
-    }
-
-    // Trigger an export so the resolution propagates to peers.
-    if (ctx.localSyncOrchestrator) {
-      try { ctx.localSyncOrchestrator.exportNow(); } catch { /* best-effort */ }
-    }
-
-    return { success };
   });
 
   // ─── localSync:joinGroup ─────────────────────────────────────────────

@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { useAuthStore } from './auth-store';
+import type { LocalSyncDelivery } from '../../shared/sync-delivery-types';
 import type {
   LocalSyncConfig,
   LocalSyncState,
@@ -17,12 +18,14 @@ interface LocalSyncStoreState {
   lastError: string | null;
   syncFolder: string | null;
   staleReason: string | null;
+  delivery: LocalSyncDelivery | null;
 
   // Device config
   config: LocalSyncConfig | null;
 
   // Conflict queue for overlay
   conflicts: LocalSyncConflict[];
+  resolutionError: string | null;
 
   // Loading state for setup
   configuring: boolean;
@@ -52,8 +55,10 @@ export const useLocalSyncStore = create<LocalSyncStoreState>((set, get) => ({
   lastError: null,
   syncFolder: null,
   staleReason: null,
+  delivery: null,
   config: null,
   conflicts: [],
+  resolutionError: null,
   configuring: false,
   onDataChanged: null,
 
@@ -69,6 +74,7 @@ export const useLocalSyncStore = create<LocalSyncStoreState>((set, get) => ({
         lastError: status.lastError,
         syncFolder: status.syncFolder,
         staleReason: status.staleReason,
+        delivery: status.delivery ?? null,
       });
       // If there are pending conflicts, load them so the overlay can show them
       if (status.pendingConflicts > 0) {
@@ -114,8 +120,10 @@ export const useLocalSyncStore = create<LocalSyncStoreState>((set, get) => ({
       pendingConflicts: 0,
       lastError: null,
       syncFolder: null,
+      delivery: null,
       config: null,
       conflicts: [],
+      resolutionError: null,
     });
     // Reset auth state so personnel panel hides and auth gate doesn't show
     useAuthStore.setState({
@@ -153,22 +161,24 @@ export const useLocalSyncStore = create<LocalSyncStoreState>((set, get) => ({
   },
 
   resolveConflict: async (id, resolution) => {
+    set({ resolutionError: null });
     try {
       const result = await window.api.localSyncResolveConflict(id, resolution);
       if (result && result.success) {
         // Remove from overlay queue (all resolutions dismiss the current dialog)
         set((s) => ({
           conflicts: s.conflicts.filter((c) => c.id !== id),
-          // "manual" (Review Later) doesn't actually resolve — conflict count stays
-          pendingConflicts: resolution === 'manual'
-            ? s.pendingConflicts
-            : Math.max(0, s.pendingConflicts - 1),
         }));
+        // A status push may already contain the new count. Reload instead of
+        // subtracting twice and hiding another outstanding review.
+        if (resolution !== 'manual') await get().loadStatus();
       } else {
+        set({ resolutionError: result?.error ?? 'The conflict could not be resolved. Review it again.' });
         // Resolution failed — reload conflicts from source of truth
         await get().loadConflicts();
       }
-    } catch {
+    } catch (error) {
+      set({ resolutionError: error instanceof Error ? error.message : 'Conflict resolution failed.' });
       // IPC failure — reload conflicts so overlay stays in sync
       await get().loadConflicts();
     }
@@ -178,6 +188,7 @@ export const useLocalSyncStore = create<LocalSyncStoreState>((set, get) => ({
 
   initEventListeners: () => {
     const unsub1 = window.api.onLocalSyncStatusChanged((status) => {
+      const previousCount = get().pendingConflicts;
       set({
         enabled: status.enabled,
         state: status.state,
@@ -187,7 +198,12 @@ export const useLocalSyncStore = create<LocalSyncStoreState>((set, get) => ({
         lastError: status.lastError,
         syncFolder: status.syncFolder,
         staleReason: status.staleReason,
+        delivery: status.delivery ?? null,
       });
+      if (status.pendingConflicts < previousCount) {
+        if (status.pendingConflicts === 0) set({ conflicts: [], resolutionError: null });
+        else get().loadConflicts();
+      }
     });
 
     const unsub2 = window.api.onLocalSyncDataChanged((data) => {

@@ -9,13 +9,14 @@
  *   D1: State in SQLite settings table (scope=device), in-memory copies
  *   D2: Poll MAX(db_version) every 1s, 2s debounce before export
  *   D3: Settings pk decoded via Buffer→string, filtered by isOrgKey()
- *   D4: Post-import watermark update prevents re-exporting imported changes
+ *   D4: Export watermark advances only with a durable local outbound bundle
  *   D5: busy flag serializes export/import
  *   D6: Corrupt bundles skipped, not recorded (allows retry)
  *   D7: Attachment sync best-effort after changeset sync
  */
 import fs from 'node:fs';
 import path from 'node:path';
+import crypto from 'node:crypto';
 import type Database from 'better-sqlite3';
 import {
   type CrChangesetRow,
@@ -30,30 +31,30 @@ import {
 } from './bundle-io';
 import { scanForNewBundles } from './bundle-scanner';
 import { FolderWatcher } from './folder-watcher';
-import { classifyChangesets, applyMergeResult } from './merge-gate';
+import { classifyChangesets, applyMergeResult, isDeleteChangeset } from './merge-gate';
 import { ConflictQueue } from './conflict-queue';
 import { AppliedBundles } from './applied-bundles';
+import { OutboundBundles } from './outbound-bundles';
+import { assertFolderBinding, getFolderBinding } from './folder-binding';
+import { DeliveryReceipts } from './delivery-receipts';
+import { CausalHistory } from './causal-history';
+import { reconcileSupersededConflicts } from './conflict-resolution';
+import type { LocalSyncDelivery } from '../../shared/sync-delivery-types';
 import { CRR_SCHEMA_VERSION } from './crr-schema';
-import { isOrgKey } from '../database/settings-repo';
+import { isOrgChangeset, isImportableSyncRow } from './settings-filter';
 import {
   writeAttachmentFile,
   readAttachmentFile,
-  listRemoteAttachments,
-  migrateEncryptedAttachments,
 } from './attachment-transport';
 import { BundleIntegrityError, BundleCryptoError } from './bundle-crypto';
 import { BundleFormatError } from './bundle-format';
 import { syncLog, errorMessage } from './sync-log';
 import { writeHeartbeat, isSyncProviderRunning, isNetworkReachable } from './heartbeat';
-import { findLatestSnapshot } from './bundle-io';
 import { getAttachmentStoragePath } from '../database/connection';
 import type { ImportChangeDetail } from '../../shared/ipc-types';
 import { parsePence, penceToAmount } from '../../shared/money';
 import {
-  compactBundles,
-  shouldAutoSnapshot,
   createSnapshot as createSnapshotImpl,
-  applySnapshot,
   type SnapshotResult,
 } from './compaction';
 
@@ -87,6 +88,7 @@ export interface SyncStatus {
   pendingConflicts: number;
   lastError: string | null;
   staleReason: string | null;
+  delivery: LocalSyncDelivery;
 }
 
 export interface ExportResult {
@@ -236,6 +238,15 @@ export class SyncOrchestrator {
   // Infrastructure
   private readonly conflictQueue: ConflictQueue;
   private readonly appliedBundles: AppliedBundles;
+  private readonly outboundBundles: OutboundBundles;
+  private readonly deliveryReceipts: DeliveryReceipts;
+  private readonly causalHistory: CausalHistory;
+  private bindingVerified = false;
+  private receiptError: string | null = null;
+  private attachmentImportError: string | null = null;
+  private attachmentExportError: string | null = null;
+  private exportError: string | null = null;
+  private importError: string | null = null;
   private watcher: FolderWatcher | null = null;
 
   // In-memory state (D1)
@@ -282,6 +293,9 @@ export class SyncOrchestrator {
 
     this.conflictQueue = new ConflictQueue(this.db);
     this.appliedBundles = new AppliedBundles(this.db);
+    this.outboundBundles = new OutboundBundles(this.db);
+    this.deliveryReceipts = new DeliveryReceipts(this.db, this.deviceId);
+    this.causalHistory = new CausalHistory(this.db);
   }
 
   // ─── Lifecycle ──────────────────────────────────────────────────
@@ -293,8 +307,18 @@ export class SyncOrchestrator {
     // Get cr-sqlite site ID
     this.siteId = this.getSiteId();
 
-    // Ensure folder structure
-    ensureSyncFolderStructure(this.syncFolder);
+    // A vanished provider root is an error, never a directory to recreate.
+    try {
+      this.assertSyncRootUnchanged();
+      ensureSyncFolderStructure(this.syncFolder);
+    } catch (error) {
+      this.exportError = `Sync folder unavailable: ${errorMessage(error)}`;
+      this.lastError = this.exportError;
+      this.running = false;
+      this.setStatus('error');
+      this.onError?.(this.lastError);
+      return;
+    }
 
     // Load watermarks from settings (D1)
     this.lastExportedVersion = this.loadSettingInt(SETTING_LAST_EXPORTED_VERSION);
@@ -302,29 +326,12 @@ export class SyncOrchestrator {
 
     this.setStatus('idle');
 
-    // Flush any unexported local changes BEFORE importing. If the orchestrator
-    // was stopped while the user made edits (e.g., offline, sync disabled),
-    // those changes have db_versions below what the import will set as the new
-    // watermark. Exporting first ensures they reach the shared folder before
-    // the D4 watermark jump in doImportAll() would hide them.
+    // Stage outgoing changes durably before attempting shared-folder delivery.
     this.doExport();
 
-    // If no snapshot exists yet (first peer, or migration from Cloud Connect),
-    // create one now so new devices can bootstrap from a single file instead of
-    // replaying all historical bundles.
-    this.ensureInitialSnapshot();
-
-    // Check for newer snapshot and apply if found (idempotent — safe on both
-    // fresh and existing databases since cr-sqlite changesets are CRDTs)
-    this.tryApplyLatestSnapshot();
-
-    // Migrate any legacy encrypted (.enc) attachments to plain files.
-    // Idempotent — safe to call on every start.
-    migrateEncryptedAttachments(this.syncFolder, this.passphrase);
-
-    // Export all local attachments that peers don't have yet (covers existing
-    // databases whose attachments were never exported or were only in .enc format).
-    this.exportAllAttachmentFiles();
+    // Existing ledgers must not ingest snapshots outside the conflict gate.
+    // Automatic snapshot application/pruning stays disabled until its coverage
+    // and conflict semantics have their own acceptance gates.
 
     // Initial import scan
     this.doImportAll();
@@ -336,7 +343,13 @@ export class SyncOrchestrator {
     this.watcher = new FolderWatcher({
       syncFolder: this.syncFolder,
       onBundleDetected: () => this.onBundleDetected(),
+      onReconcile: () => {
+        if (!this.running) return;
+        this.doExport();
+        this.doImportAll();
+      },
       onError: (msg) => {
+        this.importError = msg;
         this.lastError = msg;
         this.onError?.(msg);
         this.setStatus('error');
@@ -385,8 +398,10 @@ export class SyncOrchestrator {
 
   getStatus(): SyncStatus {
     let pendingConflicts = 0;
+    let delivery: LocalSyncDelivery = { folderBound: false, outboundBundles: 0, peers: [] };
     try {
       pendingConflicts = this.conflictQueue.count();
+      delivery = this.deliveryReceipts.summary(this.bindingVerified);
     } catch {
       // Database may have been closed during teardown
     }
@@ -397,6 +412,7 @@ export class SyncOrchestrator {
       pendingConflicts,
       lastError: this.lastError,
       staleReason: this.staleReason,
+      delivery,
     };
   }
 
@@ -413,62 +429,68 @@ export class SyncOrchestrator {
     try {
       this.setStatus('exporting');
 
-      // Query changesets since last exported version
-      const changesets = this.getChangesetsSinceVersion(this.lastExportedVersion);
-
-      // Filter: exclude device-scoped settings (D3)
-      const exportable = changesets.filter((row) => this.isExportableChangeset(row));
-
-      if (exportable.length === 0) {
-        // No exportable changes — update watermark to current version anyway
+      this.siteId ??= this.getSiteId();
+      const binding = getFolderBinding(this.db);
+      if (!binding) throw new Error('This sync folder needs a reviewed identity upgrade before sending changes.');
+      // SQLite serializes competing windows. The ciphertext and its export
+      // checkpoint commit together BEFORE any cloud-folder write is attempted.
+      const staged = this.db.transaction(() => {
+        const version = this.loadSettingInt(SETTING_LAST_EXPORTED_VERSION);
+        const sequence = this.loadSettingInt(SETTING_SEQUENCE_NUMBER);
         const currentVersion = this.getCurrentDbVersion();
-        if (currentVersion > this.lastExportedVersion) {
-          this.lastExportedVersion = currentVersion;
-          this.persistSetting(SETTING_LAST_EXPORTED_VERSION, currentVersion);
+        const exportable = this.getChangesetsSinceVersion(version)
+          .filter((row) => this.isExportableChangeset(row) && !this.causalHistory.hasRevision(row));
+        const nextSequence = exportable.length > 0 ? sequence + 1 : sequence;
+        if (exportable.length > 0) {
+          const observed = this.causalHistory.observedContext();
+          const packed = packBundle({
+            deviceId: this.deviceId,
+            siteId: this.siteId!,
+            sequenceNumber: nextSequence,
+            schemaVersion: CRR_SCHEMA_VERSION,
+            changesets: exportable,
+            passphrase: this.passphrase,
+            deviceName: this.personName ?? undefined,
+            groupId: binding.groupId,
+            observedBundles: observed,
+          });
+          this.outboundBundles.insert(this.deviceId, nextSequence, packed);
+          this.causalHistory.record({ deviceId: this.deviceId, sequenceNumber: nextSequence, observed }, exportable, true);
         }
-        this.setStatus('idle');
-        this.busy = false;
-        return { bundleId: null, changesetCount: 0, attachmentCount: 0 };
+        this.persistSetting(SETTING_LAST_EXPORTED_VERSION, currentVersion);
+        this.persistSetting(SETTING_SEQUENCE_NUMBER, nextSequence);
+        return { exportable, currentVersion, nextSequence };
+      }).immediate();
+      this.lastExportedVersion = staged.currentVersion;
+      this.sequenceNumber = staged.nextSequence;
+
+      this.assertSyncRootUnchanged();
+      for (const bundle of this.outboundBundles.all(this.deviceId)) {
+        writeBundleAtomically(this.syncFolder, bundle.device_id, bundle.sequence_number, bundle.payload);
       }
-
-      // Pack and write bundle
-      this.sequenceNumber++;
-      const packed = packBundle({
-        deviceId: this.deviceId,
-        siteId: this.siteId!,
-        sequenceNumber: this.sequenceNumber,
-        schemaVersion: CRR_SCHEMA_VERSION,
-        changesets: exportable,
-        passphrase: this.passphrase,
-        deviceName: this.personName ?? undefined,
-      });
-
-      writeBundleAtomically(this.syncFolder, this.deviceId, this.sequenceNumber, packed);
-
-      // Update watermarks
-      const newVersion = this.getCurrentDbVersion();
-      this.lastExportedVersion = newVersion;
-      this.persistSetting(SETTING_LAST_EXPORTED_VERSION, newVersion);
-      this.persistSetting(SETTING_SEQUENCE_NUMBER, this.sequenceNumber);
+      this.reconcileReceipts();
 
       // Attachment sync (D7)
       let attachmentCount = 0;
       try {
-        attachmentCount = this.exportNewAttachments(exportable);
+        // Retry missing files even when their metadata was previously exported.
+        attachmentCount = this.exportAllAttachmentFiles();
       } catch (e) {
         syncLog('warn', 'Attachment export error (non-fatal)', { error: errorMessage(e) });
       }
 
-      this.lastExportAt = new Date().toISOString();
+      if (staged.exportable.length > 0) this.lastExportAt = new Date().toISOString();
+      this.exportError = null;
       this.setStatus('idle');
 
       // Extract bundleId from the packed bundle (we need to unpack to get it,
       // but we can compute it from sequence number for the result)
-      const bundleId = `${this.deviceId}_${this.sequenceNumber}`;
+      const bundleId = staged.exportable.length > 0 ? `${this.deviceId}_${this.sequenceNumber}` : null;
 
-      return { bundleId, changesetCount: exportable.length, attachmentCount };
+      return { bundleId, changesetCount: staged.exportable.length, attachmentCount };
     } catch (e) {
       const msg = errorMessage(e);
+      this.exportError = msg;
       this.lastError = msg;
       this.onError?.(msg);
       this.setStatus('error');
@@ -483,7 +505,7 @@ export class SyncOrchestrator {
 
     try {
       const currentVersion = this.getCurrentDbVersion();
-      if (currentVersion > this.lastExportedVersion) {
+      if (currentVersion > this.lastExportedVersion || this.exportError) {
         this.scheduleExport();
       }
     } catch (e) {
@@ -517,14 +539,30 @@ export class SyncOrchestrator {
       this.importQueued = true;
       return { bundlesProcessed: 0, changesetsApplied: 0, conflictsQueued: 0, bundlesSkipped: 0, attachmentsImported: 0 };
     }
-    this.busy = true;
-
     try {
+      // Preserve local edits before an inbound CRDT write can replace their
+      // latest-column representation. Delivery may fail; staging must succeed.
+      this.siteId ??= this.getSiteId();
+      const hasUnstagedChanges = () => this.getChangesetsSinceVersion(
+        this.loadSettingInt(SETTING_LAST_EXPORTED_VERSION),
+      ).some((row) => this.isExportableChangeset(row));
+      if (hasUnstagedChanges()) {
+        this.doExport();
+        if (hasUnstagedChanges()) {
+          throw new Error('Incoming sync is paused until outgoing changes can be saved safely.');
+        }
+      }
+      this.busy = true;
+
       this.setStatus('importing');
+      this.assertSyncRootUnchanged();
 
       // Scan for new bundles
       const bundles = scanForNewBundles(this.syncFolder, this.deviceId, this.appliedBundles);
       if (bundles.length === 0) {
+        this.importNewAttachments();
+        this.reconcileReceipts();
+        this.importError = null;
         this.isStartupImport = false;
         this.setStatus('idle');
         this.busy = false;
@@ -555,6 +593,13 @@ export class SyncOrchestrator {
             continue;
           }
 
+          if (unpacked.deviceId !== scanned.deviceId || unpacked.sequenceNumber !== scanned.sequenceNumber) {
+            throw new Error('Bundle identity does not match its filename; history was preserved for review.');
+          }
+          if (unpacked.groupId !== getFolderBinding(this.db)?.groupId) {
+            throw new Error('Bundle team identity is missing or different. Legacy history requires reviewed recovery.');
+          }
+
           // Dedup check
           if (this.appliedBundles.hasApplied(unpacked.bundleId)) {
             bundlesSkipped++;
@@ -569,23 +614,28 @@ export class SyncOrchestrator {
           // Filter settings (D3)
           const filtered = unpacked.changesets.filter((row) => this.isImportableChangeset(row));
 
-          // Restore pk to Buffer format for cr-sqlite compatibility.
-          // Export converts Buffer→UTF-8 string for JSON serialization;
-          // cr-sqlite stores pk as Buffer, so we need to convert back
-          // for proper WHERE pk = ? matching in classifyChangesets.
+          // Only legacy/test string keys need conversion; v2 preserves binary keys.
           for (const row of filtered) {
             if (typeof row.pk === 'string') {
               (row as { pk: unknown }).pk = Buffer.from(row.pk, 'utf-8');
             }
           }
 
-          // Classify and apply (pass local siteId for deterministic tiebreaker —
-          // ensures only ONE peer shows a conflict screen for any concurrent edit)
-          const mergeResult = classifyChangesets(this.db, filtered, this.siteId ?? undefined, this.lastExportedVersion);
-          applyMergeResult(this.db, mergeResult, this.conflictQueue, unpacked.bundleId);
-
-          // Record as applied
-          this.appliedBundles.insert(unpacked.bundleId, unpacked.deviceId, unpacked.sequenceNumber);
+          const causalBundle = { deviceId: unpacked.deviceId, sequenceNumber: unpacked.sequenceNumber,
+            observed: unpacked.observedBundles ?? {} };
+          const mergeResult = classifyChangesets(this.db, filtered, { history: this.causalHistory, incoming: causalBundle });
+          // Data, conflict queue and receipt must commit or roll back together.
+          this.db.transaction(() => {
+            applyMergeResult(this.db, mergeResult, this.conflictQueue, unpacked.bundleId);
+            this.appliedBundles.insert(unpacked.bundleId, unpacked.deviceId, unpacked.sequenceNumber, data);
+            this.causalHistory.record(causalBundle, filtered, mergeResult.conflicts.length === 0);
+            reconcileSupersededConflicts(this.db, this.causalHistory, this.conflictQueue);
+            this.deliveryReceipts.recordApplied({
+              sourceDeviceId: unpacked.deviceId, sequenceNumber: unpacked.sequenceNumber,
+              bundleId: unpacked.bundleId, payloadHash: crypto.createHash('sha256').update(data).digest('hex'),
+              conflictsQueued: mergeResult.conflicts.length,
+            });
+          })();
 
           // Track affected tables
           for (const row of mergeResult.autoMerge) {
@@ -616,12 +666,13 @@ export class SyncOrchestrator {
               const counts = tableMap.get(row.table)!;
               // Extract pk as string for dedup
               const pkStr = Buffer.isBuffer(row.pk) ? row.pk.toString('utf-8') : String(row.pk);
-              if (row.cid === '-1') {
+              if (isDeleteChangeset(row)) {
                 counts.deleted.add(pkStr);
-              } else if (row.col_version === 1) {
+              } else if (row.cid === '-1' || row.col_version === 1) {
                 counts.created.add(pkStr);
+                counts.updated.delete(pkStr);
               } else {
-                counts.updated.add(pkStr);
+                if (!counts.created.has(pkStr)) counts.updated.add(pkStr);
               }
             }
           }
@@ -650,27 +701,12 @@ export class SyncOrchestrator {
         syncLog('warn', 'Attachment import error (non-fatal)', { error: errorMessage(e) });
       }
 
-      // D4: Update lastExportedVersion to current db_version to prevent re-export
-      const currentVersion = this.getCurrentDbVersion();
-      if (currentVersion > this.lastExportedVersion) {
-        this.lastExportedVersion = currentVersion;
-        this.persistSetting(SETTING_LAST_EXPORTED_VERSION, currentVersion);
-      }
-
-      // Auto-snapshot + compaction: create a snapshot if the latest is >1 day
-      // old, then delete bundles that are covered by it
-      try {
-        if (shouldAutoSnapshot(this.syncFolder)) {
-          const snap = this.createSnapshot();
-          syncLog('info', 'Auto-snapshot created', { changesetCount: snap.changesetCount });
-        }
-        const compacted = compactBundles(this.syncFolder, this.passphrase);
-        if (compacted > 0) {
-          syncLog('info', 'Compacted bundles', { deletedCount: compacted });
-        }
-      } catch (e) {
-        syncLog('warn', 'Snapshot/compaction error (non-fatal)', { error: errorMessage(e) });
-      }
+      // Imports never advance the outbound checkpoint. Remote-site changes are
+      // already excluded by getChangesetsSinceVersion's site_id predicate.
+      this.importError = bundlesSkipped > 0
+        ? `${bundlesSkipped} sync bundle(s) could not be applied. They will be retried; delivery is incomplete.`
+        : null;
+      this.reconcileReceipts();
 
       // Resume watcher
       this.watcher?.resume();
@@ -729,6 +765,7 @@ export class SyncOrchestrator {
       return { bundlesProcessed, changesetsApplied, conflictsQueued, bundlesSkipped, attachmentsImported };
     } catch (e) {
       const msg = errorMessage(e);
+      this.importError = msg;
       this.lastError = msg;
       this.onError?.(msg);
       this.setStatus('error');
@@ -750,6 +787,7 @@ export class SyncOrchestrator {
   private unpackAndValidate(data: Buffer, filePath: string): UnpackedBundle | null {
     try {
       const unpacked = unpackBundle(data, this.passphrase);
+      if (unpacked.version !== 2) throw new BundleFormatError('Legacy protocol requires reviewed recovery; upgrade all peers before reconnecting.');
 
       // Check schema version
       if (unpacked.schemaVersion !== CRR_SCHEMA_VERSION) {
@@ -783,6 +821,11 @@ export class SyncOrchestrator {
 
   /** Create a full-state snapshot for new-device onboarding and compaction. */
   createSnapshot(): SnapshotResult {
+    this.assertSyncRootUnchanged();
+    if (this.busy) throw new Error('Wait for the current sync operation before creating a snapshot.');
+    if (this.conflictQueue.count() > 0) throw new Error('Review outstanding financial conflicts before creating an onboarding snapshot.');
+    this.doExport();
+    if (this.exportError) throw new Error('Outgoing history must be published safely before creating a snapshot.');
     return createSnapshotImpl(
       this.db,
       this.syncFolder,
@@ -795,76 +838,7 @@ export class SyncOrchestrator {
 
   /** Delete bundles covered by the latest snapshot. */
   compact(): number {
-    return compactBundles(this.syncFolder, this.passphrase);
-  }
-
-  /**
-   * Check for a newer snapshot in the shared folder and apply it.
-   * Safe on both fresh and existing databases — cr-sqlite changesets are CRDTs,
-   * so re-applying already-known data is a no-op.
-   */
-  private tryApplyLatestSnapshot(): void {
-    try {
-      const snapshot = findLatestSnapshot(this.syncFolder);
-      if (!snapshot) return;
-
-      // Skip if we've already applied this snapshot
-      const snapshotBundleId = `snapshot:${snapshot.deviceId}:${snapshot.sequenceNumber}`;
-      if (this.appliedBundles.hasApplied(snapshotBundleId)) return;
-
-      syncLog('info', 'Applying snapshot', { filePath: snapshot.filePath });
-      const result = applySnapshot(this.db, snapshot.filePath, this.passphrase);
-      syncLog('info', 'Snapshot applied', { changesetCount: result.changesetCount });
-
-      // Record so we don't re-apply this same snapshot
-      this.appliedBundles.insert(
-        snapshotBundleId,
-        result.deviceId,
-        result.sequenceNumber,
-      );
-
-      // Seed applied_bundles with the snapshot's coverage map so that bundles
-      // already captured by the snapshot are skipped during doImportAll().
-      // Without this, a joining device re-imports every bundle in the folder,
-      // potentially triggering false conflicts against local modifications
-      // (e.g., setPasswordForPersonnel after joinLocalSync).
-      if (result.coveredDeviceSeqs) {
-        for (const [devId, maxSeq] of Object.entries(result.coveredDeviceSeqs)) {
-          const coverageId = `snapshot-coverage:${devId}:${maxSeq}`;
-          this.appliedBundles.insert(coverageId, devId, maxSeq);
-        }
-        syncLog('info', 'Seeded applied_bundles from snapshot coverage', {
-          devices: Object.keys(result.coveredDeviceSeqs).length,
-        });
-      }
-
-      // Update lastExportedVersion to prevent re-exporting snapshot data
-      const currentVersion = this.getCurrentDbVersion();
-      if (currentVersion > this.lastExportedVersion) {
-        this.lastExportedVersion = currentVersion;
-        this.persistSetting(SETTING_LAST_EXPORTED_VERSION, currentVersion);
-      }
-    } catch (e) {
-      syncLog('warn', 'Snapshot apply failed (will proceed with bundle import)', { error: errorMessage(e) });
-    }
-  }
-
-  /**
-   * Create an initial snapshot if none exists yet. This ensures new devices
-   * can bootstrap from a single snapshot file rather than replaying all
-   * historical bundles. Particularly important for Cloud→Local Sync migration
-   * where the first peer's initial export may contain the full dataset.
-   */
-  private ensureInitialSnapshot(): void {
-    try {
-      if (findLatestSnapshot(this.syncFolder)) return; // Already have one
-      if (this.getCurrentDbVersion() === 0) return;    // Empty database, nothing to snapshot
-
-      const snap = this.createSnapshot();
-      syncLog('info', 'Initial snapshot created', { changesetCount: snap.changesetCount });
-    } catch (e) {
-      syncLog('warn', 'Initial snapshot creation failed (non-fatal)', { error: errorMessage(e) });
-    }
+    throw new Error('History cleanup is paused until snapshot coverage and peer acknowledgements can be verified. No bundles were deleted.');
   }
 
   // ─── Changeset filtering (D3) ─────────────────────────────────
@@ -883,14 +857,6 @@ export class SyncOrchestrator {
       )
       .all(version, this.siteId) as CrChangesetRow[];
 
-    // cr-sqlite returns pk as a Buffer for TEXT PKs. Convert to string
-    // so it survives JSON serialization in bundle format.
-    for (const row of rows) {
-      if (Buffer.isBuffer(row.pk)) {
-        (row as { pk: string }).pk = (row.pk as unknown as Buffer).toString('utf-8');
-      }
-    }
-
     return rows;
   }
 
@@ -899,8 +865,7 @@ export class SyncOrchestrator {
    * All non-settings rows pass. Settings rows pass only if the key is org-scoped.
    */
   private isExportableChangeset(row: CrChangesetRow): boolean {
-    if (row.table !== 'settings') return true;
-    return this.isOrgSettingsRow(row);
+    return isOrgChangeset(row);
   }
 
   /**
@@ -908,56 +873,12 @@ export class SyncOrchestrator {
    * Same filter as export — only org-scoped settings pass.
    */
   private isImportableChangeset(row: CrChangesetRow): boolean {
-    if (row.table !== 'settings') return true;
-    return this.isOrgSettingsRow(row);
-  }
-
-  /**
-   * Decode the pk from a settings changeset and check if it's an org key.
-   * cr-sqlite encodes TEXT PKs with a binary header (e.g. \x01\x0b\x0e + key).
-   * Strip leading non-printable bytes to extract the actual settings key.
-   */
-  private isOrgSettingsRow(row: CrChangesetRow): boolean {
-    try {
-      const raw = Buffer.isBuffer(row.pk) ? row.pk.toString('utf-8') : String(row.pk);
-      const key = raw.replace(/^[\x00-\x1f]+/, '');
-      return isOrgKey(key);
-    } catch {
-      return false;
-    }
+    const binding = getFolderBinding(this.db);
+    if (!binding) throw new Error('The sync folder needs a reviewed identity upgrade.');
+    return isImportableSyncRow(row, binding.groupId);
   }
 
   // ─── Attachment sync (D7) ──────────────────────────────────────
-
-  /**
-   * Export attachment files referenced by changeset rows.
-   * Looks for attachment table changes with stored_name column.
-   */
-  private exportNewAttachments(changesets: CrChangesetRow[]): number {
-    if (!this.databaseId) return 0;
-
-    const attachmentDir = getAttachmentStoragePath(this.databaseId);
-    let count = 0;
-
-    for (const row of changesets) {
-      if (row.table !== 'attachments' || row.cid !== 'stored_name') continue;
-      if (typeof row.val !== 'string' || !row.val) continue;
-
-      const storedName = row.val;
-      const localPath = path.join(attachmentDir, storedName);
-
-      if (!fs.existsSync(localPath)) continue;
-
-      try {
-        writeAttachmentFile(this.syncFolder, storedName, localPath);
-        count++;
-      } catch (e) {
-        syncLog('warn', 'Failed to export attachment', { storedName, error: errorMessage(e) });
-      }
-    }
-
-    return count;
-  }
 
   /**
    * Import attachment files from remote that we don't have locally.
@@ -969,29 +890,27 @@ export class SyncOrchestrator {
     const attachmentDir = getAttachmentStoragePath(this.databaseId);
     let count = 0;
 
-    const remoteNames = listRemoteAttachments(this.syncFolder);
-    if (remoteNames.length === 0) return 0;
+    const binding = assertFolderBinding(this.db, this.syncFolder);
+    const rows = this.db.prepare('SELECT stored_name FROM attachments').all() as { stored_name: string }[];
+    let pending = 0;
 
-    for (const storedName of remoteNames) {
+    for (const { stored_name: storedName } of rows) {
       const localPath = path.join(attachmentDir, storedName);
 
       // Skip if we already have it
       if (fs.existsSync(localPath)) continue;
 
-      // Verify metadata row exists
-      const row = this.db
-        .prepare('SELECT 1 FROM attachments WHERE stored_name = ?')
-        .get(storedName);
-      if (!row) continue;
-
       try {
-        // Pass passphrase for legacy .enc fallback during transition period
-        const ok = readAttachmentFile(this.syncFolder, storedName, localPath, this.passphrase);
+        const ok = readAttachmentFile(this.syncFolder, storedName, localPath, this.passphrase, binding.groupId);
         if (ok) count++;
+        else pending++;
       } catch (e) {
+        pending++;
         syncLog('warn', 'Failed to import attachment', { storedName, error: errorMessage(e) });
       }
     }
+
+    this.attachmentImportError = pending > 0 ? `${pending} attachment(s) are awaiting verified transfer or legacy migration.` : null;
 
     return count;
   }
@@ -1005,9 +924,12 @@ export class SyncOrchestrator {
    */
   exportAllAttachmentFiles(): number {
     if (!this.databaseId) return 0;
+    this.assertSyncRootUnchanged();
 
     const attachmentDir = getAttachmentStoragePath(this.databaseId);
+    const binding = assertFolderBinding(this.db, this.syncFolder);
     let count = 0;
+    let failed = 0;
 
     const rows = this.db
       .prepare('SELECT stored_name FROM attachments')
@@ -1019,12 +941,14 @@ export class SyncOrchestrator {
       if (!fs.existsSync(localPath)) continue;
 
       try {
-        writeAttachmentFile(this.syncFolder, row.stored_name, localPath);
-        count++;
+        if (writeAttachmentFile(this.syncFolder, row.stored_name, localPath, this.passphrase, binding.groupId)) count++;
       } catch (e) {
+        failed++;
         syncLog('warn', 'Failed to export attachment (bulk)', { storedName: row.stored_name, error: errorMessage(e) });
       }
     }
+
+    this.attachmentExportError = failed > 0 ? `${failed} attachment export(s) need attention. Local originals were preserved.` : null;
 
     return count;
   }
@@ -1034,12 +958,16 @@ export class SyncOrchestrator {
   private onHeartbeatTick(): void {
     if (!this.running) return;
     try {
+      this.assertSyncRootUnchanged();
       writeHeartbeat(this.syncFolder, this.deviceId);
       this.evaluateStaleness().catch((e) => {
         syncLog('warn', 'Staleness evaluation failed', { error: errorMessage(e) });
       });
     } catch (e) {
       syncLog('warn', 'Heartbeat tick failed', { error: errorMessage(e) });
+      this.exportError = `Sync folder unavailable: ${errorMessage(e)}`;
+      this.lastError = this.exportError;
+      this.setStatus('error');
     }
   }
 
@@ -1089,6 +1017,24 @@ export class SyncOrchestrator {
 
   // ─── Helpers ───────────────────────────────────────────────────
 
+  private assertSyncRootUnchanged(): void {
+    this.bindingVerified = false;
+    assertFolderBinding(this.db, this.syncFolder);
+    this.bindingVerified = true;
+  }
+
+  private reconcileReceipts(): void {
+    try {
+      this.assertSyncRootUnchanged();
+      const binding = assertFolderBinding(this.db, this.syncFolder);
+      this.deliveryReceipts.publish(this.syncFolder, this.passphrase, binding);
+      const rejected = this.deliveryReceipts.scan(this.syncFolder, this.passphrase, binding);
+      this.receiptError = rejected > 0 ? `${rejected} delivery receipt(s) could not be verified. They will be retried.` : null;
+    } catch (error) {
+      this.receiptError = `Delivery receipts pending: ${errorMessage(error)}`;
+    }
+  }
+
   private getSiteId(): Buffer {
     return (
       this.db.prepare('SELECT crsql_site_id() as site_id').get() as { site_id: Buffer }
@@ -1118,7 +1064,13 @@ export class SyncOrchestrator {
   }
 
   private setStatus(state: SyncStatusState): void {
+    this.lastError = this.exportError ?? this.importError ?? this.receiptError ?? this.attachmentExportError ?? this.attachmentImportError;
     if (state === 'idle') {
+      if (this.lastError) {
+        this.statusState = 'error';
+        this.onStatusChanged?.(this.getStatus());
+        return;
+      }
       // Before confirming idle, check if we should be stale instead
       try {
         if (!isSyncProviderRunning(this.syncFolder)) {

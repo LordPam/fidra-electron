@@ -296,6 +296,7 @@ export class WindowManager {
             lastError: status.lastError,
             syncFolder,
             staleReason: status.staleReason,
+            delivery: status.delivery,
           };
           ctx.sendToRenderer('localSync:statusChanged', fullStatus);
         },

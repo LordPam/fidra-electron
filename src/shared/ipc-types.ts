@@ -127,6 +127,7 @@ export interface LocalSyncStatus {
   lastError: string | null;
   syncFolder: string | null;
   staleReason: string | null;
+  delivery?: import('./sync-delivery-types').LocalSyncDelivery;
 }
 
 export interface LocalSyncConflict {
@@ -622,7 +623,7 @@ export interface IpcChannels {
   };
   'localSync:resolveConflict': {
     args: [conflictId: string, resolution: 'keep-local' | 'accept-remote' | 'manual'];
-    result: { success: boolean };
+    result: { success: boolean; error?: string };
   };
   'localSync:createSnapshot': {
     args: [];

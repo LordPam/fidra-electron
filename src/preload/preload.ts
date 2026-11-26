@@ -275,7 +275,7 @@ const api = {
     invoke('localSync:importNow'),
   localSyncGetConflicts: (entityId?: string): Promise<LocalSyncConflict[]> =>
     invoke('localSync:getConflicts', entityId),
-  localSyncResolveConflict: (conflictId: string, resolution: 'keep-local' | 'accept-remote' | 'manual'): Promise<{ success: boolean }> =>
+  localSyncResolveConflict: (conflictId: string, resolution: 'keep-local' | 'accept-remote' | 'manual'): Promise<{ success: boolean; error?: string }> =>
     invoke('localSync:resolveConflict', conflictId, resolution),
   localSyncCreateSnapshot: (): Promise<{ success: boolean; path?: string; changesetCount?: number; error?: string }> =>
     invoke('localSync:createSnapshot'),

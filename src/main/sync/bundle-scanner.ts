@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { isBundleFile, parseBundleFilename } from './bundle-io';
+import { isBundleFile, parseBundleFilename, readBundleFile } from './bundle-io';
 import type { AppliedBundles } from './applied-bundles';
 import { syncLog, errorMessage } from './sync-log';
 
@@ -37,14 +37,16 @@ export function scanForNewBundles(
     if (!isBundleFile(entry)) continue;
 
     const parsed = parseBundleFilename(entry);
-    if (!parsed) continue;
+    if (!parsed) throw new Error(`Unrecognised sync bundle filename needs review: ${entry}. It may be a provider conflict copy.`);
 
     // Skip our own bundles
     if (parsed.deviceId === ownDeviceId) continue;
 
-    // Coarse pre-filter: skip if sequence number is at or below the latest applied
-    const latestSeq = appliedBundles.getLatestSequence(parsed.deviceId);
-    if (latestSeq !== null && parsed.sequenceNumber <= latestSeq) continue;
+    // A higher sequence can arrive first, or a lower one can have failed.
+    if (appliedBundles.hasAppliedSequence(parsed.deviceId, parsed.sequenceNumber)) {
+      appliedBundles.assertAppliedPayload(parsed.deviceId, parsed.sequenceNumber, readBundleFile(path.join(syncDir, entry)));
+      continue;
+    }
 
     results.push({
       filePath: path.join(syncDir, entry),

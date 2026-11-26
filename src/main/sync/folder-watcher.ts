@@ -8,6 +8,8 @@ export interface FolderWatcherOptions {
   syncFolder: string;
   pollIntervalMs?: number; // default 30_000
   onBundleDetected: (filePath: string) => void;
+  /** Periodic reconciliation also retries files already seen but not applied. */
+  onReconcile?: () => void;
   onError?: (error: string) => void;
 }
 
@@ -19,6 +21,7 @@ export class FolderWatcher {
   private readonly pollIntervalMs: number;
   private readonly onBundleDetected: (filePath: string) => void;
   private readonly onError: ((error: string) => void) | null;
+  private readonly onReconcile: (() => void) | null;
 
   private watcher: FSWatcher | null = null;
   private pollTimer: ReturnType<typeof setInterval> | null = null;
@@ -35,6 +38,7 @@ export class FolderWatcher {
     this.pollIntervalMs = options.pollIntervalMs ?? DEFAULT_POLL_INTERVAL_MS;
     this.onBundleDetected = options.onBundleDetected;
     this.onError = options.onError ?? null;
+    this.onReconcile = options.onReconcile ?? null;
   }
 
   start(): void {
@@ -57,6 +61,10 @@ export class FolderWatcher {
       const basename = path.basename(filePath);
       if (!isBundleFile(basename)) return;
       this.scheduleEmit(filePath);
+    });
+
+    this.watcher.on('change', (filePath: string) => {
+      if (isBundleFile(path.basename(filePath))) this.scheduleEmit(filePath);
     });
 
     this.watcher.on('error', (err: unknown) => {
@@ -98,6 +106,7 @@ export class FolderWatcher {
 
   resume(): void {
     this.paused = false;
+    this.knownFiles.clear();
   }
 
   isRunning(): boolean {
@@ -123,21 +132,24 @@ export class FolderWatcher {
 
     for (const filePath of files) {
       const basename = path.basename(filePath);
-      if (this.knownFiles.has(basename)) continue;
-      this.knownFiles.add(basename);
       if (!this.paused) {
+        this.knownFiles.add(basename);
         this.onBundleDetected(filePath);
       }
     }
   }
 
   private poll(): void {
+    if (!this.paused && this.onReconcile) {
+      this.onReconcile();
+      return;
+    }
     const currentFiles = this.listBundleFiles();
 
     for (const filename of currentFiles) {
       if (this.knownFiles.has(filename)) continue;
-      this.knownFiles.add(filename);
       if (!this.paused) {
+        this.knownFiles.add(filename);
         this.onBundleDetected(path.join(this.syncDir, filename));
       }
     }

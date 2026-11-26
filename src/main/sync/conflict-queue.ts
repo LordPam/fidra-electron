@@ -23,12 +23,13 @@ export interface SyncConflict {
   remote_version: number;
   bundle_id: string;
   changeset_json: string | null;
+  local_changeset_json: string | null;
   created_at: string;
   resolved_at: string | null;
   resolution: string | null;
 }
 
-export type ConflictResolution = 'keep-local' | 'accept-remote' | 'manual';
+export type ConflictResolution = 'keep-local' | 'accept-remote' | 'manual' | 'superseded';
 
 export interface InsertConflictParams {
   entity_type: string;
@@ -43,6 +44,7 @@ export interface InsertConflictParams {
   bundle_id: string;
   /** JSON-serialized CrChangesetRow — needed to apply "accept remote" resolution. */
   changeset_json: string;
+  local_changeset_json?: string;
 }
 
 // ─── Table DDL ──────────────────────────────────────────────────────
@@ -61,6 +63,7 @@ const CREATE_TABLE_SQL = `
     remote_version INTEGER NOT NULL,
     bundle_id TEXT NOT NULL,
     changeset_json TEXT,
+    local_changeset_json TEXT,
     created_at TEXT NOT NULL,
     resolved_at TEXT,
     resolution TEXT
@@ -77,6 +80,9 @@ export class ConflictQueue {
     if (cols.length > 0 && !cols.some((c) => c.name === 'changeset_json')) {
       this.db.exec('ALTER TABLE sync_conflicts ADD COLUMN changeset_json TEXT');
     }
+    if (cols.length > 0 && !cols.some((c) => c.name === 'local_changeset_json')) {
+      this.db.exec('ALTER TABLE sync_conflicts ADD COLUMN local_changeset_json TEXT');
+    }
   }
 
   /** Insert a new conflict into the queue. Returns the generated id. */
@@ -90,8 +96,8 @@ export class ConflictQueue {
           local_value, remote_value,
           local_site_id, remote_site_id,
           local_version, remote_version,
-          bundle_id, changeset_json, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          bundle_id, changeset_json, local_changeset_json, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         id,
@@ -106,6 +112,7 @@ export class ConflictQueue {
         params.remote_version,
         params.bundle_id,
         params.changeset_json,
+        params.local_changeset_json ?? null,
         now,
       );
     return id;

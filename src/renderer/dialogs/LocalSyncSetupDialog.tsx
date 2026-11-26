@@ -16,6 +16,7 @@ import { FolderSync, Eye, EyeOff, Loader2, AlertCircle, AlertTriangle, Camera, U
 import { useLocalSyncStore } from '@/stores/local-sync-store';
 import { useAuthStore } from '@/stores/auth-store';
 import { formatRelativeTime } from '@/lib/format';
+import { SyncDeliveryDetails } from '@/components/SyncDeliveryDetails';
 import type { PersonnelRecord, PersonnelRole } from '../../shared/auth-types';
 
 interface LocalSyncSetupDialogProps {
@@ -32,6 +33,7 @@ export function LocalSyncSetupDialog({ open, onOpenChange }: LocalSyncSetupDialo
   const pendingConflicts = useLocalSyncStore((s) => s.pendingConflicts);
   const lastError = useLocalSyncStore((s) => s.lastError);
   const staleReason = useLocalSyncStore((s) => s.staleReason);
+  const delivery = useLocalSyncStore((s) => s.delivery);
   const config = useLocalSyncStore((s) => s.config);
   const configuring = useLocalSyncStore((s) => s.configuring);
   const configure = useLocalSyncStore((s) => s.configure);
@@ -320,7 +322,7 @@ export function LocalSyncSetupDialog({ open, onOpenChange }: LocalSyncSetupDialo
             <div className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1.5 text-sm items-center">
               <span className="text-muted-foreground">Status</span>
               <div className="flex items-center justify-end gap-2">
-                <Badge variant="default" className="bg-green-600 text-xs">Enabled</Badge>
+                <Badge variant="secondary" className="text-xs">Configured</Badge>
                 <Badge variant="secondary" className="text-xs capitalize">{state}</Badge>
                 {pendingConflicts > 0 && (
                   <Badge variant="destructive" className="text-xs">
@@ -346,7 +348,7 @@ export function LocalSyncSetupDialog({ open, onOpenChange }: LocalSyncSetupDialo
                 </>
               )}
 
-              <span className="text-muted-foreground">Last Export</span>
+              <span className="text-muted-foreground">Last Folder Export</span>
               <span className="text-right text-muted-foreground">
                 {lastExportAt ? formatRelativeTime(lastExportAt) : 'None this session'}
               </span>
@@ -356,6 +358,8 @@ export function LocalSyncSetupDialog({ open, onOpenChange }: LocalSyncSetupDialo
                 {lastImportAt ? formatRelativeTime(lastImportAt) : 'None this session'}
               </span>
             </div>
+
+            <SyncDeliveryDetails delivery={delivery} />
 
             {lastError && (
               <div className="flex items-start gap-2 rounded-md bg-destructive/10 p-3 text-sm text-destructive">

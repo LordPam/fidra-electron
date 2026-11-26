@@ -35,6 +35,22 @@ describe('bundle-io', () => {
       ensureSyncFolderStructure(tmpDir);
       expect(fs.existsSync(path.join(tmpDir, 'sync'))).toBe(true);
     });
+
+    test('never recreates a missing cloud root or its parent', () => {
+      const missing = path.join(tmpDir, 'provider', 'team');
+      expect(() => ensureSyncFolderStructure(missing)).toThrow();
+      expect(() => writeBundleAtomically(missing, 'device', 1, Buffer.from('x'))).toThrow();
+      expect(() => writeSnapshotAtomically(missing, 'device', 1, Buffer.from('x'))).toThrow();
+      expect(fs.existsSync(path.join(tmpDir, 'provider'))).toBe(false);
+    });
+
+    test('refuses a sync subdirectory redirected outside the selected root', () => {
+      const outside = path.join(tmpDir, 'outside');
+      fs.mkdirSync(outside);
+      fs.symlinkSync(outside, path.join(tmpDir, 'sync'), process.platform === 'win32' ? 'junction' : 'dir');
+      expect(() => writeBundleAtomically(tmpDir, 'device', 1, Buffer.from('x'))).toThrow('replaced');
+      expect(fs.readdirSync(outside)).toEqual([]);
+    });
   });
 
   describe('writeBundleAtomically', () => {
@@ -57,6 +73,14 @@ describe('bundle-io', () => {
       const data = Buffer.from('test');
       writeBundleAtomically(tmpDir, 'device-1', 1, data);
       expect(fs.existsSync(path.join(tmpDir, 'sync'))).toBe(true);
+    });
+
+    test('retries identical bytes and refuses to overwrite different history', () => {
+      const original = Buffer.from('first immutable payload');
+      const file = writeBundleAtomically(tmpDir, 'device', 1, original);
+      expect(writeBundleAtomically(tmpDir, 'device', 1, original)).toBe(file);
+      expect(() => writeBundleAtomically(tmpDir, 'device', 1, Buffer.from('different'))).toThrow('collision');
+      expect(fs.readFileSync(file)).toEqual(original);
     });
 
     test('blocks path traversal in deviceId', () => {

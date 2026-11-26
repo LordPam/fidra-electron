@@ -1,0 +1,11 @@
+{
+  "version": "0.1.31",
+  "status": "candidate",
+  "scope": "Local Sync protocol v2 hardening",
+  "outstanding": [
+    "Native staged legacy identity and attachment upgrade",
+    "Reviewed split-history recovery and joint-transfer resolution",
+    "Provider-aware relocation and coordinated peer cutover",
+    "Successful macOS and Windows candidate acceptance"
+  ]
+}

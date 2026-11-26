@@ -1,226 +1,118 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { verifyAndDecrypt } from './bundle-crypto';
-import { syncLog, errorMessage } from './sync-log';
+import crypto from 'node:crypto';
+import { z } from 'zod';
+import { encryptAndSign, verifyAndDecrypt } from './bundle-crypto';
+import { ensureSyncSubdirectory, writeSyncFileExclusively } from './bundle-io';
 
-const ATTACHMENTS_SUBDIR = 'attachments';
-const ENC_EXT = '.enc';
+const EXTENSION = '.attachment';
+const envelopeSchema = z.object({
+  version: z.literal(1), groupId: z.string().uuid(), storedName: z.string().min(1),
+  sha256: z.string().regex(/^[a-f0-9]{64}$/), content: z.string(),
+}).strict();
 
-// ─── Path safety ─────────────────────────────────────────────────────
+function assertSafeName(name: string): void {
+  if (!name || name.includes('..') || /[\\/\0]/.test(name)) throw new Error('Path traversal blocked: unsafe attachment name');
+}
+function hash(bytes: Buffer): string { return crypto.createHash('sha256').update(bytes).digest('hex'); }
 
-function assertSafeStoredName(storedName: string): void {
-  if (
-    storedName.includes('..') ||
-    storedName.includes(path.sep) ||
-    storedName.includes('/') ||
-    storedName.includes('\\') ||
-    storedName.includes('\0')
-  ) {
-    throw new Error(`Path traversal blocked: unsafe stored name "${storedName}"`);
+/** Opaque filenames do not disclose dates, amounts, parties or original names. */
+export function attachmentFileName(groupId: string, storedName: string): string {
+  assertSafeName(storedName);
+  z.string().uuid().parse(groupId);
+  return `${hash(Buffer.from(`${groupId}\0${storedName}`))}${EXTENSION}`;
+}
+
+function readSealed(file: string, storedName: string, passphrase: string, groupId: string): Buffer {
+  const stat = fs.lstatSync(file);
+  if (!stat.isFile() || stat.isSymbolicLink() || stat.size > 150 * 1024 * 1024) throw new Error('Invalid encrypted attachment file');
+  const envelope = envelopeSchema.parse(JSON.parse(verifyAndDecrypt(fs.readFileSync(file), passphrase).toString('utf8')));
+  if (envelope.groupId !== groupId || envelope.storedName !== storedName) throw new Error('Attachment identity mismatch');
+  const bytes = Buffer.from(envelope.content, 'base64');
+  if (bytes.toString('base64') !== envelope.content || hash(bytes) !== envelope.sha256) throw new Error('Attachment content hash mismatch');
+  return bytes;
+}
+
+/** Creates a local file without replacing existing data; callers retain originals. */
+function writeLocalExclusively(file: string, bytes: Buffer): void {
+  if (fs.existsSync(file)) {
+    if (!fs.readFileSync(file).equals(bytes)) throw new Error('Attachment collision: existing local bytes were preserved');
+    return;
+  }
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  const temporary = `${file}.${crypto.randomUUID()}.tmp`;
+  try {
+    fs.writeFileSync(temporary, bytes, { flag: 'wx', flush: true, mode: 0o600 });
+    try {
+      fs.copyFileSync(temporary, file, fs.constants.COPYFILE_EXCL);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'EEXIST' || !fs.readFileSync(file).equals(bytes)) throw error;
+    }
+  } finally {
+    fs.rmSync(temporary, { force: true });
   }
 }
 
-function assertWithinFolder(base: string, target: string): void {
-  const resolved = path.resolve(target);
-  const resolvedBase = path.resolve(base);
-  if (!resolved.startsWith(resolvedBase + path.sep) && resolved !== resolvedBase) {
-    throw new Error(`Path traversal blocked: ${target} resolves outside ${base}`);
-  }
-}
-
-function attachmentsDir(syncFolder: string): string {
-  return path.join(syncFolder, ATTACHMENTS_SUBDIR);
-}
-
-function plainPath(syncFolder: string, storedName: string): string {
-  assertSafeStoredName(storedName);
-  const p = path.join(attachmentsDir(syncFolder), storedName);
-  assertWithinFolder(attachmentsDir(syncFolder), p);
-  return p;
-}
-
-function legacyEncPath(syncFolder: string, storedName: string): string {
-  assertSafeStoredName(storedName);
-  const p = path.join(attachmentsDir(syncFolder), storedName + ENC_EXT);
-  assertWithinFolder(attachmentsDir(syncFolder), p);
-  return p;
-}
-
-// ─── Public API ──────────────────────────────────────────────────────
-
-/**
- * Copy a local attachment file to the shared sync folder as a plain file.
- * Uses atomic write (tmp → rename) to prevent partial reads.
+/** New transport is always encrypted. A retained local sealed copy makes a
+ * later retry use the same ciphertext. Existing differing files require review.
  */
 export function writeAttachmentFile(
-  syncFolder: string,
-  storedName: string,
-  localPath: string,
-): void {
-  const content = fs.readFileSync(localPath);
-
-  const dir = attachmentsDir(syncFolder);
-  fs.mkdirSync(dir, { recursive: true });
-
-  const finalPath = plainPath(syncFolder, storedName);
-  const tmpPath = finalPath + '.tmp';
-  try {
-    fs.writeFileSync(tmpPath, content);
-    fs.renameSync(tmpPath, finalPath);
-  } catch (e) {
-    try { fs.unlinkSync(tmpPath); } catch { /* already gone */ }
-    syncLog('error', 'writeAttachmentFile failed', { storedName, error: errorMessage(e) });
-    throw e;
-  }
-}
-
-/**
- * Read a plain attachment from the sync folder and write to a local path.
- * Also handles legacy .enc files (decrypts if passphrase provided).
- * Returns false if the file does not exist in either format.
- */
-export function readAttachmentFile(
-  syncFolder: string,
-  storedName: string,
-  localPath: string,
-  passphrase?: string,
+  syncFolder: string, storedName: string, localPath: string, passphrase: string, groupId: string,
 ): boolean {
-  // Try plain file first (new format)
-  const plain = plainPath(syncFolder, storedName);
-  if (fs.existsSync(plain)) {
-    const content = fs.readFileSync(plain);
-    const dir = path.dirname(localPath);
-    fs.mkdirSync(dir, { recursive: true });
-    fs.writeFileSync(localPath, content);
-    return true;
-  }
+  const filename = attachmentFileName(groupId, storedName);
+  ensureSyncSubdirectory(syncFolder, 'attachments');
+  if (fs.statSync(localPath).size > 100 * 1024 * 1024) throw new Error('Attachment exceeds the encrypted transport size limit of 100 MiB.');
+  const content = fs.readFileSync(localPath);
+  if (content.length > 100 * 1024 * 1024) throw new Error('Attachment exceeds the encrypted transport size limit of 100 MiB.');
+  const remote = path.join(syncFolder, 'attachments', filename);
 
-  // Fall back to legacy .enc file
-  const enc = legacyEncPath(syncFolder, storedName);
-  if (fs.existsSync(enc) && passphrase) {
-    const sealed = fs.readFileSync(enc);
-    const plaintext = verifyAndDecrypt(sealed, passphrase);
-    const dir = path.dirname(localPath);
-    fs.mkdirSync(dir, { recursive: true });
-    fs.writeFileSync(localPath, plaintext);
-    return true;
-  }
-
-  return false;
-}
-
-/** Remove an attachment file from the sync folder (both plain and legacy .enc). */
-export function removeAttachmentFile(syncFolder: string, storedName: string): void {
-  const plain = plainPath(syncFolder, storedName);
-  if (fs.existsSync(plain)) {
-    fs.unlinkSync(plain);
-  }
-  const enc = legacyEncPath(syncFolder, storedName);
-  if (fs.existsSync(enc)) {
-    fs.unlinkSync(enc);
-  }
-}
-
-/** List all stored names in the sync folder's attachments dir (both plain and legacy .enc). */
-export function listRemoteAttachments(syncFolder: string): string[] {
-  const dir = attachmentsDir(syncFolder);
-  if (!fs.existsSync(dir)) return [];
-
-  const names = new Set<string>();
-  for (const f of fs.readdirSync(dir)) {
-    // Skip temp files
-    if (f.endsWith('.tmp')) continue;
-    // Legacy encrypted files
-    if (f.endsWith(ENC_EXT)) {
-      names.add(f.slice(0, -ENC_EXT.length));
-    } else {
-      // Plain files
-      names.add(f);
-    }
-  }
-  return [...names];
-}
-
-/**
- * Migrate legacy .enc attachment files to plain files.
- * Decrypts each .enc file and writes the plain version alongside it,
- * then removes the .enc file. Idempotent — safe to call multiple times.
- * Returns the number of files migrated.
- */
-export function migrateEncryptedAttachments(syncFolder: string, passphrase: string): number {
-  const dir = attachmentsDir(syncFolder);
-  if (!fs.existsSync(dir)) return 0;
-
-  let count = 0;
-  const files = fs.readdirSync(dir).filter((f) => f.endsWith(ENC_EXT) && !f.endsWith('.tmp'));
-
-  for (const encFile of files) {
-    const storedName = encFile.slice(0, -ENC_EXT.length);
-    const encFilePath = path.join(dir, encFile);
-    const plainFilePath = path.join(dir, storedName);
-
-    // Skip if plain file already exists (already migrated)
-    if (fs.existsSync(plainFilePath)) {
-      // Remove the leftover .enc file
-      try { fs.unlinkSync(encFilePath); } catch { /* non-fatal */ }
-      count++;
-      continue;
-    }
-
+  const journal = path.join(path.dirname(localPath), '.sync-export', filename);
+  if (!fs.existsSync(journal)) {
+    const sealed = encryptAndSign(Buffer.from(JSON.stringify({
+      version: 1, groupId, storedName, sha256: hash(content), content: content.toString('base64'),
+    })), passphrase);
     try {
-      const sealed = fs.readFileSync(encFilePath);
-      const plaintext = verifyAndDecrypt(sealed, passphrase);
-
-      // Atomic write
-      const tmpPath = plainFilePath + '.tmp';
-      fs.writeFileSync(tmpPath, plaintext);
-      fs.renameSync(tmpPath, plainFilePath);
-
-      // Remove old .enc file
-      fs.unlinkSync(encFilePath);
-      count++;
-    } catch (e) {
-      syncLog('warn', 'Failed to migrate encrypted attachment (non-fatal)', {
-        storedName,
-        error: errorMessage(e),
-      });
+      writeLocalExclusively(journal, sealed);
+    } catch (error) {
+      // Another window may have sealed the same content with a different nonce.
+      if (!fs.existsSync(journal) || !readSealed(journal, storedName, passphrase, groupId).equals(content)) throw error;
     }
   }
-
-  if (count > 0) {
-    syncLog('info', `Migrated ${count} encrypted attachment(s) to plain files`);
+  if (!readSealed(journal, storedName, passphrase, groupId).equals(content)) throw new Error('Attachment journal differs from the local file. Review is required.');
+  if (fs.existsSync(remote)) {
+    if (!readSealed(remote, storedName, passphrase, groupId).equals(content)) throw new Error('Attachment collision: shared history was preserved');
+    return false;
   }
-  return count;
+  try {
+    writeSyncFileExclusively(syncFolder, 'attachments', filename, fs.readFileSync(journal));
+  } catch (error) {
+    if (!fs.existsSync(remote) || !readSealed(remote, storedName, passphrase, groupId).equals(content)) throw error;
+    return false;
+  }
+  return true;
 }
 
-/**
- * Export all local attachment files to the sync folder as plain files.
- * Used to ensure all existing local attachments are available to peers.
- * Skips files that already exist in the sync folder.
- * Returns the count of newly exported files.
- */
-export function exportAllLocalAttachments(
-  syncFolder: string,
-  attachmentDir: string,
-  storedNames: string[],
-): number {
-  let count = 0;
-  for (const storedName of storedNames) {
-    const localPath = path.join(attachmentDir, storedName);
-    if (!fs.existsSync(localPath)) continue;
-
-    const remotePlain = plainPath(syncFolder, storedName);
-    if (fs.existsSync(remotePlain)) continue;
-
-    try {
-      writeAttachmentFile(syncFolder, storedName, localPath);
-      count++;
-    } catch (e) {
-      syncLog('warn', 'Failed to export local attachment (non-fatal)', {
-        storedName,
-        error: errorMessage(e),
-      });
+/** Authenticates identity and content before writing any local destination. */
+export function readAttachmentFile(
+  syncFolder: string, storedName: string, localPath: string, passphrase: string, groupId: string,
+): boolean {
+  const filename = attachmentFileName(groupId, storedName);
+  ensureSyncSubdirectory(syncFolder, 'attachments');
+  const file = path.join(syncFolder, 'attachments', filename);
+  if (!fs.existsSync(file)) {
+    const journal = path.join(path.dirname(localPath), '.sync-export', filename);
+    if (fs.existsSync(journal)) {
+      writeLocalExclusively(localPath, readSealed(journal, storedName, passphrase, groupId));
+      return true;
     }
+    // Legacy data is preserved, never silently adopted or decrypted in the mailbox.
+    if (fs.existsSync(path.join(syncFolder, 'attachments', storedName))
+      || fs.existsSync(path.join(syncFolder, 'attachments', `${storedName}.enc`))) {
+      throw new Error('This attachment uses legacy transport and needs reviewed migration. Original files were preserved.');
+    }
+    return false;
   }
-  return count;
+  const content = readSealed(file, storedName, passphrase, groupId);
+  writeLocalExclusively(localPath, content);
+  return true;
 }

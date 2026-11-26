@@ -232,8 +232,8 @@ describe('classifyChangesets — auto-merge', () => {
 
 // ─── Sequential edit (version ordering) ─────────────────────────────
 
-describe('classifyChangesets — sequential edits (Rule 7a)', () => {
-  test('critical field edit after importing peer change → auto-merge (not conflict)', () => {
+describe('classifyChangesets — missing causal evidence', () => {
+  test('a higher column version alone does not prove sequential editing', () => {
     // Scenario: A edits amount, B imports A's change, B edits amount again.
     // When A imports B's change, it should auto-merge because B's col_version
     // is higher (B saw A's value before editing).
@@ -262,13 +262,13 @@ describe('classifyChangesets — sequential edits (Rule 7a)', () => {
     const amountChange = bChanges.filter((c) => c.cid === 'amount');
     expect(amountChange.length).toBeGreaterThan(0);
 
-    // A imports B's change — should auto-merge, NOT conflict
+    // These raw inserts contain no recorded bundle ancestry: review is required.
     const result = classifyChangesets(localDb, amountChange);
-    expect(result.conflicts).toHaveLength(0);
-    expect(result.autoMerge).toEqual(amountChange);
+    expect(result.conflicts).toHaveLength(1);
+    expect(result.autoMerge).toHaveLength(0);
   });
 
-  test('back-and-forth sequential edits → auto-merge each time', () => {
+  test('back-and-forth raw changes still require ancestry evidence', () => {
     // A creates tx
     localDb.prepare(
       `INSERT INTO transactions (id, amount) VALUES ('tx-1', 100)`,
@@ -290,9 +290,9 @@ describe('classifyChangesets — sequential edits (Rule 7a)', () => {
     changes = exportChanges(remoteDb, 0, localSiteId);
     const bAmountChanges = changes.filter((c) => c.cid === 'amount');
 
-    // A classifies B's change — should auto-merge
+    // Without causal metadata, version ordering alone cannot authorize a merge.
     let result = classifyChangesets(localDb, bAmountChanges);
-    expect(result.conflicts).toHaveLength(0);
+    expect(result.conflicts).toHaveLength(1);
 
     // Apply B's changes to A
     for (const c of changes) {
@@ -311,7 +311,7 @@ describe('classifyChangesets — sequential edits (Rule 7a)', () => {
 
     // B classifies A's change — should auto-merge
     result = classifyChangesets(remoteDb, aAmountChanges);
-    expect(result.conflicts).toHaveLength(0);
+    expect(result.conflicts).toHaveLength(1);
   });
 });
 
@@ -415,7 +415,7 @@ describe('classifyChangesets — conflicts', () => {
 
     // lastExportedVersion = 0 means our local edit hasn't been exported yet,
     // so the deleting peer couldn't have seen it → true concurrent conflict
-    const result = classifyChangesets(localDb, doctoredMarker, localSiteId, 0);
+    const result = classifyChangesets(localDb, doctoredMarker);
     expect(result.conflicts).toHaveLength(1);
     expect(result.conflicts[0].fieldName).toBe(CRSQL_DELETE_SENTINEL);
     expect(result.conflicts[0].remoteValue).toBe('DELETE');
@@ -425,12 +425,12 @@ describe('classifyChangesets — conflicts', () => {
     // auto-merges and lets the other peer own the conflict.
     const minSiteId = Buffer.alloc(16, 0x00);
     const flipped = delMarker.map((c) => ({ ...c, site_id: minSiteId }));
-    const flippedResult = classifyChangesets(localDb, flipped, localSiteId, 0);
-    expect(flippedResult.conflicts).toHaveLength(0);
-    expect(flippedResult.autoMerge).toHaveLength(flipped.length);
+    const flippedResult = classifyChangesets(localDb, flipped);
+    expect(flippedResult.conflicts).toHaveLength(1);
+    expect(flippedResult.autoMerge).toHaveLength(0);
   });
 
-  test('delete auto-merges when local edits were already exported', () => {
+  test('exporting an edit does not prove a deleting peer received it', () => {
     // Create tx on REMOTE
     remoteDb.prepare(
       `INSERT INTO transactions (id, amount) VALUES ('tx-1', 100)`,
@@ -451,9 +451,6 @@ describe('classifyChangesets — conflicts', () => {
     ).run();
 
     // Capture the db_version AFTER the local edit — pretend we exported it
-    const localDbVersion = (
-      localDb.prepare('SELECT MAX(db_version) as v FROM crsql_changes').get() as { v: number }
-    ).v;
 
     // Remote deletes the tx
     const remoteVersionBeforeDelete = (
@@ -466,9 +463,9 @@ describe('classifyChangesets — conflicts', () => {
 
     // lastExportedVersion = localDbVersion means our edit WAS exported,
     // so the deleting peer should have seen it → auto-merge (no conflict)
-    const result = classifyChangesets(localDb, delMarker, localSiteId, localDbVersion);
-    expect(result.conflicts).toHaveLength(0);
-    expect(result.autoMerge.length).toBeGreaterThan(0);
+    const result = classifyChangesets(localDb, delMarker);
+    expect(result.conflicts).toHaveLength(1);
+    expect(result.autoMerge).toHaveLength(0);
   });
 
   test('edit-vs-edit on status field', () => {

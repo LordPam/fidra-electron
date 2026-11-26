@@ -33,6 +33,10 @@ jobs:
         with:
           node-version: 22
           cache: npm
+      - name: Check Local Sync rollout readiness
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        run: node scripts/verify-sync-release.mjs
       - name: Validate release version and verification key
         shell: bash
         env:
