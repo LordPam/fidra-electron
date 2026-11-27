@@ -91,5 +91,8 @@ saving, retained-export retry, honest delivery evidence in Settings, and snapsho
 onboarding through typed IPC into a separate ledger. The test-only
 `sync-acceptance.yml` workflow runs these and invitation acceptance on macOS and
 Windows, then retains candidate installers. It never publishes an updater release.
+The missing-root case moves the live mailbox on macOS. Windows locks watched
+directories, so its case moves the mailbox between launches and verifies startup
+with the saved path missing. Both verify local saving and recovery after reconnect.
 
 `personal-ai.e2e.ts` additionally covers named sheet creation, default-off native permission, duplicate retries, visible creation notices, native Undo/Redo and refusal to undo after entries are added. The release workflow runs this scenario on both isolated platforms. Do not launch it locally on the owner’s active desktop.

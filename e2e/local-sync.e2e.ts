@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import type { Page } from '@playwright/test';
+import { _electron as electron, type ElectronApplication, type Page } from '@playwright/test';
 import type { TransactionRow } from '../src/shared/ipc-types';
 import { test, expect } from './fixtures';
 
@@ -16,7 +16,11 @@ async function saveEntry(window: Page, id: string): Promise<void> {
   await window.evaluate((entry) => window.api.saveTransaction(entry), row);
 }
 
-test('a missing mailbox stays missing while local work is saved and retained exports retry', async ({ window, userHome }) => {
+const missingMailboxScenario = process.platform === 'win32'
+  ? 'startup with a missing mailbox preserves local work and retries retained exports'
+  : 'a missing mailbox stays missing while local work is saved and retained exports retry';
+
+test(missingMailboxScenario, async ({ app, window, userHome }) => {
   const folder = path.join(userHome, 'mailbox');
   const parked = path.join(userHome, 'parked-mailbox');
   fs.mkdirSync(folder);
@@ -25,18 +29,39 @@ test('a missing mailbox stays missing while local work is saved and retained exp
   await window.evaluate(() => window.api.localSyncExportNow());
   const originalBundles = fs.readdirSync(path.join(folder, 'sync')).filter((name) => name.endsWith('.bundle'));
   expect(originalBundles.length).toBeGreaterThan(0);
-  fs.renameSync(folder, parked);
-  await saveEntry(window, 'during-disappearance');
-  await window.evaluate(() => window.api.localSyncExportNow());
-  expect(fs.existsSync(folder)).toBe(false);
-  expect((await window.evaluate(() => window.api.getTransactions())).find((entry) => entry.id === 'during-disappearance')?.amount).toBe('19.50');
-  expect((await window.evaluate(() => window.api.localSyncGetStatus())).lastError).toBeTruthy();
-  fs.renameSync(parked, folder);
-  await window.evaluate(() => window.api.localSyncExportNow());
-  const recovered = fs.readdirSync(path.join(folder, 'sync')).filter((name) => name.endsWith('.bundle'));
-  expect(recovered.length).toBeGreaterThan(originalBundles.length);
-  for (const name of originalBundles) expect(recovered).toContain(name);
-  expect((await window.evaluate(() => window.api.localSyncGetStatus())).delivery?.folderBound).toBe(true);
+  let restarted: ElectronApplication | undefined;
+  let page = window;
+  try {
+    if (process.platform === 'win32') {
+      // Windows keeps the watched directory open. Exercise the original incident:
+      // the saved mailbox vanishes between launches, before startup can recreate it.
+      await app.close();
+      fs.renameSync(folder, parked);
+      restarted = await electron.launch({
+        args: ['.', `--user-data-dir=${path.join(userHome, 'userData')}`],
+        cwd: path.resolve(__dirname, '..'),
+        env: { ...process.env, HOME: userHome, USERPROFILE: userHome, FIDRA_E2E: '1' },
+      });
+      page = await restarted.firstWindow();
+      await page.getByRole('heading', { name: 'Dashboard' }).waitFor();
+    } else {
+      fs.renameSync(folder, parked);
+    }
+    await saveEntry(page, 'during-disappearance');
+    await page.evaluate(() => window.api.localSyncExportNow());
+    expect(fs.existsSync(folder)).toBe(false);
+    expect((await page.evaluate(() => window.api.getTransactions())).find((entry) => entry.id === 'during-disappearance')?.amount).toBe('19.50');
+    expect((await page.evaluate(() => window.api.localSyncGetStatus())).lastError).toBeTruthy();
+    fs.renameSync(parked, folder);
+    expect(await page.evaluate((config) => window.api.localSyncConfigure(config), { syncFolder: folder, passphrase })).toMatchObject({ success: true });
+    await page.evaluate(() => window.api.localSyncExportNow());
+    const recovered = fs.readdirSync(path.join(folder, 'sync')).filter((name) => name.endsWith('.bundle'));
+    expect(recovered.length).toBeGreaterThan(originalBundles.length);
+    for (const name of originalBundles) expect(recovered).toContain(name);
+    expect((await page.evaluate(() => window.api.localSyncGetStatus())).delivery?.folderBound).toBe(true);
+  } finally {
+    await restarted?.close();
+  }
 });
 
 test('delivery evidence is visible without claiming a peer received the data', async ({ window, userHome }) => {
