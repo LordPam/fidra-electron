@@ -59,7 +59,9 @@ function join(name: string) {
   return { db, sync };
 }
 
-describe('snapshot safety', () => {
+// These multi-device scenarios seal and verify complete histories using the
+// production key derivation cost; hosted Windows can exceed five seconds.
+describe('snapshot safety', { timeout: 15_000 }, () => {
   it('retains immutable snapshots and carries ancestry into the first edit on a new device', () => {
     const a = source();
     const original = fs.readFileSync(a.first.path);
@@ -89,9 +91,7 @@ describe('snapshot safety', () => {
     a.sync.importAll();
     const reconciled = a.sync.createSnapshot();
     expect(findLatestSnapshot(folder, secret, a.group)?.filePath).toBe(reconciled.path);
-  // This case seals, imports and verifies several complete histories with the
-  // production key derivation cost. Hosted Windows needs more than five seconds.
-  }, 15_000);
+  });
 
   it('rejects equal causal coverage with differing financial state', () => {
     const a = source();
