@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import { setImmediate as yieldToRunner } from 'node:timers/promises';
 import type Database from 'better-sqlite3';
 import { openDatabase } from '../../database/connection';
 import { initializeCrr } from '../crr-schema';
@@ -26,10 +27,11 @@ beforeEach(() => {
   fs.mkdirSync(folder);
   dbs = [];
 });
-afterEach(() => {
+afterEach(async () => {
   for (const db of dbs) if (db.open) db.close();
   vi.restoreAllMocks();
   fs.rmSync(root, { recursive: true, force: true });
+  await yieldToRunner();
 });
 
 function database(name: string): Database.Database {
@@ -87,7 +89,9 @@ describe('snapshot safety', () => {
     a.sync.importAll();
     const reconciled = a.sync.createSnapshot();
     expect(findLatestSnapshot(folder, secret, a.group)?.filePath).toBe(reconciled.path);
-  });
+  // This case seals, imports and verifies several complete histories with the
+  // production key derivation cost. Hosted Windows needs more than five seconds.
+  }, 15_000);
 
   it('rejects equal causal coverage with differing financial state', () => {
     const a = source();

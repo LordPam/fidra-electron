@@ -8,9 +8,9 @@ import path from 'node:path';
  */
 export default defineConfig({
   test: {
-    // Native SQLite fixtures compete for the hosted Windows volume. Bound disk
-    // concurrency instead of relaxing assertions or the five-second test limit.
-    maxWorkers: process.env.CI && process.platform === 'win32' ? 2 : undefined,
+    // Native SQLite I/O and real key derivation compete on hosted runners. Match
+    // the bounded concurrency used for local acceptance on both CI platforms.
+    maxWorkers: process.env.CI ? 2 : undefined,
   },
   resolve: {
     alias: {

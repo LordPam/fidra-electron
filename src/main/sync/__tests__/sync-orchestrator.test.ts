@@ -2,6 +2,7 @@ import { describe, test, expect, beforeEach, afterEach, vi } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { setImmediate as yieldToRunner } from 'node:timers/promises';
 import Database from 'better-sqlite3';
 import { extensionPath } from '@vlcn.io/crsqlite';
 import { SyncOrchestrator } from '../sync-orchestrator';
@@ -192,11 +193,14 @@ beforeEach(() => {
   prepareTestBinding(dbB);
 });
 
-afterEach(() => {
+afterEach(async () => {
   vi.restoreAllMocks();
   finalize(dbA);
   finalize(dbB);
   fs.rmSync(syncFolder, { recursive: true, force: true });
+  // Real key derivation is synchronous. Let Vitest receive its reporting RPC
+  // replies between cases instead of starving them for the whole test file.
+  await yieldToRunner();
 });
 
 // ─── Tests ───────────────────────────────────────────────────────────
