@@ -50,7 +50,11 @@ export function registerRecoveryHandlers(): void {
   });
   handle('localSync:recoveryPrepare', (event, raw) => {
     const input = z.object({ mailboxes: z.array(file).max(20), peerLedgers: z.array(file).max(50) }).strict().parse(raw);
-    const { source, passphrase } = sourceFor(event); return prepareRecovery(source, input, passphrase);
+    const { source, passphrase } = sourceFor(event);
+    // Drain this device's pending debounce before inventorying its mailbox.
+    // Failed exports remain in the durable outbox and do not prevent recovery.
+    resolveContext(event).localSyncOrchestrator?.exportNow();
+    return prepareRecovery(source, input, passphrase);
   });
   handle('localSync:recoveryPreview', (event, raw) => {
     const id = uuid.parse(raw); const { source, passphrase } = sourceFor(event); return recoveryPreview(source, id, passphrase);
