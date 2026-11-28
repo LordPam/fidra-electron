@@ -150,26 +150,33 @@ export async function publishRecovery(source: RecoverySource, input: RecoveryPub
         .run(JSON.stringify({ id: journal.id }));
     }
     const parts = file.relative.split(path.sep);
-    if (parts.length === 1) exclusive(path.join(destination, file.relative), bytes);
-    else writeSyncFileExclusively(destination, parts[0] as 'sync' | 'snapshots' | 'attachments' | 'receipts' | 'invites', parts[1], bytes);
+    if (parts.length === 1) continue; // The manifest commits under the source write lock below.
+    writeSyncFileExclusively(destination, parts[0] as 'sync' | 'snapshots' | 'attachments' | 'receipts' | 'invites', parts[1], bytes);
   }
-  // This last section has no await. The live ledger cannot accept a renderer
-  // edit between final recheck, source retirement and returning the new path.
-  if (sourceFingerprint(source.sqlite) !== journal.sourceFingerprint) throw new Error('Local edits arrived during publication. Preserve both stages and review again.');
-  source.verifyAccess?.();
-  const stage = path.join(directory, 'stage.fdra');
-  if (!plan.databaseHash) {
-    const { db } = openDatabase(stage);
-    try { bindExistingSyncFolder(db, destination, passphrase); db.pragma('wal_checkpoint(TRUNCATE)'); } finally { db.close(); }
-  }
-  const bytes = fs.readFileSync(stage);
-  if (plan.databaseHash && plan.databaseHash !== sha256(bytes)) throw new Error('Prepared recovered account changed.');
-  plan.databaseHash = sha256(bytes); saveRecoveryJournal(directory, journal, passphrase);
-  exclusive(plan.databasePath, bytes);
-  journal.publishedDbPath = plan.databasePath; journal.publishedFolder = destination; journal.phase = 'published';
-  // Persist completed journal before the old transport marker. A crash retry can
-  // repair the marker from this same, already verified publication.
-  saveRecoveryJournal(directory, journal, passphrase);
-  markPublished(plan.databasePath);
+  // A durable pending marker already exists. Hold SQLite's write lock through
+  // the final filesystem commit so a second process cannot slip in a local edit.
+  // A crash rolls this transaction back but retains the earlier pause marker.
+  source.sqlite.transaction(() => {
+    if (sourceFingerprint(source.sqlite) !== journal.sourceFingerprint) throw new Error('Local edits arrived during publication. Preserve both stages and review again.');
+    source.verifyAccess?.();
+    if (rootIdentity(destination) !== plan.rootIdentity) throw new Error('The destination moved before the final commit.');
+    const manifest = plan.files.find((file) => file.relative === '.fidra-sync');
+    const manifestBytes = fs.readFileSync(path.join(directory, 'mailbox', '.fidra-sync'));
+    if (!manifest || sha256(manifestBytes) !== manifest.hash) throw new Error('Prepared mailbox identity changed.');
+    exclusive(path.join(destination, '.fidra-sync'), manifestBytes);
+    const stage = path.join(directory, 'stage.fdra');
+    if (!plan.databaseHash) {
+      const { db } = openDatabase(stage);
+      try { bindExistingSyncFolder(db, destination, passphrase); db.pragma('wal_checkpoint(TRUNCATE)'); } finally { db.close(); }
+    }
+    const bytes = fs.readFileSync(stage);
+    if (plan.databaseHash && plan.databaseHash !== sha256(bytes)) throw new Error('Prepared recovered account changed.');
+    plan.databaseHash = sha256(bytes); saveRecoveryJournal(directory, journal, passphrase);
+    exclusive(plan.databasePath, bytes);
+    journal.publishedDbPath = plan.databasePath; journal.publishedFolder = destination; journal.phase = 'published';
+    // A failed source commit leaves the complete journal available for repair.
+    saveRecoveryJournal(directory, journal, passphrase);
+    markPublished(plan.databasePath);
+  }).immediate();
   return recoveryPreview(source, input.id, passphrase);
 }

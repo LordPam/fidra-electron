@@ -3,7 +3,8 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import type Database from 'better-sqlite3';
+import Database from 'better-sqlite3';
+import { loadCrSqlite } from '../../database/crsqlite-lifecycle';
 import { openDatabase, getAttachmentStoragePath } from '../../database/connection';
 import { initializeCrr } from '../crr-schema';
 import { copyChanges, type RecoverySource } from '../recovery-database';
@@ -178,6 +179,26 @@ describe('persistent reviewed recovery', { timeout: 30_000 }, () => {
     expect((await publishRecovery(source, input, secret)).phase).toBe('published');
     expect(db.prepare("SELECT value FROM sync_meta WHERE key='recovery.pending'").get()).toBeUndefined();
     expect(() => assertFolderBinding(db, destination)).toThrow('replaced by reviewed recovery');
+  });
+
+  it('holds the original SQLite write lock while publishing the final mailbox marker', async () => {
+    const preview = await prepareRecovery(source, { mailboxes: [], peerLedgers: [] }, secret);
+    const destination = path.join(root, 'destination'); fs.mkdirSync(destination);
+    const writer = new Database(source.dbPath); loadCrSqlite(writer); writer.pragma('busy_timeout=0'); opened.push(writer);
+    let attempted = false;
+    const originalLink = fs.linkSync;
+    const link = vi.spyOn(fs, 'linkSync').mockImplementation((from, to) => {
+      if (String(to) === path.join(destination, '.fidra-sync')) {
+        attempted = true;
+        expect(() => writer.prepare("UPDATE transactions SET amount='999.00' WHERE id='tx'").run()).toThrow('locked');
+      }
+      return originalLink(from, to);
+    });
+    try {
+      const result = await publishRecovery(source, { id: preview.id, destinationFolder: destination, retiredDevices: [], confirmPausedClients: true, confirmReviewedChanges: true, reviewDigest: preview.reviewDigest }, secret);
+      expect(result.phase).toBe('published'); expect(attempted).toBe(true);
+      expect(db.prepare("SELECT amount FROM transactions WHERE id='tx'").pluck().get()).toBe('10.00');
+    } finally { link.mockRestore(); }
   });
 
 });

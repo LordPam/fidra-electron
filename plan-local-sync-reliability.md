@@ -329,7 +329,7 @@ pause marker; its ledger data and old shared mailbox are preserved. Other old
 clients still require an explicit coordinated pause/rejoin. Invitations now pin
 the manifest bytes, mailbox location and administrator authority.
 
-Local acceptance: 17 recovery foundation/session tests pass, including interrupted
+Local acceptance: 18 recovery foundation/session tests pass, including interrupted
 publication retry, joint-transfer audit rollback, stale-review rejection, readonly
 original preservation, and joining the resulting mailbox in a fresh account.
 The existing 35 orchestrator regressions pass. Typecheck passes. The full-schema
@@ -344,3 +344,5 @@ reviewed recovery must not be presented as completion of those remaining gates.
 Stable updater publication remains blocked.
 
 Final-commit crash regression: a durable predecessor transport pause is written before the new mailbox manifest, then replaced atomically with the completed recovery marker. A failed final retirement write remains paused across restart and the same saved publication repairs it on retry. Already committed original accounts cannot start another independent recovery.
+
+Final commit also holds the original database’s SQLite write lock across manifest publication and source retirement. A second writable connection is proven unable to insert an edit in that interval. The earlier durable pause marker survives a transaction/process failure.
