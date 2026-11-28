@@ -84,6 +84,14 @@ describe('persistent sync-folder binding', () => {
     expect(getFolderBinding(db)).toBeNull();
   });
 
+  test('cannot replace the pinned authority by reusing the group and location with the shared secret', () => {
+    const original = initializeOrBindSyncFolder(db, folder, secret);
+    const manifest = readFolderManifest(folder, secret);
+    fs.writeFileSync(path.join(folder, '.fidra-sync'), encryptAndSign(Buffer.from(JSON.stringify({ ...manifest, authorityPublicKey: 'replacement-key' })), secret));
+    expect(() => bindExistingSyncFolder(db, folder, secret)).toThrow('pinned mailbox identity changed');
+    expect(getFolderBinding(db)).toEqual(original);
+  });
+
   test('does not fork an existing team into a new empty mailbox', () => {
     db.prepare("INSERT INTO settings (key, value) VALUES ('localSync.groupId', ?)").run(crypto.randomUUID());
     expect(() => initializeOrBindSyncFolder(db, folder, secret)).toThrow('existing team');

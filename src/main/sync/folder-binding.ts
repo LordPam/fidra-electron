@@ -97,6 +97,9 @@ export function bindExistingSyncFolder(db: Database.Database, folder: string, pa
   if (previous && (previous.groupId !== manifest.groupId || previous.locationId !== manifest.locationId)) {
     throw new Error('This is a different team mailbox. An organisation relocation requires reviewed recovery.');
   }
+  if (previous && previous.manifestHash !== digest) {
+    throw new Error('The pinned mailbox identity changed. Reconnect cannot replace its administrator authority; use reviewed recovery.');
+  }
   const binding: FolderBinding = {
     version: 1, groupId: manifest.groupId, locationId: manifest.locationId,
     root: identity, manifestHash: digest,

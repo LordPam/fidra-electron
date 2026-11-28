@@ -209,7 +209,17 @@ export function recoveryPreview(source: RecoverySource, id: string, passphrase: 
   const directory = recoveryDirectory(source, id);
   const { db } = openDatabase(path.join(directory, 'stage.fdra'));
   try {
-    const state = readLedgerState(db);
+    let state = readLedgerState(db);
+    if (journal.phase === 'review') {
+      const selected = attachmentReview(state.attachments, journal.attachments, journal.attachmentSelections);
+      db.transaction(() => {
+        for (const item of selected) {
+          const alternative = item.alternatives.find((entry) => entry.hash === item.selectedHash);
+          if (alternative) db.prepare('UPDATE attachments SET file_size=? WHERE id=? AND file_size<>?').run(alternative.size, item.id, alternative.size);
+        }
+      })();
+      state = readLedgerState(db);
+    }
     const base = capturePeerLedger(path.join(directory, 'source.fdra'));
     const peerIds = new Set(journal.captures.map((capture) => capture.deviceId));
     for (const row of base.state.personnel) if (row.device_id) peerIds.add(String(row.device_id));
