@@ -1,29 +1,33 @@
 {
   "version": "0.1.31",
   "status": "candidate",
-  "scope": "Local Sync protocol v2 hardening",
+  "scope": "Local Sync protocol v2 hardening and native staged recovery",
   "outstanding": [
-    "Native staged legacy identity and attachment upgrade",
-    "Reviewed split-history recovery and joint-transfer resolution",
-    "Provider-aware relocation and coordinated peer cutover"
+    "Supported provider/domain detection and persistent location recovery",
+    "Signed same-group organisation relocation and reviewed late-history contributions",
+    "Coordinated old-client cutover and peer convergence acceptance"
   ],
   "acceptance": {
-    "commit": "dfab148a589bc74614e62d9392a9c5eb99876cdd",
-    "run_id": 46084657974,
-    "run_url": "https://github.com/LordPam/fidra-electron/actions/runs/46084657974",
+    "commit": "50cd964393612ad8b37f9d7ceacc863a05b3f9ba",
+    "run_id": 46091031843,
+    "run_url": "https://github.com/LordPam/fidra-electron/actions/runs/46091031843",
     "result": "success",
+    "installer_upgrade_from": "0.1.23",
+    "signed_installer_metadata_verified": true,
     "platforms": {
       "darwin-arm64": {
-        "service_tests": 763,
-        "desktop_tests": 40,
-        "artifact_id": 15238413149,
-        "installer": "Fidra-macOS-arm64.dmg"
+        "service_tests": 784,
+        "desktop_tests": 41,
+        "artifact_id": 15241826329,
+        "installer": "Fidra-macOS-arm64.dmg",
+        "installer_upgrade": "success"
       },
       "win32-x64": {
-        "service_tests": 763,
-        "desktop_tests": 9,
-        "artifact_id": 15237779929,
-        "installer": "Fidra-Windows-Setup.exe"
+        "service_tests": 784,
+        "desktop_tests": 10,
+        "artifact_id": 15241716561,
+        "installer": "Fidra-Windows-Setup.exe",
+        "installer_upgrade": "success"
       }
     }
   }

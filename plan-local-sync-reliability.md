@@ -347,4 +347,27 @@ Final-commit crash regression: a durable predecessor transport pause is written 
 
 Final commit also holds the original database’s SQLite write lock across manifest publication and source retirement. A second writable connection is proven unable to insert an edit in that interval. The earlier durable pause marker survives a transaction/process failure.
 
-Provider conflict-copy filenames now preserve participant identity from authenticated bundle/snapshot contents rather than relying on filenames. Such devices still require a captured ledger or explicit retirement. Mac acceptance at cdd8418 passed all 783 service tests, 41 desktop tests and actual 0.1.23 → 0.1.31 installer replacement; Windows revealed a legitimate inventory barrier hit by its own pending export. Native recovery preparation now drains that pending export before capture, preserving rejection of genuinely late history. The updated build is being retested on both platforms.
+Provider conflict-copy filenames now preserve participant identity from authenticated bundle/snapshot contents rather than relying on filenames. Such devices still require a captured ledger or explicit retirement. Mac acceptance at cdd8418 passed all 783 service tests, 41 desktop tests and actual 0.1.23 → 0.1.31 installer replacement; Windows revealed a legitimate inventory barrier hit by its own pending export. Native recovery preparation now drains that pending export before capture, preserving rejection of genuinely late history. The updated build passed on both platforms as recorded below.
+
+## Cross-platform native acceptance — 2026-11-28
+
+Source commit: `50cd964393612ad8b37f9d7ceacc863a05b3f9ba`.
+Run: https://github.com/LordPam/fidra-electron/actions/runs/46091031843 (success).
+
+Both OS runners pass 784 service tests and matching plugin smoke checks. macOS
+passes 41 real Electron tests; Windows passes 10, including the native recovery
+dialog publication scenario. Both build installers and verify their signed
+metadata, replace an actual 0.1.23 installation with 0.1.31, boot it and preserve
+the synthetic ledger/attachment while refreshing the compatibility helper.
+
+Retained macOS artifact: 15241826329. Retained Windows artifact: 15241716561.
+All tests used isolated runner profiles and synthetic accounts. No local Electron
+launch, live financial edit, shared mailbox change or local installation occurred.
+
+Native staged recovery acceptance is complete for the supported cases. It still
+refuses missing/corrupt evidence, incomplete rows, ambiguous identities and stale
+reviews. Remaining release gates now explicitly name supported provider/location
+recovery, signed same-group relocation and reviewed late contributions, and
+coordinated old-client/peer convergence acceptance. These are not implemented or
+accepted merely because fresh-group recovery and installer upgrades passed.
+No stable tag, release publication or discoverable updater metadata was created.
