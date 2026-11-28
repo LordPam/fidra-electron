@@ -59,11 +59,17 @@ export async function publishRecovery(source: RecoverySource, input: RecoveryPub
   source.verifyAccess?.();
   const directory = recoveryDirectory(source, input.id);
   const journal = readRecoveryJournal(source, input.id, passphrase);
+  const pending = source.sqlite.prepare("SELECT value FROM sync_meta WHERE key='recovery.pending'").pluck().get() as string | undefined;
+  if (pending && JSON.parse(pending).id !== input.id) throw new Error('Another recovery reached its final commit. Resume that saved review before publishing a different recovery.');
+  const markPublished = (databasePath: string) => source.sqlite.transaction(() => {
+    source.sqlite.prepare("INSERT INTO sync_meta(key,value) VALUES ('recovery.published',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value")
+      .run(JSON.stringify({ id: journal.id, newDbPath: databasePath }));
+    source.sqlite.prepare("DELETE FROM sync_meta WHERE key='recovery.pending'").run();
+  }).immediate();
   if (journal.phase === 'published') {
     const plan = journal.publication;
     if (!plan || sha256(fs.readFileSync(plan.databasePath)) !== plan.databaseHash) throw new Error('The published account changed. Open it directly; do not repeat this recovery publication.');
-    source.sqlite.prepare("INSERT INTO sync_meta(key,value) VALUES ('recovery.published',?) ON CONFLICT(key) DO NOTHING")
-      .run(JSON.stringify({ id: journal.id, newDbPath: plan.databasePath }));
+    markPublished(plan.databasePath);
     return recoveryPreview(source, input.id, passphrase);
   }
   if (!input.confirmPausedClients || !input.confirmReviewedChanges) throw new Error('Review the account changes and pause every old client before publishing.');
@@ -138,6 +144,10 @@ export async function publishRecovery(source: RecoverySource, input: RecoveryPub
       source.verifyAccess?.();
       if (sourceFingerprint(source.sqlite) !== journal.sourceFingerprint) throw new Error('Local edits arrived during publication. No mailbox commit marker was published; start a fresh recovery stage.');
       if (rootIdentity(destination) !== plan.rootIdentity) throw new Error('The destination moved before publication completed.');
+      // Persist the transport pause before the shared commit marker. If disk or
+      // process failure interrupts final retirement, even a restart stays paused.
+      source.sqlite.prepare("INSERT INTO sync_meta(key,value) VALUES ('recovery.pending',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value")
+        .run(JSON.stringify({ id: journal.id }));
     }
     const parts = file.relative.split(path.sep);
     if (parts.length === 1) exclusive(path.join(destination, file.relative), bytes);
@@ -160,7 +170,6 @@ export async function publishRecovery(source: RecoverySource, input: RecoveryPub
   // Persist completed journal before the old transport marker. A crash retry can
   // repair the marker from this same, already verified publication.
   saveRecoveryJournal(directory, journal, passphrase);
-  source.sqlite.prepare("INSERT INTO sync_meta(key,value) VALUES ('recovery.published',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value")
-    .run(JSON.stringify({ id: journal.id, newDbPath: plan.databasePath, groupId: readFolderManifest(destination, passphrase).groupId }));
+  markPublished(plan.databasePath);
   return recoveryPreview(source, input.id, passphrase);
 }

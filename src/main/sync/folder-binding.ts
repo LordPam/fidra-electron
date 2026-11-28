@@ -69,6 +69,7 @@ export function getFolderBinding(db: Database.Database): FolderBinding | null {
  */
 export function assertFolderBinding(db: Database.Database, folder: string): FolderBinding {
   if (readMeta(db, 'recovery.published')) throw new Error('This ledger was replaced by reviewed recovery. Its old sync transport is paused; open the recovered account. Local changes remain on this device.');
+  if (readMeta(db, 'recovery.pending')) throw new Error('Reviewed recovery reached its final commit. Old transport is paused; resume the saved recovery review to finish. Local work remains available.');
   const binding = getFolderBinding(db);
   if (!binding) throw new Error('This sync folder needs an identity upgrade. Sync is paused; existing history has been preserved.');
   const current = rootIdentity(folder);

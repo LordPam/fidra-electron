@@ -91,6 +91,9 @@ function recoverableRows(rows: CrChangesetRow[], expectedGroup: string | null): 
  * never skip a bundle or overwrite an existing operational file. */
 export async function prepareRecovery(source: RecoverySource, input: RecoveryPrepareInput, passphrase: string): Promise<RecoveryPreview> {
   source.verifyAccess?.();
+  if (source.sqlite.prepare("SELECT 1 FROM sync_meta WHERE key IN ('recovery.published','recovery.pending') LIMIT 1").get()) {
+    throw new Error('This account already has a recovery commit. Resume its saved review and open the recovered account. Retain this original if it has later local edits; they still need a reviewed contribution.');
+  }
   const id = crypto.randomUUID();
   const directory = recoveryDirectory(source, id);
   fs.mkdirSync(directory, { recursive: true, mode: 0o700 });

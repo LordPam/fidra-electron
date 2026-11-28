@@ -165,4 +165,19 @@ describe('persistent reviewed recovery', { timeout: 30_000 }, () => {
     expect(after.conflicts).toHaveLength(2); expect(after.accounts.map((item) => item.afterPence)).toEqual([1000,-1000]);
   });
 
+  it('keeps old transport durably paused when final retirement fails after publication, then repairs on retry', async () => {
+    const preview = await prepareRecovery(source, { mailboxes: [], peerLedgers: [] }, secret);
+    const destination = path.join(root, 'destination'); fs.mkdirSync(destination);
+    const input = { id: preview.id, destinationFolder: destination, retiredDevices: [], confirmPausedClients: true, confirmReviewedChanges: true, reviewDigest: preview.reviewDigest };
+    db.exec("CREATE TRIGGER reject_final_marker BEFORE INSERT ON sync_meta WHEN NEW.key='recovery.published' BEGIN SELECT RAISE(ABORT, 'synthetic retirement failure'); END");
+    await expect(publishRecovery(source, input, secret)).rejects.toThrow('synthetic retirement failure');
+    expect(fs.existsSync(path.join(destination, '.fidra-sync'))).toBe(true);
+    expect(() => assertFolderBinding(db, destination)).toThrow('Old transport is paused');
+    expect(recoveryPreview(source, preview.id, secret).phase).toBe('published');
+    db.exec('DROP TRIGGER reject_final_marker');
+    expect((await publishRecovery(source, input, secret)).phase).toBe('published');
+    expect(db.prepare("SELECT value FROM sync_meta WHERE key='recovery.pending'").get()).toBeUndefined();
+    expect(() => assertFolderBinding(db, destination)).toThrow('replaced by reviewed recovery');
+  });
+
 });
