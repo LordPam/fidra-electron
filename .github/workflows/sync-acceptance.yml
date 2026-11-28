@@ -70,11 +70,35 @@ jobs:
             export FIDRA_E2E_PACKAGED_EXECUTABLE="$PWD/out/Fidra-win32-x64/Fidra.exe"
             npx playwright test e2e/local-sync.e2e.ts e2e/invitations.e2e.ts e2e/packaged-fidra.e2e.ts e2e/installed-helper.e2e.ts
           fi
+      - name: Prepare signing key for installer verification only
+        shell: bash
+        env:
+          UPDATE_KEY_B64: ${{ secrets.FIDRA_UPDATE_PRIVATE_KEY_B64 }}
+        run: |
+          node -e 'const fs = require("fs"); const path = require("path"); const crypto = require("crypto"); if (!process.env.UPDATE_KEY_B64) throw Error("The installer acceptance check needs the configured update signing key"); const key = crypto.createPrivateKey(Buffer.from(process.env.UPDATE_KEY_B64, "base64")); if (!crypto.createPublicKey(key).equals(crypto.createPublicKey(fs.readFileSync("resources/update-public-key.pem")))) throw Error("Signing key does not match the embedded public key"); const file = path.join(process.env.RUNNER_TEMP, "fidra-update-private.pem"); fs.writeFileSync(file, key.export({type:"pkcs8", format:"pem"}), {mode:0o600}); fs.appendFileSync(process.env.GITHUB_ENV, "FIDRA_UPDATE_PRIVATE_KEY_PATH=" + file + "\n")'
       - name: Make candidate installers without publishing an update
         shell: bash
         env:
           TARGET_ARCH: ${{ matrix.arch }}
         run: npm run make -- --arch="$TARGET_ARCH"
+      - name: Remove temporary signing key
+        if: always()
+        shell: bash
+        run: node -e 'require("fs").rmSync(require("path").join(process.env.RUNNER_TEMP, "fidra-update-private.pem"), {force:true})'
+      - name: Test actual previous-version installer replacement in isolation
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          TARGET_PLATFORM: ${{ matrix.platform }}
+          TARGET_ARCH: ${{ matrix.arch }}
+        run: |
+          npm run rebuild:node
+          mkdir -p "$RUNNER_TEMP/previous" "$RUNNER_TEMP/candidate"
+          if [ "$TARGET_PLATFORM" = darwin ]; then asset=Fidra-macOS-arm64.dmg; else asset=Fidra-Windows-Setup.exe; fi
+          gh release download v0.1.23 --pattern "$asset" --dir "$RUNNER_TEMP/previous"
+          find out/make -type f \( -name "$asset" -o -name "fidra-update-$TARGET_PLATFORM-$TARGET_ARCH.json" \) -exec cp {} "$RUNNER_TEMP/candidate/" \;
+          node scripts/smoke-installer-upgrade.mjs "$RUNNER_TEMP/previous/$asset" "$RUNNER_TEMP/candidate/$asset" "$RUNNER_TEMP/candidate/fidra-update-$TARGET_PLATFORM-$TARGET_ARCH.json" "out/ai-plugin/$TARGET_PLATFORM-$TARGET_ARCH/Fidra-private/Fidra"
       - name: Retain installers and exact build identity
         uses: actions/upload-artifact@v4
         with:
@@ -83,6 +107,7 @@ jobs:
             out/make/**/*.dmg
             out/make/**/*.exe
             out/make/**/*.zip
+            out/make/**/fidra-update-*.json
             release-candidate.json
           if-no-files-found: error
       - name: Retain failure evidence
