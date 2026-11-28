@@ -5,7 +5,26 @@
   "outstanding": [
     "Native staged legacy identity and attachment upgrade",
     "Reviewed split-history recovery and joint-transfer resolution",
-    "Provider-aware relocation and coordinated peer cutover",
-    "Successful macOS and Windows candidate acceptance"
-  ]
+    "Provider-aware relocation and coordinated peer cutover"
+  ],
+  "acceptance": {
+    "commit": "dfab148a589bc74614e62d9392a9c5eb99876cdd",
+    "run_id": 46084657974,
+    "run_url": "https://github.com/LordPam/fidra-electron/actions/runs/46084657974",
+    "result": "success",
+    "platforms": {
+      "darwin-arm64": {
+        "service_tests": 763,
+        "desktop_tests": 40,
+        "artifact_id": 15238413149,
+        "installer": "Fidra-macOS-arm64.dmg"
+      },
+      "win32-x64": {
+        "service_tests": 763,
+        "desktop_tests": 9,
+        "artifact_id": 15237779929,
+        "installer": "Fidra-Windows-Setup.exe"
+      }
+    }
+  }
 }

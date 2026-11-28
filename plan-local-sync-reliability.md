@@ -297,3 +297,48 @@ performed by these source changes.
 - Institutional consent: https://learn.microsoft.com/en-us/entra/identity/enterprise-apps/user-admin-consent-overview
 - Apple persistent bookmarks: https://developer.apple.com/library/archive/documentation/FileManagement/Conceptual/FileSystemProgrammingGuide/AccessingFilesandDirectories/AccessingFilesandDirectories.html
 - Windows sync-root lookup: https://learn.microsoft.com/en-us/windows/win32/api/cfapi/nf-cfapi-cfgetsyncrootinfobypath
+
+## Candidate platform acceptance — 2026-11-27
+
+Version 0.1.31 source `dfab148a589bc74614e62d9392a9c5eb99876cdd` on the isolated candidate branch passed [run 46084657974](https://github.com/LordPam/fidra-electron/actions/runs/46084657974). Both platforms pass all 763 service tests; macOS passes 40 desktop tests and Windows passes 9 desktop tests. Matching plugin checks, actual DMG/Setup.exe creation and artifact upload succeed. The Windows missing-mailbox case now moves the mailbox between sandboxed launches because Windows rejected renaming the actively watched folder; macOS retains the live-disappearance test. Tests keep production cryptography and financial assertions.
+
+The candidate acceptance gate is fulfilled. Native legacy identity/attachment upgrade, reviewed split-history recovery and joint-transfer resolution, provider-aware relocation, coordinated old-client cutover and installer-upgrade acceptance remain before stable publication. The stable updater release remains gated. No live ledger or shared mailbox was modified.
+
+## Native recovery implementation checkpoint — 2026-11-28
+
+Implemented a persistent, private recovery stage with committed WAL-consistent
+SQLite backups, read-only external peer capture (no migrations or attachment
+relocation on originals), hash-pinned mailbox inventories, exact ciphertext
+identity checks, and preservation of local-only unresolved conflict queues.
+A copied SQLite site ID is not accepted as causal proof during recovery.
+
+The administrator's Settings dialog prepares/resumes reviews, shows account totals
+and individual row changes without exposing personnel credentials, resolves
+ordinary conflicts and both linked-transfer entries, and selects differing
+attachment contents by hash. Legacy plaintext and encrypted attachments are read
+only and retained privately as sealed alternatives. Missing files and incomplete
+or unbalanced transfers block publication. Native IPC checks the current live
+administrator, serialises recovery operations and rechecks authority/multi-window
+state before committing publication.
+
+Publication prepares a separate account and fresh mailbox identity. It retains a
+signed predecessor/retirement certificate, actual encrypted baseline and final
+snapshot, uses a durable retry plan, verifies original inventories again, and
+publishes the mailbox manifest last. The original ledger gets a local transport
+pause marker; its ledger data and old shared mailbox are preserved. Other old
+clients still require an explicit coordinated pause/rejoin. Invitations now pin
+the manifest bytes, mailbox location and administrator authority.
+
+Local acceptance: 16 recovery foundation/session tests pass, including interrupted
+publication retry, joint-transfer audit rollback, stale-review rejection, readonly
+original preservation, and joining the resulting mailbox in a fresh account.
+The existing 35 orchestrator regressions pass. Typecheck passes. The full-schema
+recovery tests exposed and fixed an audit action rejected by the production
+SQLite CHECK constraint. A native-dialog acceptance scenario has been added for
+isolated macOS/Windows runners; no Electron app or live ledger was launched here.
+
+Remaining: full native desktop/installer acceptance of this change, supported
+provider-domain/location recovery, signed same-group organisation relocation,
+late old-mailbox contributions and peer cutover/convergence evidence. Fresh-group
+reviewed recovery must not be presented as completion of those remaining gates.
+Stable updater publication remains blocked.

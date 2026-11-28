@@ -1,6 +1,6 @@
 import os from 'node:os';
 import crypto from 'node:crypto';
-import { createInvitation, writeInvitationToken } from '../sync/invitation';
+import { createInvitation, writeInvitationToken, invitationMailboxPins } from '../sync/invitation';
 import { ipcMain } from 'electron';
 import { resolveContext } from './context-resolver';
 import {
@@ -126,7 +126,7 @@ export function registerLocalAuthHandlers(): void {
       const groupId = ctx.settingsRepo.getSetting('localSync.groupId') ?? crypto.randomUUID();
       ctx.settingsRepo.setSetting('localSync.groupId', groupId, 'org');
       const invitation = createInvitation({ email: email.trim().toLowerCase(), name: existing?.name ?? name, role: existing?.role ?? role, existingAccount: !!existing?.password_hash,
-        team: ctx.settingsRepo.getSetting('report.orgName') || ctx.dbName, groupId });
+        team: ctx.settingsRepo.getSetting('report.orgName') || ctx.dbName, groupId, ...invitationMailboxPins(syncFolder, ctx.localSyncPassphrase) });
       // The snapshot includes the new person and group identity. Publish the token last.
       orchestrator.createSnapshot();
       writeInvitationToken(syncFolder, invitation, ctx.localSyncPassphrase);

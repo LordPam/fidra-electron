@@ -26,7 +26,11 @@ export function attachmentFileName(groupId: string, storedName: string): string 
 function readSealed(file: string, storedName: string, passphrase: string, groupId: string): Buffer {
   const stat = fs.lstatSync(file);
   if (!stat.isFile() || stat.isSymbolicLink() || stat.size > 150 * 1024 * 1024) throw new Error('Invalid encrypted attachment file');
-  const envelope = envelopeSchema.parse(JSON.parse(verifyAndDecrypt(fs.readFileSync(file), passphrase).toString('utf8')));
+  return decodeAttachmentBytes(fs.readFileSync(file), storedName, passphrase, groupId);
+}
+
+export function decodeAttachmentBytes(sealed: Buffer, storedName: string, passphrase: string, groupId: string): Buffer {
+  const envelope = envelopeSchema.parse(JSON.parse(verifyAndDecrypt(sealed, passphrase).toString('utf8')));
   if (envelope.groupId !== groupId || envelope.storedName !== storedName) throw new Error('Attachment identity mismatch');
   const bytes = Buffer.from(envelope.content, 'base64');
   if (bytes.toString('base64') !== envelope.content || hash(bytes) !== envelope.sha256) throw new Error('Attachment content hash mismatch');

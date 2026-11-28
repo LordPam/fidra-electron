@@ -1,7 +1,7 @@
 import type { CrChangesetRow } from './bundle-format';
 import { isOrgKey } from '../database/settings-repo';
 
-function settingsKey(row: CrChangesetRow): string {
+export function settingsKey(row: CrChangesetRow): string {
   const raw = Buffer.isBuffer(row.pk) ? row.pk.toString('utf8') : row.pk;
   // eslint-disable-next-line no-control-regex -- cr-sqlite text-key header for known setting keys.
   return raw.replace(/^[\x00-\x1f]+/, '');

@@ -291,7 +291,7 @@ describe('SyncOrchestrator', () => {
       expect(dbB.prepare("SELECT amount FROM transactions WHERE id = 'resolve'").pluck().get()).toBe(expected);
       expect(new ConflictQueue(dbB).count()).toBe(0);
       expect(resolveSyncConflict(dbA, conflict.id, choice, 'Test reviewer').success).toBe(true);
-      expect(dbA.prepare("SELECT COUNT(*) FROM audit_log WHERE action = 'SYNC_CONFLICT_RESOLVED'").pluck().get()).toBe(1);
+      expect(dbA.prepare("SELECT COUNT(*) FROM audit_log WHERE action = 'update' AND summary LIKE 'Reviewed sync conflict:%'").pluck().get()).toBe(1);
     } finally { a.stop(); b.stop(); }
   });
 

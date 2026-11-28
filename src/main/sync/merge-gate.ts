@@ -26,7 +26,7 @@ export interface PendingConflict {
   remoteSiteId: string;
 }
 export interface MergeGateResult { autoMerge: CrChangesetRow[]; conflicts: PendingConflict[] }
-export interface MergeCausality { history: CausalHistory; incoming: BundleCausality }
+export interface MergeCausality { history: CausalHistory; incoming: BundleCausality; reviewSameSiteDivergence?: boolean }
 
 export function entityChanges(db: Database.Database, table: string, pk: string | Buffer): CrChangesetRow[] {
   return db.prepare(`SELECT "table", "pk", "cid", "val", "col_version", "db_version", "site_id", "cl", "seq"
@@ -75,6 +75,9 @@ export function classifyChangesets(db: Database.Database, incoming: CrChangesetR
   }
   const remoteObserved = (row: CrChangesetRow) => causality?.history.remoteObserved(row, causality.incoming) ?? false;
   const localObservedIncoming = (row: CrChangesetRow) => causality?.history.localObservedIncoming(row, causality.incoming) ?? false;
+  // Recovery can encounter a copied database whose site identity was forked.
+  // In that mode even a same-site clock is not proof of causal observation.
+  const sameOrigin = (a: CrChangesetRow, b: CrChangesetRow) => !causality?.reviewSameSiteDivergence && sameSite(a, b);
 
   for (const rows of groups.values()) {
     const first = rows[0];
@@ -84,7 +87,7 @@ export function classifyChangesets(db: Database.Database, incoming: CrChangesetR
     const incomingDelete = rows.find(isDeleteChangeset);
     if (incomingDelete) {
       if (rows.length === 1 && (localDelete || local.length === 0
-        || local.every((row) => sameSite(row, incomingDelete) || remoteObserved(row)))) {
+        || local.every((row) => sameOrigin(row, incomingDelete) || remoteObserved(row)))) {
         autoMerge.push(incomingDelete);
       } else if (local.length > 0 && local.every(localObservedIncoming)) {
         // The current row descends from this old delete; retain its recreation.
@@ -97,7 +100,7 @@ export function classifyChangesets(db: Database.Database, incoming: CrChangesetR
       continue;
     }
     if (localDelete) {
-      if (rows.every((row) => sameSite(row, localDelete))) {
+      if (rows.every((row) => sameOrigin(row, localDelete))) {
         // Same-origin stale edits cannot resurrect a later tombstone.
         if (rows.every((row) => row.cl > localDelete.cl)) autoMerge.push(...rows);
       } else if (remoteObserved(localDelete) && rows.every((row) => row.cl > localDelete.cl)) {
@@ -114,10 +117,10 @@ export function classifyChangesets(db: Database.Database, incoming: CrChangesetR
     }
     if (local.length > 0 && rows.some((row) => row.cl !== local[0].cl)) {
       if (rows.every((row) => row.cl > local[0].cl)
-        && local.every((row) => sameSite(row, first) || remoteObserved(row))) {
+        && local.every((row) => sameOrigin(row, first) || remoteObserved(row))) {
         autoMerge.push(...rows);
       } else if (!rows.every((row) => row.cl < local[0].cl)
-        || !local.every((row) => sameSite(row, first) || localObservedIncoming(row))) {
+        || !local.every((row) => sameOrigin(row, first) || localObservedIncoming(row))) {
         const conflict = conflictFor(first, local[0], rows, local);
         conflict.fieldName = CRSQL_DELETE_SENTINEL;
         conflict.localValue = 'EXISTS';
@@ -128,7 +131,7 @@ export function classifyChangesets(db: Database.Database, incoming: CrChangesetR
     }
     for (const row of rows) {
       const current = local.find((value) => value.cid === row.cid);
-      if (!isCriticalField(row.table, row.cid) || !current || sameSite(current, row) || valuesEqual(current.val, row.val)) {
+      if (!isCriticalField(row.table, row.cid) || !current || sameOrigin(current, row) || valuesEqual(current.val, row.val)) {
         autoMerge.push(row);
       } else if (remoteObserved(current) && (row.cl > current.cl || row.col_version > current.col_version)) {
         autoMerge.push(row);

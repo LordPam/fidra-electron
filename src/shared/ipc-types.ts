@@ -593,6 +593,12 @@ export interface IpcChannels {
   };
 
   // Local Sync
+  'localSync:recoveryList': { args: []; result: import('./sync-recovery-types').RecoveryResult<{ id: string; createdAt: string; phase: string }[]> };
+  'localSync:recoveryPrepare': { args: [import('./sync-recovery-types').RecoveryPrepareInput]; result: import('./sync-recovery-types').RecoveryResult<import('./sync-recovery-types').RecoveryPreview> };
+  'localSync:recoveryPreview': { args: [string]; result: import('./sync-recovery-types').RecoveryResult<import('./sync-recovery-types').RecoveryPreview> };
+  'localSync:recoveryResolve': { args: [{ id: string; conflictId: string; choice: 'keep-local' | 'accept-remote' | 'delete-both'; reviewDigest: string }]; result: import('./sync-recovery-types').RecoveryResult<import('./sync-recovery-types').RecoveryPreview> };
+  'localSync:recoveryAttachment': { args: [{ id: string; attachmentId: string; hash: string; reviewDigest: string }]; result: import('./sync-recovery-types').RecoveryResult<import('./sync-recovery-types').RecoveryPreview> };
+  'localSync:recoveryPublish': { args: [import('./sync-recovery-types').RecoveryPublishInput]; result: import('./sync-recovery-types').RecoveryResult<import('./sync-recovery-types').RecoveryPreview> };
   'localSync:configure': {
     args: [config: { syncFolder: string; passphrase: string }];
     result: { success: boolean; error?: string };

@@ -283,6 +283,12 @@ const api = {
     invoke('localSync:compact'),
   localSyncJoinGroup: (opts: { syncFolder: string; passphrase: string; newDbPath?: string }): Promise<MigrationResult> =>
     invoke('localSync:joinGroup', opts),
+  recoveryList: (): Promise<import('../shared/sync-recovery-types').RecoveryResult<{ id: string; createdAt: string; phase: string }[]>> => invoke('localSync:recoveryList'),
+  recoveryPrepare: (input: import('../shared/sync-recovery-types').RecoveryPrepareInput): Promise<import('../shared/sync-recovery-types').RecoveryResult<import('../shared/sync-recovery-types').RecoveryPreview>> => invoke('localSync:recoveryPrepare', input),
+  recoveryPreview: (id: string): Promise<import('../shared/sync-recovery-types').RecoveryResult<import('../shared/sync-recovery-types').RecoveryPreview>> => invoke('localSync:recoveryPreview', id),
+  recoveryResolve: (input: { id: string; conflictId: string; choice: 'keep-local' | 'accept-remote' | 'delete-both'; reviewDigest: string }): Promise<import('../shared/sync-recovery-types').RecoveryResult<import('../shared/sync-recovery-types').RecoveryPreview>> => invoke('localSync:recoveryResolve', input),
+  recoveryAttachment: (input: { id: string; attachmentId: string; hash: string; reviewDigest: string }): Promise<import('../shared/sync-recovery-types').RecoveryResult<import('../shared/sync-recovery-types').RecoveryPreview>> => invoke('localSync:recoveryAttachment', input),
+  recoveryPublish: (input: import('../shared/sync-recovery-types').RecoveryPublishInput): Promise<import('../shared/sync-recovery-types').RecoveryResult<import('../shared/sync-recovery-types').RecoveryPreview>> => invoke('localSync:recoveryPublish', input),
   localSyncRecoverAttachments: (): Promise<{ success: boolean; copiedCount?: number; exportedCount?: number; error?: string }> =>
     invoke('localSync:recoverAttachments'),
   localSyncJoinViaInvite: (opts: { syncFolder: string; email: string; inviteCode: string; password: string; newDbPath?: string }): Promise<MigrationResult> =>

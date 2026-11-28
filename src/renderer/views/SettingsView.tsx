@@ -18,6 +18,7 @@ import { formatRelativeTime } from '@/lib/format';
 import type { ThemeMode } from '../../shared/global-settings-types';
 import type { AuditLogRow } from '../../shared/ipc-types';
 import { useLocalSyncStore } from '@/stores/local-sync-store';
+import { SyncRecoveryDialog } from '@/dialogs/SyncRecoveryDialog';
 import { LocalSyncSetupDialog } from '@/dialogs/LocalSyncSetupDialog';
 import { BackupRestoreDialog } from '@/dialogs/BackupRestoreDialog';
 import { cn } from '@/lib/utils';
@@ -114,6 +115,7 @@ export default function SettingsView() {
     lsLoadStatus();
     lsLoadConfig();
   }, [lsLoadStatus, lsLoadConfig]);
+  const [recoveryOpen, setRecoveryOpen] = useState(false);
   const [lsDialogOpen, setLsDialogOpen] = useState(false);
   const [lsSyncing, setLsSyncing] = useState(false);
   const [lsRecovering, setLsRecovering] = useState(false);
@@ -635,6 +637,7 @@ export default function SettingsView() {
             )}
           </CardContent>
         </Card>
+        {isAdmin && <div><Button variant="outline" onClick={() => setRecoveryOpen(true)}>Review sync recovery</Button><SyncRecoveryDialog open={recoveryOpen} onOpenChange={setRecoveryOpen} /></div>}
         <LocalSyncSetupDialog open={lsDialogOpen} onOpenChange={setLsDialogOpen} />
 
         {/* Row 6: Audit Log */}

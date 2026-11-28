@@ -6,7 +6,7 @@ import { deserializeChangesetRow, serializeChangesetRow, type SerializedChangese
 import { entityChanges, CRSQL_DELETE_SENTINEL, LINKED_TRANSFER_REVIEW, isDeleteChangeset } from './merge-gate';
 import { SYNCED_TABLES } from './crr-schema';
 
-function decodeRows(json: string): CrChangesetRow[] {
+export function decodeConflictRows(json: string): CrChangesetRow[] {
   const value: unknown = JSON.parse(json);
   const rows = (Array.isArray(value) ? value : [value]).map((row) => deserializeChangesetRow(row as SerializedChangesetRow));
   for (const row of rows) {
@@ -15,6 +15,7 @@ function decodeRows(json: string): CrChangesetRow[] {
   }
   return rows;
 }
+const decodeRows = decodeConflictRows;
 
 function display(value: unknown): string | null { return value == null ? null : Buffer.isBuffer(value) ? value.toString('hex') : String(value); }
 
@@ -145,7 +146,7 @@ export function resolveSyncConflict(
     if (!queue.resolve(id, choice)) throw new Error('Conflict changed during resolution');
     history.promoteReviewedBundle(conflict.bundle_id);
     db.prepare(`INSERT INTO audit_log (id, timestamp, action, entity_type, entity_id, user, summary, details)
-      VALUES (?, ?, 'SYNC_CONFLICT_RESOLVED', ?, ?, ?, ?, ?)`)
+      VALUES (?, ?, 'update', ?, ?, ?, ?, ?)`)
       .run(crypto.randomUUID(), new Date().toISOString(), conflict.entity_type, conflict.entity_id, actor,
         `Reviewed sync conflict: ${conflict.field_name} (${choice})`, JSON.stringify({ conflictId: id, choice, local: conflict.local_value, remote: conflict.remote_value }));
     return { success: true, table: first.table };

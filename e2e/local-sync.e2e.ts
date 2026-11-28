@@ -90,3 +90,32 @@ test('snapshot onboarding publishes a separate complete ledger and preserves an 
   await peer.getByRole('heading', { name: 'Dashboard' }).waitFor();
   expect((await peer.evaluate(() => window.api.getTransactions())).find((entry) => entry.id === 'snapshot-entry')?.amount).toBe('19.50');
 });
+
+test('administrator reviews and publishes recovery into a separate mailbox through the native dialog', async ({ app, window, userHome }) => {
+  const old = path.join(userHome, 'old-mailbox'); const destination = path.join(userHome, 'recovered-mailbox');
+  fs.mkdirSync(old); fs.mkdirSync(destination);
+  expect(await window.evaluate(() => window.api.recoveryList())).toMatchObject({ success: false });
+  expect(await window.evaluate((syncFolder) => window.api.localSyncConfigure({ syncFolder, passphrase: 'synthetic-sync-acceptance-secret' }), old)).toMatchObject({ success: true });
+  expect(await window.evaluate(() => window.api.localAuthCreateFirstAdmin({ name: 'Recovery Admin', email: 'recovery@example.test', password: 'admin-password', syncPassphrase: 'synthetic-sync-acceptance-secret' }))).toMatchObject({ success: true });
+  await saveEntry(window, 'recovery-entry');
+  const original = await window.evaluate(() => window.api.getDbPath());
+  await window.reload();
+  await window.locator('a[href="#/settings"]').click();
+  await window.getByRole('button', { name: 'Review sync recovery', exact: true }).click();
+  await window.getByRole('button', { name: 'Prepare private review', exact: true }).click();
+  await expect(window.getByText('Account totals include pending entries; rejected and planned entries are excluded.', { exact: true })).toBeVisible();
+  await expect(window.getByText('Ledger captured', { exact: false })).toBeVisible();
+  expect(fs.readdirSync(destination)).toEqual([]);
+  await app.evaluate(({ dialog }, selected) => { dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [selected] }); }, destination);
+  await window.getByRole('button', { name: 'Choose empty new mailbox', exact: true }).click();
+  await window.getByLabel('Every old client is paused and will rejoin the new mailbox.', { exact: true }).check();
+  await window.getByLabel('I have reviewed the account changes, file choices and missing-device decisions.', { exact: true }).check();
+  await window.getByRole('button', { name: 'Publish recovered account and mailbox', exact: true }).click();
+  await expect(window.getByRole('button', { name: 'Open recovered account', exact: true })).toBeVisible();
+  expect(await window.evaluate(() => window.api.getDbPath())).toBe(original);
+  expect(fs.existsSync(path.join(old, '.fidra-sync'))).toBe(true);
+  expect(fs.existsSync(path.join(destination, '.fidra-sync'))).toBe(true);
+  expect((await window.evaluate(() => window.api.getTransactions())).find((entry) => entry.id === 'recovery-entry')?.amount).toBe('19.50');
+  await window.getByRole('button', { name: 'Refresh review', exact: true }).click();
+  await expect(window.getByRole('button', { name: 'Open recovered account', exact: true })).toBeVisible();
+});

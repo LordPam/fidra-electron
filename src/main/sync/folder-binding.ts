@@ -5,14 +5,17 @@ import type Database from 'better-sqlite3';
 import { z } from 'zod';
 import { encryptAndSign, verifyAndDecrypt } from './bundle-crypto';
 import { assertSyncRootExists } from './bundle-io';
+import { ensureOrganisationAuthority } from './organisation-authority';
 
 const MANIFEST = '.fidra-sync';
 const BINDING_KEY = 'folder.binding.v1';
 const BOOTSTRAP_KEY = 'folder.bootstrap.v1';
 const manifestSchema = z.object({
-  version: z.literal(1), groupId: z.string().uuid(), locationId: z.string().uuid(),
+  version: z.union([z.literal(1), z.literal(2)]), groupId: z.string().uuid(), locationId: z.string().uuid(),
   createdAt: z.iso.datetime(),
-}).strict();
+  authorityPublicKey: z.string().min(1).max(4096).optional(), generation: z.number().int().positive().optional(),
+  previousLocationId: z.string().uuid().optional(), migrationId: z.string().uuid().optional(),
+}).strict().refine((value) => value.version === 1 || (!!value.authorityPublicKey && !!value.generation), 'Modern mailbox identity requires a signing authority and generation');
 const rootSchema = z.object({ realPath: z.string().min(1), dev: z.string(), ino: z.string() }).strict();
 const bindingSchema = z.object({
   version: z.literal(1), groupId: z.string().uuid(), locationId: z.string().uuid(),
@@ -65,6 +68,7 @@ export function getFolderBinding(db: Database.Database): FolderBinding | null {
  * This proves continuity of a selected local folder, not provider/cloud delivery.
  */
 export function assertFolderBinding(db: Database.Database, folder: string): FolderBinding {
+  if (readMeta(db, 'recovery.published')) throw new Error('This ledger was replaced by reviewed recovery. Its old sync transport is paused; open the recovered account. Local changes remain on this device.');
   const binding = getFolderBinding(db);
   if (!binding) throw new Error('This sync folder needs an identity upgrade. Sync is paused; existing history has been preserved.');
   const current = rootIdentity(folder);
@@ -120,7 +124,8 @@ export function initializeOrBindSyncFolder(db: Database.Database, folder: string
       return Buffer.from(parsed.payload, 'base64');
     }
     const manifest: FolderManifest = {
-      version: 1, groupId: groupId(db) ?? crypto.randomUUID(), locationId: crypto.randomUUID(), createdAt: new Date().toISOString(),
+      version: 2, groupId: groupId(db) ?? crypto.randomUUID(), locationId: crypto.randomUUID(), createdAt: new Date().toISOString(),
+      authorityPublicKey: ensureOrganisationAuthority(db, passphrase), generation: 1,
     };
     manifestSchema.parse(manifest);
     const payload = encryptAndSign(Buffer.from(JSON.stringify(manifest)), passphrase);

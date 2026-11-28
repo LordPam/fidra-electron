@@ -6,8 +6,25 @@ import { hashEmail } from './invite-token';
 import { wrapPassphrase, unwrapPassphrase } from './key-wrap';
 import { z } from 'zod';
 import { ensureSyncSubdirectory } from './bundle-io';
+import { readFolderManifest } from './folder-binding';
+import { authorityFingerprint } from './organisation-authority';
 
 const payloadSchema = z.object({ invitation: invitationSchema, passphrase: z.string().min(1) }).strict();
+
+export function invitationMailboxPins(folder: string, passphrase: string): Pick<FidraInvitation, 'manifestHash' | 'locationId' | 'authorityFingerprint'> {
+  const manifest = readFolderManifest(folder, passphrase);
+  return { manifestHash: crypto.createHash('sha256').update(fs.readFileSync(path.join(folder, '.fidra-sync'))).digest('hex'),
+    locationId: manifest.locationId, authorityFingerprint: manifest.authorityPublicKey ? authorityFingerprint(manifest.authorityPublicKey) : undefined };
+}
+
+export function assertInvitationMailbox(folder: string, invitation: FidraInvitation, passphrase: string): void {
+  const manifest = readFolderManifest(folder, passphrase); const pins = invitationMailboxPins(folder, passphrase);
+  if (manifest.groupId !== invitation.groupId) throw new Error('This invitation belongs to a different team.');
+  if (manifest.version === 2 && (!invitation.manifestHash || !invitation.locationId || !invitation.authorityFingerprint)) throw new Error('Ask the administrator to reissue this invitation with its verified mailbox identity.');
+  if ((invitation.manifestHash && invitation.manifestHash !== pins.manifestHash)
+    || (invitation.locationId && invitation.locationId !== pins.locationId)
+    || (invitation.authorityFingerprint && invitation.authorityFingerprint !== pins.authorityFingerprint)) throw new Error('The invitation and mailbox identity differ. Ask the administrator for the correct mailbox or a new invitation.');
+}
 
 export function createInvitation(info: Omit<FidraInvitation, 'version' | 'id' | 'code' | 'expiresAt'>): FidraInvitation {
   return invitationSchema.parse({ ...info, version: 1, id: crypto.randomUUID(), code: crypto.randomBytes(32).toString('hex').toUpperCase(),

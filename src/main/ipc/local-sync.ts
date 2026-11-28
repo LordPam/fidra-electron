@@ -1,3 +1,4 @@
+import { registerRecoveryHandlers } from './sync-recovery';
 import fs from 'node:fs';
 import os from 'node:os';
 import { ipcMain } from 'electron';
@@ -11,7 +12,7 @@ import { assertApplicationPermission } from '../services/application-access';
 import { SyncOrchestrator } from '../sync/sync-orchestrator';
 import { ConflictQueue } from '../sync/conflict-queue';
 import { syncFolderHasExistingPeers, syncFolderHasInvites, validateSyncFolder } from '../sync/bundle-io';
-import { readInvitationIdentity } from '../sync/invitation';
+import { readInvitationIdentity, assertInvitationMailbox } from '../sync/invitation';
 import { newAccountPath } from '../services/account-catalog';
 import { readInviteToken, deleteInviteToken } from '../sync/invite-token';
 import { openDatabase, getAttachmentStoragePath } from '../database/connection';
@@ -28,6 +29,7 @@ const SETTING_SYNC_FOLDER = 'localSync.syncFolder';
 const SETTING_PASSPHRASE = 'localSync.passphrase';
 
 export function registerLocalSyncHandlers(): void {
+  registerRecoveryHandlers();
   // ─── localSync:configure ──────────────────────────────────────────
   ipcMain.handle('localSync:configure', (event, rawConfig: unknown) => {
     try {
@@ -390,10 +392,12 @@ export function registerLocalSyncHandlers(): void {
       }
 
       const invitation = readInvitationIdentity(syncFolder, email, inviteCode);
+      if (invitation) assertInvitationMailbox(syncFolder, invitation, passphrase);
       // Join using the recovered passphrase
       const result = joinLocalSync({ syncFolder, passphrase, newDbPath, afterImport: (db) => {
         const personnelRepo = new PersonnelRepo(db);
         if (invitation) {
+          assertInvitationMailbox(syncFolder, invitation, passphrase!);
           const group = db.prepare("SELECT value FROM settings WHERE key = 'localSync.groupId'").get() as { value: string } | undefined;
           if (!group?.value) throw new Error('Team data is still arriving through OneDrive. Try again shortly.');
           if (group.value !== invitation.groupId) throw new Error('This shared folder belongs to a different team. Choose the correct folder.');

@@ -6,10 +6,10 @@ import crypto from 'node:crypto';
 import { openDatabase } from '../../database/connection';
 import { initializeCrr } from '../crr-schema';
 import { SyncOrchestrator } from '../sync-orchestrator';
-import { createInvitation, writeInvitationToken, readInvitationIdentity } from '../invitation';
+import { createInvitation, writeInvitationToken, readInvitationIdentity, invitationMailboxPins, assertInvitationMailbox } from '../invitation';
 import { readInviteToken, hashEmail } from '../invite-token';
 import { joinLocalSync } from '../migration';
-import { initializeOrBindSyncFolder } from '../folder-binding';
+import { initializeOrBindSyncFolder, readFolderManifest } from '../folder-binding';
 
 let root: string;
 let folder: string;
@@ -32,6 +32,15 @@ function snapshot(): void {
 }
 
 describe('invitation authentication', () => {
+  it('pins the exact mailbox and administrator authority, even when a copied folder uses the same shared secret and group', () => {
+    snapshot();
+    const invite = createInvitation({ name: 'Sam', email: 'sam@example.test', role: 'member', team: 'Test club', groupId: readFolderManifest(folder, secret).groupId, ...invitationMailboxPins(folder, secret) });
+    expect(() => assertInvitationMailbox(folder, invite, secret)).not.toThrow();
+    expect(() => assertInvitationMailbox(folder, { ...invite, manifestHash: '0'.repeat(64) }, secret)).toThrow('identity differ');
+    expect(() => assertInvitationMailbox(folder, { ...invite, authorityFingerprint: '0'.repeat(64) }, secret)).toThrow('identity differ');
+    const { manifestHash: _hash, ...unpinned } = invite;
+    expect(() => assertInvitationMailbox(folder, unpinned, secret)).toThrow('reissue');
+  });
   it('wraps the group key with strong access material and authenticates the recipient', () => {
     const invite = createInvitation({ name: 'Sam', email: 'sam@example.test', role: 'member', team: 'Test club', groupId: crypto.randomUUID() });
     writeInvitationToken(folder, invite, secret);
