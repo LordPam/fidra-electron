@@ -11,7 +11,7 @@ import { copyChanges, type RecoverySource } from '../recovery-database';
 import { currentChanges, sourceFingerprint } from '../recovery-state';
 import { prepareRecovery, recoveryDirectory, recoveryPreview, resolveRecoveryChoice, chooseRecoveryAttachment } from '../recovery-session';
 import { ConflictQueue } from '../conflict-queue';
-import { serializeChangesetRow } from '../bundle-format';
+import { packBundle, serializeChangesetRow } from '../bundle-format';
 import { publishRecovery } from '../recovery-publication';
 import { joinLocalSync } from '../migration';
 import { readFolderManifest, assertFolderBinding } from '../folder-binding';
@@ -199,6 +199,16 @@ describe('persistent reviewed recovery', { timeout: 30_000 }, () => {
       expect(result.phase).toBe('published'); expect(attempted).toBe(true);
       expect(db.prepare("SELECT amount FROM transactions WHERE id='tx'").pluck().get()).toBe('10.00');
     } finally { link.mockRestore(); }
+  });
+
+  it('requires a baseline or retirement for authenticated devices hidden behind provider conflict-copy names', async () => {
+    const old = path.join(root, 'old'); fs.mkdirSync(path.join(old, 'sync'), { recursive: true });
+    fs.writeFileSync(path.join(old, 'sync', 'provider conflicted copy.bundle'), packBundle({ deviceId: 'hidden-peer', siteId: crypto.randomBytes(16), sequenceNumber: 1, schemaVersion: 1, changesets: [], passphrase: secret }));
+    const preview = await prepareRecovery(source, { mailboxes: [old], peerLedgers: [] }, secret);
+    expect(preview.peers.find((peer) => peer.deviceId === 'hidden-peer')).toMatchObject({ hasLedger: false, retired: false });
+    const destination = path.join(root, 'destination'); fs.mkdirSync(destination);
+    await expect(publishRecovery(source, { id: preview.id, destinationFolder: destination, retiredDevices: [], confirmPausedClients: true, confirmReviewedChanges: true, reviewDigest: preview.reviewDigest }, secret)).rejects.toThrow('retire each known old device');
+    expect(fs.readdirSync(destination)).toEqual([]);
   });
 
 });

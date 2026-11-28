@@ -111,7 +111,7 @@ export async function prepareRecovery(source: RecoverySource, input: RecoveryPre
   const configured = source.sqlite.prepare("SELECT value FROM settings WHERE key='localSync.syncFolder'").pluck().get() as string | undefined;
   const roots = [...input.mailboxes];
   if (configured && fs.existsSync(configured)) roots.push(configured);
-  const inventory = await inventoryMailboxes(roots, passphrase, path.join(directory, 'evidence'));
+  const inventory = await inventoryMailboxes(roots, passphrase, path.join(directory, 'evidence'), base.groupId);
   if (configured && !fs.existsSync(configured)) inventory.warnings.push('The configured old mailbox is unavailable. Its uncaptured history may be missing; keep every original account and review all device backup or retirement decisions.');
   const privateMailbox = path.join(directory, 'mailbox'); fs.mkdirSync(privateMailbox);
   const opened = openDatabase(path.join(directory, 'stage.fdra'));
@@ -225,6 +225,7 @@ export function recoveryPreview(source: RecoverySource, id: string, passphrase: 
     }
     const base = capturePeerLedger(path.join(directory, 'source.fdra'));
     const peerIds = new Set(journal.captures.map((capture) => capture.deviceId));
+    for (const deviceId of journal.inventory.devices ?? []) peerIds.add(deviceId);
     for (const row of base.state.personnel) if (row.device_id) peerIds.add(String(row.device_id));
     for (const file of journal.inventory.files) {
       if (file.kind !== 'bundle') continue;

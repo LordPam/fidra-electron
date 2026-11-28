@@ -16,6 +16,7 @@ export interface RecoveryInventory {
   warnings: string[];
   duplicates: number;
   roots: { path: string; identity: string }[];
+  devices: string[];
 }
 const directories = new Set(['sync', 'snapshots', 'attachments', 'receipts', 'invites', 'cutovers', 'states']);
 const rootIdentity = (folder: string) => {
@@ -48,9 +49,10 @@ function collect(folder: string): { path: string; relative: string; kind: Recove
 
 /** Immutable copies are collected privately. No source, provider ancestor or
  * shared object is created, replaced, renamed or deleted during inspection. */
-export async function inventoryMailboxes(roots: string[], passphrase: string, evidenceDirectory: string): Promise<RecoveryInventory> {
+export async function inventoryMailboxes(roots: string[], passphrase: string, evidenceDirectory: string, expectedGroupId?: string | null): Promise<RecoveryInventory> {
   fs.mkdirSync(evidenceDirectory, { recursive: true, mode: 0o700 });
-  const result: RecoveryInventory = { files: [], bundles: [], issues: [], warnings: [], duplicates: 0, roots: [] };
+  const result: RecoveryInventory = { files: [], bundles: [], issues: [], warnings: [], duplicates: 0, roots: [], devices: [] };
+  const devices = new Set<string>();
   const identities = new Map<string, string>();
   for (const folder of [...new Set(roots.map((root) => path.resolve(root)))]) {
     const identity = rootIdentity(folder);
@@ -70,7 +72,10 @@ export async function inventoryMailboxes(roots: string[], passphrase: string, ev
         result.files.push(file);
         if (entry.kind !== 'bundle' && entry.kind !== 'snapshot') continue;
         const payload = unpackBundle(bytes, passphrase);
+        if (expectedGroupId && payload.groupId && payload.groupId !== expectedGroupId) throw new Error('This history belongs to a different team.');
         if (payload.schemaVersion !== CRR_SCHEMA_VERSION) throw new Error('The history schema needs a compatible Fidra version');
+        devices.add(payload.deviceId);
+        for (const device of Object.keys(payload.coveredDeviceSeqs ?? {})) devices.add(device);
         if (payload.changesets.some((row) => typeof row.pk === 'string' && row.pk.includes('\uFFFD'))) {
           throw new Error('Legacy primary-key bytes were lost. Provide the originating device’s SQLite backup instead of guessing its key.');
         }
@@ -94,6 +99,7 @@ export async function inventoryMailboxes(roots: string[], passphrase: string, ev
     if (rootIdentity(folder) !== identity) throw new Error('A source mailbox moved or was replaced while it was being inventoried.');
   }
   result.bundles.sort((a, b) => a.payload.sequenceNumber - b.payload.sequenceNumber || a.payload.deviceId.localeCompare(b.payload.deviceId));
+  result.devices = [...devices].sort();
   return result;
 }
 

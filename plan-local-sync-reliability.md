@@ -329,7 +329,7 @@ pause marker; its ledger data and old shared mailbox are preserved. Other old
 clients still require an explicit coordinated pause/rejoin. Invitations now pin
 the manifest bytes, mailbox location and administrator authority.
 
-Local acceptance: 18 recovery foundation/session tests pass, including interrupted
+Local acceptance: 19 recovery foundation/session tests pass, including interrupted
 publication retry, joint-transfer audit rollback, stale-review rejection, readonly
 original preservation, and joining the resulting mailbox in a fresh account.
 The existing 35 orchestrator regressions pass. Typecheck passes. The full-schema
@@ -346,3 +346,5 @@ Stable updater publication remains blocked.
 Final-commit crash regression: a durable predecessor transport pause is written before the new mailbox manifest, then replaced atomically with the completed recovery marker. A failed final retirement write remains paused across restart and the same saved publication repairs it on retry. Already committed original accounts cannot start another independent recovery.
 
 Final commit also holds the original database’s SQLite write lock across manifest publication and source retirement. A second writable connection is proven unable to insert an edit in that interval. The earlier durable pause marker survives a transaction/process failure.
+
+Provider conflict-copy filenames now preserve participant identity from authenticated bundle/snapshot contents rather than relying on filenames. Such devices still require a captured ledger or explicit retirement. Mac acceptance at cdd8418 passed all 783 service tests, 41 desktop tests and actual 0.1.23 → 0.1.31 installer replacement; Windows revealed a legitimate inventory barrier hit by its own pending export. Native recovery preparation now drains that pending export before capture, preserving rejection of genuinely late history. The updated build is being retested on both platforms.
